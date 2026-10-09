@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; media-src 'self' blob:; object-src 'none'">
+<title>Hermes Voice</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<main id="companion">
+  <header id="header"><div class="wordmark">HERMES<span>LOCAL VOICE / 01</span></div><button id="collapse" aria-label="Anzeige verkleinern">−</button></header>
+  <section class="core">
+    <button id="orb" aria-label="Hermes-Steuerung öffnen"><canvas id="neural" width="400" height="400"></canvas></button>
+    <div id="phase">VERBINDE</div><p id="detail">Deine Stimme. Dein Hermes.</p>
+    <button id="mic" class="live" aria-label="Live-Gespräch starten">◉ <span>Live starten</span></button>
+  </section>
+  <div id="panel">
+    <section class="telemetry" aria-label="Systemstatus">
+      <div><label>CPU</label><strong id="cpu">—</strong><i><b id="cpu-bar"></b></i></div>
+      <div><label>RAM</label><strong id="memory">—</strong><i><b id="memory-bar"></b></i></div>
+      <div><label>C: FREI</label><strong id="disk">—</strong><small id="disk-total">Messung läuft</small></div>
+    </section>
+    <section class="session-line"><label for="sessions">HERMES-SESSION</label><select id="sessions"><option value="">Bitte verbinden</option></select><button id="refresh" title="Erneut verbinden">↻</button></section>
+    <div id="auth"><span>Mit deinem Gateway anmelden, um deine Session fortzusetzen.</span><button id="login">Anmelden</button></div>
+    <section id="approval" hidden><p id="approval-command"></p><div><button id="approve">Einmal erlauben</button><button id="deny">Ablehnen</button></div></section>
+    <form id="clarify" hidden><div id="questions"></div><button>Antworten übermitteln</button></form>
+    <section id="transcript" aria-live="polite"><p class="empty">Sag mir, was anliegt.<br><span>Ctrl + Alt + Leertaste aktiviert das Mikrofon.</span></p></section>
+    <form id="command"><input id="text" autocomplete="off" placeholder="Oder einen Auftrag eingeben …" aria-label="Auftrag an Hermes"><button title="Auftrag senden" aria-label="Auftrag senden">↑</button></form>
+    <div class="toolbar"><button id="stop">■ Stoppen</button><button id="settings-toggle">Einstellungen</button><span id="connection">OFFLINE</span></div>
+    <section id="settings" hidden>
+      <label>Gateway<input id="url" type="url" spellcheck="false"></label>
+      <div class="voice-choice"><label>Stimme<select id="voice"><option value="dark">Samtig & kraftvoll</option><option value="sovereign">Souverän & präzise</option><option value="playful">Warm & frech</option></select></label><button id="audition">Anhören</button></div>
+      <label>Sprechweise<select id="delivery"><option value="normal">Natürlich</option><option value="whisper">Flüstern</option><option value="power">Kraftvoll / laut</option></select></label>
+      <label class="check"><input id="monitoring" type="checkbox"> Systemüberwachung</label>
+      <label class="check"><input id="proactive" type="checkbox"> Relevante Hinweise an Hermes weitergeben</label>
+      <label class="check"><input id="speakAlerts" type="checkbox"> Systemhinweise vorlesen</label>
+      <label class="check"><input id="autoStart" type="checkbox"> Mit Windows starten</label>
+      <label class="check"><input id="wakeWord" type="checkbox"> Lokal auf „Hey Hermes / Hey Lilith / Hey Lillis“ hören</label>
+      <label class="check"><input id="bareNames" type="checkbox"> Auch „Lilith“ und „Lillis“ allein erkennen</label>
+      <button id="save">Einstellungen speichern</button><small>Sprachberechnung lokal · keine Sprach-API-Gebühren</small>
+    </section>
+    <div id="notice" role="status" hidden></div>
+  </div>
+</main><script src="microphone.js"></script><script src="app.js"></script></body></html>

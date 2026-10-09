@@ -1,0 +1,9 @@
+runtime/
+node_modules/
+.superpowers/
+*.log
+__pycache__/
+.local/
+voices/*.wav
+voices/*.json
+voices/*.txt
