@@ -1,0 +1,45 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const {spawn}=require('node:child_process'),{pathToFileURL}=require('node:url');
+const electron=path.join(process.env.LOCALAPPDATA||'','hermes','hermes-agent','apps','desktop','node_modules','electron','dist','electron.exe');
+
+test('actual settings page preserves dictionary drafts across sensor updates and saves validated speech settings', {skip:!fs.existsSync(electron),timeout:30000},async t=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'lilith-speech-settings-')),entry=path.join(dir,'main.cjs'),html=path.join(dir,'view.html'),bootstrap=path.join(dir,'bootstrap.js'),output=path.join(dir,'result.json');
+  t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  const ui=path.resolve(__dirname,'../ui');
+  const config={url:'http://127.0.0.1:5000',voice:'dark',delivery:'normal',wakeWord:false,bareNames:false,cameraEnabled:false,screenEnabled:false,gesturesEnabled:false,pushToTalkEnabled:false,pushToTalkKey:'F8',directCommandsEnabled:true,speechDictionary:[{word:'Lilith',heardAs:['Lillis']}],modes:[]};
+  fs.writeFileSync(bootstrap,`window.testCalls=[];window.testHandlers=[];window.testSettings=${JSON.stringify(config)};window.testSensorRequests=0;
+    navigator.mediaDevices.getUserMedia=async()=>{window.testSensorRequests++;throw Error('Sensors disabled in test');};
+    window.hermes={on(fn){window.testHandlers.push(fn);},async invoke(method,value){window.testCalls.push({method,value});if(method==='snapshot')return {settings:window.testSettings,session:{id:'selected'},status:'ready',connected:true,busy:false,sample:{},sessions:[],wakeReady:false,vadReady:false,camera:{profiles:[]},screen:{}};if(method==='settings'){window.testSettings={...window.testSettings,...value};return {settings:window.testSettings,session:{id:'selected'},status:'ready',connected:true,busy:false};}return null;}};
+    window.testEvent=event=>window.testHandlers.forEach(fn=>fn(event));`);
+  const source=fs.readFileSync(path.join(ui,'index.html'),'utf8').replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/,'').replace('<head>','<head><base href="'+pathToFileURL(ui+path.sep).href+'"><script src="'+pathToFileURL(bootstrap).href+'"></script>');
+  fs.writeFileSync(html,source);
+  const browserCheck=async function(){
+    const check=(value,message)=>{if(!value)throw Error(message);};
+    await new Promise(resolve=>setTimeout(resolve,20));
+    const container=document.getElementById('speech-dictionary-editor');
+    check(container.querySelector('[data-sd="word"]')?.value==='Lilith','snapshot failed to mount saved dictionary');
+    const type=(node,value)=>{node.value=value;node.dispatchEvent(new Event('input',{bubbles:true}));};
+    type(container.querySelector('[data-sd="word"]'),'LightCraft');type(container.querySelector('[data-sd="variants"]'),'light kraft');
+    window.testEvent({type:'settings-config',settings:{...window.testSettings,cameraGreetings:true}});
+    check(container.querySelector('[data-sd="word"]').value==='LightCraft','unrelated sensor update overwrote unsaved dictionary');
+    document.getElementById('pushToTalkEnabled').checked=true;document.getElementById('pushToTalkKey').value='F9';document.getElementById('directCommandsEnabled').checked=false;
+    document.getElementById('save').click();await new Promise(resolve=>setTimeout(resolve,20));
+    const saved=window.testCalls.filter(call=>call.method==='settings').at(-1)?.value;
+    check(saved?.pushToTalkEnabled===true&&saved.pushToTalkKey==='F9'&&saved.directCommandsEnabled===false,'speech controls omitted from Save');
+    check(JSON.stringify(saved.speechDictionary)===JSON.stringify([{word:'LightCraft',heardAs:['light kraft']}]),'Save omitted validated dictionary draft');
+    container.querySelector('[data-sd="add"]').click();const before=window.testCalls.filter(call=>call.method==='settings').length;
+    document.getElementById('save').click();await new Promise(resolve=>setTimeout(resolve,20));
+    check(window.testCalls.filter(call=>call.method==='settings').length===before,'invalid draft was submitted');
+    check(!document.getElementById('notice').hidden&&!container.querySelector('[data-sd="error"]').hidden,'invalid draft did not explain rejection');
+    check(window.testSensorRequests===0,'settings page opened a real sensor');
+    check(window.testCalls.every(call=>call.method!=='submit'),'dictionary settings generated a Hermes turn');
+    return {draftPreserved:true,speechSettingsSaved:true,invalidDraftRejected:true,sensorsOff:true};
+  };
+  fs.writeFileSync(entry,`const {app,BrowserWindow,session}=require('electron'),fs=require('node:fs'),path=require('node:path');app.setPath('userData',path.join(${JSON.stringify(dir)},'profile'));app.whenReady().then(async()=>{session.defaultSession.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));session.defaultSession.webRequest.onBeforeRequest((details,callback)=>callback({cancel:!details.url.startsWith('file:')&&!details.url.startsWith('devtools:')}));const win=new BrowserWindow({show:false,width:500,height:1100,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true}});try{await win.loadFile(${JSON.stringify(html)});const result=await win.webContents.executeJavaScript('('+${JSON.stringify(browserCheck.toString())}+')()');fs.writeFileSync(${JSON.stringify(output)},JSON.stringify({result}));win.destroy();app.exit(0);}catch(error){fs.writeFileSync(${JSON.stringify(output)},JSON.stringify({error:error.stack}));app.exit(1);}});`);
+  const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
+  const child=spawn(electron,[entry],{env,windowsHide:true,stdio:['ignore','ignore','pipe']});let stderr='';child.stderr.on('data',chunk=>stderr=(stderr+chunk).slice(-4000));t.after(()=>{if(child.exitCode===null)child.kill();});
+  const code=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',resolve);});
+  const result=fs.existsSync(output)?JSON.parse(fs.readFileSync(output,'utf8')):{};assert.equal(code,0,result.error||stderr);
+  assert.deepEqual(result.result,{draftPreserved:true,speechSettingsSaved:true,invalidDraftRejected:true,sensorsOff:true});
+});

@@ -1,0 +1,47 @@
+.project-graph{margin-top:22px;border:1px solid var(--line,#233b48);padding:20px;background:linear-gradient(135deg,#10273555,#08131dcc);color:var(--ink,#deeff4);min-width:0}
+.pg-heading{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:17px}
+.pg-heading small,.pg-mode,.pg-search label,.pg-results-heading,.pg-source-heading{font:9px 'Cascadia Code',Consolas,monospace;letter-spacing:1.2px;color:var(--muted,#819ca9)}
+.pg-heading h3{font:400 23px 'Bahnschrift','Segoe UI',sans-serif;margin:7px 0 0;color:#cbe5ee}
+.pg-mode{border:1px solid #39dcff45;padding:7px 9px;color:#8fdced;white-space:nowrap}
+.pg-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pg-toolbar button,.pg-search button,.pg-map-tools button{border:1px solid #355b6d;padding:8px 11px;color:#a7d6e6;font-size:11px}
+.pg-toolbar [data-pg=index]{color:var(--accent,#39dcff);background:#153a4b}
+.pg-toolbar>span{margin-left:5px;color:#7999ac;font-size:11px;overflow-wrap:anywhere}
+.pg-search{margin:20px 0 9px}.pg-search label{display:block;margin-bottom:8px}.pg-search>div{display:flex;gap:7px}
+.pg-search input{min-width:0;flex:1;padding:10px 11px;background:#081926;border:1px solid #2e4d60;color:#d0e3eb;font-size:12px}.pg-search input::placeholder{color:#527386}
+.pg-status{font-size:10px;color:#789ba9;line-height:1.6;margin:10px 0 15px}.pg-status.pg-error{color:var(--amber,#ffc078)}
+.pg-body{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(230px,.8fr);gap:14px}
+.pg-map{position:relative;min-height:397px;border:1px solid #284555;background:radial-gradient(ellipse at 50% 48%,#15546830 0,#103d4920 30%,transparent 68%),linear-gradient(#07192366,#040d15),#07131e;overflow:hidden}
+.pg-map::before{content:'';position:absolute;inset:35px 0 0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 3px,#39dcff03 4px);z-index:0}
+.pg-map svg{position:relative;display:block;width:100%;height:360px;isolation:isolate}
+.pg-map-tools{position:relative;display:flex;align-items:center;gap:5px;padding:9px 10px;border-bottom:1px solid #233b4850;background:#081722b3;z-index:1}
+.pg-map-tools>span{flex:1;font:9px 'Cascadia Code',Consolas,monospace;color:#638c9b}.pg-map-tools button{font-size:10px;padding:3px 8px}
+.pg-map-tools [data-pg=motion]{min-width:50px;color:#8cdae9;border-color:#39dcff40}.pg-map-tools [data-pg=motion][aria-pressed=false]{color:#738f9c;border-color:#355b6d}
+.pg-map-tools button:focus-visible,.pg-search button:focus-visible,.pg-toolbar button:focus-visible,.pg-results button:focus-visible{outline:2px solid #65e0f5;outline-offset:3px}
+.pg-orb-scaffold{fill:none;stroke:#42cde2;stroke-width:.8;pointer-events:none}
+.pg-orb-grid{fill:none;stroke:#50c9de;stroke-width:.75}.pg-orb-grid.back{opacity:.085;stroke-dasharray:2 6}.pg-orb-grid.front{opacity:.23}
+.pg-orb-halo{stroke:#72e7f5;stroke-width:1;opacity:.36;filter:drop-shadow(0 0 7px #39dcff55)}
+.pg-orb-calibration{stroke:#4bcbe3;stroke-width:3;stroke-dasharray:1 19.4;opacity:.24}
+.pg-orb-orbit{stroke:#76e4ec;stroke-width:.85;stroke-dasharray:4 10;opacity:.14}
+.pg-orb-shadow{fill:#36bdd525;stroke:none;filter:blur(8px)}
+.pg-link{fill:none;stroke:#4b9bae;stroke-width:1;stroke-linecap:round;pointer-events:none}.pg-link.back{opacity:.12}.pg-link.front{opacity:.4}
+.pg-link.selected{stroke:#5ae6ff;stroke-width:1.45}.pg-link.selected.back{opacity:.3}.pg-link.selected.front{opacity:.85;filter:drop-shadow(0 0 2px #39dcff40)}
+.pg-node{cursor:pointer;outline:none}.pg-node-hit{fill:transparent;stroke:none}.pg-node-core{stroke:#b5e2f350;stroke-width:1.1}
+.pg-node text{font:11.5px 'Cascadia Code',Consolas,monospace;fill:#a6c6d7;opacity:0;pointer-events:none;paint-order:stroke;stroke:#06131d;stroke-width:4px;stroke-linejoin:round}
+.pg-node.labelled text{opacity:1}.pg-node.selected .pg-node-core{stroke:#e8feff;stroke-width:1.7;filter:drop-shadow(0 0 5px #39dcff88)}
+.pg-node.selected text{fill:#e3fbff;font-weight:600}.pg-node:hover text,.pg-node:focus text{fill:#fff}.pg-node:hover .pg-node-core{stroke:#e3fcff;stroke-width:2}
+.pg-node:focus{opacity:1!important}.pg-node:focus .pg-node-core{stroke:#fff;stroke-width:3;filter:drop-shadow(0 0 7px #39dcff)}
+.pg-node.activity .pg-node-core{fill:#ffb15b;stroke:#ffe4b9;stroke-width:2;animation:pg-tool-pulse 1.25s ease-in-out infinite}.pg-node.activity text{fill:#ffdcb0}
+.pg-node.gesture-pointed .pg-node-core{stroke:#fff;stroke-width:3}.pg-node.gesture-pointed text{fill:#fff}.pg-gesture-active .pg-map{border-color:#8bdde580}
+@keyframes pg-tool-pulse{0%,100%{filter:drop-shadow(0 0 3px #ffb15b66)}50%{filter:drop-shadow(0 0 10px #ffb15bbb)}}
+@media(prefers-reduced-motion:reduce){.pg-node.activity .pg-node-core{animation:none;filter:drop-shadow(0 0 5px #ffb15b88)}}
+.pg-orb-caption{position:absolute;bottom:10px;left:12px;right:12px;display:flex;justify-content:space-between;gap:10px;color:#426f80;font:8px 'Cascadia Code',Consolas,monospace;letter-spacing:1.4px;pointer-events:none}
+.pg-map-empty{position:absolute;left:18%;right:18%;top:36%;font-size:17px;color:#83aabb;line-height:1.8;text-align:center;pointer-events:none;text-shadow:0 0 12px #07131e}.pg-map-empty span{font-size:11px;color:#527c8f}
+.pg-details{border:1px solid #284555;background:#091824;min-width:0}
+.pg-results-heading,.pg-source-heading{padding:11px 12px;border-bottom:1px solid #233b4860;letter-spacing:.7px;overflow-wrap:anywhere}.pg-results-heading span{float:right;color:#39dcff}
+.pg-results{height:120px;overflow:auto;scrollbar-width:thin;scrollbar-color:#284452 transparent}.pg-results>p{padding:0 12px;font-size:11px;line-height:1.6;color:#6c8d9e}
+.pg-results button{display:block;text-align:left;width:100%;padding:9px 12px;border-bottom:1px solid #233b4840}.pg-results strong{display:block;font-size:11px;font-weight:400;color:#b9dbe8;overflow-wrap:anywhere}.pg-results button>span{display:block;font:9px 'Cascadia Code',Consolas,monospace;color:#5f889b;margin-top:5px;overflow-wrap:anywhere}
+.pg-source-heading{border-top:1px solid #233b4860;color:#8eb7c9}.pg-source{margin:0;padding:12px;max-height:225px;min-height:170px;overflow:auto;scrollbar-width:thin;scrollbar-color:#284452 transparent;font:10px/1.65 'Cascadia Code',Consolas,monospace;color:#a4c3d0;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
+.pg-footnote{font-size:9px;color:#577e90;margin:13px 0 0;line-height:1.6}
+@media(max-width:1100px){.pg-body{grid-template-columns:1fr}.pg-details{display:grid;grid-template-columns:1fr 1fr}.pg-results-heading{grid-column:1}.pg-results{grid-column:1}.pg-source-heading{grid-column:2;grid-row:1}.pg-source{grid-column:2;grid-row:2;max-height:170px}}
+@media(max-width:720px){.project-graph{padding:13px}.pg-mode{display:none}.pg-details{display:block}.pg-map-tools{flex-wrap:wrap}.pg-map-tools>span{min-width:100px}.pg-orb-caption{font-size:7px;letter-spacing:.8px}}

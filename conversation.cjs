@@ -20,7 +20,7 @@ class Conversation {
     if (this.busy) throw new Error('Ein Auftrag läuft. Zuerst unterbrechen oder abschließen.');
     if (typeof text !== 'string' || !text.trim() || text.length > 20000) throw new Error('Der Auftrag ist leer oder zu lang.');
     this.busy = true; this.error = '';this.speakReply=speak;
-    try { return await this.request('prompt.submit', {session_id:this.session.id,profile:this.session.profile,text:text.trim(),surface:'voice-live'}); }
+    try { return await this.request('prompt.submit', {session_id:this.session.id,profile:this.session.profile,text:text.trim(),...(speak?{surface:'voice-live'}:{})}); }
     catch (error) { this.busy = false; this.error = error.message; throw error; }
   }
   receive(event) {
@@ -40,12 +40,18 @@ class Conversation {
 class SentenceBuffer {
   constructor() { this.text = ''; }
   push(delta) {
-    this.text += delta; const result = [];
-    // punctuation must be followed by whitespace/end: don't split dates or decimals.
-    let match;
-    while ((match = this.text.match(/^([\s\S]*?[.!?](?=\s|$))(?:\s+|$)/)) && match[1].trim().length >= 12) {
-      result.push(match[1].trim()); this.text = this.text.slice(match[0].length);
+    this.text += String(delta || ''); const result = [];
+    const boundaries = /[.!?]+["'»“”\)\]]*(?=\s|$)/g;
+    let match, consumed = 0;
+    while ((match = boundaries.exec(this.text))) {
+      const end = match.index + match[0].length, prefix = this.text.slice(consumed, end);
+      // A period in a title, abbreviation, initial or unfinished number is not a sentence.
+      // ponytail: common German abbreviations; extend this list when rare forms are observed.
+      if(match[0] === '.' && /(?:\b(?:dr|prof|bzw|ca|usw|etc|nr|vgl|ggf|sog|abb|tel|inkl|zzgl|evtl|bsp|str)\.|\b[a-zäöü]\.|\b\d+\.)$/i.test(prefix))continue;
+      const sentence = prefix.trim(); if(sentence)result.push(sentence);
+      consumed = end;
     }
+    this.text = this.text.slice(consumed).replace(/^\s+/, '');
     return result;
   }
   flush() { const result = this.text.trim(); this.text = ''; return result; }

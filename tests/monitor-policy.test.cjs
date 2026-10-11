@@ -2,6 +2,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createMonitorPolicy } = require('../monitor-policy.cjs');
+test('a cached MCP failure does not count as multiple independent failed probes',()=>{
+  const p=createMonitorPolicy();
+  for(let i=0;i<10;i++)assert.deepEqual(p.observe({mcpOnline:false,mcpCheckedAt:100},i),[]);
+  assert.deepEqual(p.observe({mcpOnline:false,mcpCheckedAt:200},10),[]);
+  assert.equal(p.observe({mcpOnline:false,mcpCheckedAt:300},11)[0]?.kind,'mcp');
+});
 
 test('CPU and memory need three high readings and do not repeat unchanged', () => {
   const policy = createMonitorPolicy();

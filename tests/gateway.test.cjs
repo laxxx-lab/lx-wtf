@@ -1,5 +1,14 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+
+test('current Hermes tool.complete events finish the same tool_id started earlier',async t=>{
+ const {TaskLedger}=require('../task-ledger.cjs');const ledger=new TaskLedger();ledger.start({title:'LightCraft',sessionId:'live-light'});
+ const server=new WebSocketServer({port:0});await new Promise(resolve=>server.once('listening',resolve));
+ server.on('connection',socket=>{for(const type of ['tool.start','tool.complete'])socket.send(JSON.stringify({jsonrpc:'2.0',method:'event',params:{type,session_id:'live-light',payload:{tool_id:'light-tool-94',name:'mcp_lightcraft_live_set_develop',result:{ok:true}}}}));});
+ const events=[],gateway=new Gateway({url:`http://127.0.0.1:${server.address().port}`,onEvent:event=>{events.push(event);if(event.type==='tool.start')ledger.toolStart({id:event.data.tool_call_id,name:event.data.name,sessionId:event.session_id});if(event.type==='tool.end')ledger.toolEnd({id:event.data.tool_call_id,sessionId:event.session_id});}});
+ t.after(()=>{gateway.close();server.close();});await gateway.connect({ticket:'fixture'});await new Promise(resolve=>setTimeout(resolve,30));
+ assert.equal(events[1].type,'tool.end');assert.equal(events[1].data.tool_call_id,'light-tool-94');assert.equal(ledger.view().completedTools,1);assert.equal(ledger.view().tools[0].status,'complete');
+});
 const { WebSocketServer } = require('ws');
 const { Gateway, validateGatewayUrl } = require('../gateway.cjs');
 

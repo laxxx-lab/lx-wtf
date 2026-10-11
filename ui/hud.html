@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'">
+  <title>Hermes Aktivität</title>
+  <link rel="stylesheet" href="hud.css">
+</head>
+<body>
+  <main id="hud-card" data-state="idle" hidden aria-label="Aktueller Hermes-Auftrag">
+    <header class="hud-header">
+      <span class="hud-wordmark">HERMES<span class="hud-slash"> / </span>ACTIVITY</span>
+      <span class="hud-state"><i aria-hidden="true"></i><span id="hud-status">BEREIT</span></span>
+    </header>
+    <h1 id="hud-title"></h1>
+    <ol id="hud-steps" aria-label="Beobachtete Werkzeugaktionen"></ol>
+    <p id="hud-empty">Auftrag wird bearbeitet</p>
+    <p id="hud-summary" role="status" aria-live="polite" hidden></p>
+    <footer class="hud-footer">
+      <span class="hud-duration">ZEIT <time id="hud-elapsed">00:00</time></span>
+      <span id="hud-count">0 WERKZEUGE BEENDET</span>
+      <span class="hud-corner" aria-hidden="true">⌟</span>
+    </footer>
+  </main>
+  <script src="hud.js"></script>
+</body>
+</html>

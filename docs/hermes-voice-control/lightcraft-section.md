@@ -1,0 +1,13 @@
+## LightCraft: geprüfte Live-Anbindung
+
+Der Server **lightcraft-live** ist im Hermes-Default-Profil eingerichtet und über den bestehenden Windows-SSH-Zugang getestet. Er führt auf dem PC `I:/tools/artcraft/apps/LightCraft/lightcraft-cli.exe mcp --connect 127.0.0.1:7980 --compact` aus. Er bedient den tatsächlich laufenden GUI-Prozess; keine neue Headless-Bibliothek anlegen. Lokal wurde die vorhandene Bibliothek `C:\Users\patri\Pictures\LightCraft Library` wieder geöffnet. Port 7980 gehört ausschließlich zum gestarteten LightCraft-GUI-Prozess. Die Werkbank kennt dessen Registrierung.
+
+Bei LightCraft-Aufträgen zuerst die vorhandenen **lightcraft-live**-MCP-Werkzeuge verwenden: `ui_inspect`, `doc_inspect`, `select_photos`, `get_develop`, `set_develop`, `run_command`. `--compact` stellt 27 Helfer statt hunderter einzelner Befehle bereit. `run_command` erwartet `{command, params}`, `set_develop` unterstützt `{id,values,settings,label}`. Toolnamen im geladenen MCP-Werkzeugkatalog verwenden; keine neuen Funktionsnamen erfinden.
+
+Vor Änderungen aktive Foto-ID und Auswahl prüfen, mit `run_command` / `photo.inspect` den Dateinamen bestätigen. Bei „das ausgewählte Foto“ nur diese eindeutige ID verändern. `set_develop` mit expliziter `id` verwenden. `develop.auto` arbeitet nur auf dem gerade aktiven Foto; unmittelbar zuvor Auswahl prüfen und keine Stapelbearbeitung daraus machen. Vorherige Einstellungen merken, danach über `get_develop` und `ui_inspect` gegenprüfen. Original-RAWs nicht überschreiben, keinen Export oder Upload auslösen, wenn nur die Entwicklung gewünscht ist.
+
+Licht, Lichter/Tiefen, Farben und Schärfung behutsam anpassen; unscharfe Aufnahme nicht als wiederhergestellt behaupten. Keine Personenidentifikation nötig. Bei fehlender Auswahl kurz nach dem Bild fragen. Bei fehlendem Steuerkanal konkret melden, statt Dutzende SSH-/Dateisuchen zu starten. Kein blindes `list_apps` mit hunderten Einträgen; native Fenster bei Bedarf auf die bekannte LightCraft-PID begrenzen. `window_id:0` ist kein vorhandenes Fenster.
+
+„App öffnen“ aus der Artcraft-Werkbank nutzt beim nächsten Start den registrierten Steuerkanal. Bereits laufende Instanzen ohne Control-Kanal dürfen nicht stillschweigend geschlossen werden, wenn Nutzereingaben oder ungesicherte Änderungen betroffen sind. Die kontrollierte Verbindung und die vorhandene Bibliothek wurden eingerichtet; nicht bei jedem Auftrag erneut installieren oder konfigurieren.
+
+Nach einem einfachen Auftrag eine kurze geprüfte Rückmeldung geben, zum Beispiel „Das ausgewählte Foto ist angepasst, Boss.“ Keine erneute Rückfrage zum bereits festgelegten Umfang und keine Erfolgsmeldung allein wegen eines angenommenen Befehls.

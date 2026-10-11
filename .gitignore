@@ -4,6 +4,14 @@ node_modules/
 *.log
 __pycache__/
 .local/
-voices/*.wav
-voices/*.json
-voices/*.txt
+voices/
+werkstatt-bilder/
+.env
+.env.*
+!.env.example
+credentials/
+models/
+settings.json
+connection.json
+captures/
+artifacts/

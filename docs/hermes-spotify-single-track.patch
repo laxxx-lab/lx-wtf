@@ -1,0 +1,76 @@
+--- plugins/spotify/tools.py
++++ plugins/spotify/tools.py
+@@ -7,6 +7,7 @@
+ 
+ from __future__ import annotations
+ 
++import time
+ from typing import Any, Callable, Dict, List, Optional
+ 
+ from hermes_cli.auth import get_auth_status
+@@ -129,11 +130,52 @@
+     context_uri = None
+     if args.get("context_uri"):
+         raw = str(args.get("context_uri"))
+-        # Infer the context type so mismatches raise; unknown kinds pass through unchecked.
+         context_type = next((t for t, prefix, frag in _CONTEXT_TYPES if raw.startswith(prefix) or frag in raw), None)
+         context_uri = normalize_spotify_uri(raw, context_type)
+     body = {"context_uri": context_uri, "uris": uris, "offset": payload_offset, "position_ms": args.get("position_ms")}
+-    return _ok(action, client.request("PUT", "/me/player/play", params={"device_id": args.get("device_id")}, json_body=body))
++    device_id = args.get("device_id")
++    play_started = time.monotonic()
++    result = client.request("PUT", "/me/player/play", params={"device_id": device_id}, json_body=body)
++    # Keep playlist/multi-track payloads intact; a single-track start gets a
++    # bounded effect check and the album-offset workaround observed on this PC.
++    if context_uri or not uris or len(uris) != 1:
++        return _ok(action, result, playback_verified=False)
++    expected = uris[0]
++    last = {}
++    def verified(attempts):
++        nonlocal last
++        for _ in range(attempts):
++            time.sleep(.4)
++            raw_state = client.get_playback_state(market=args.get("market"))
++            last = raw_state if isinstance(raw_state, dict) else {}
++            item = last.get("item") if isinstance(last.get("item"), dict) else {}
++            device = last.get("device") if isinstance(last.get("device"), dict) else {}
++            linked = item.get("linked_from") if isinstance(item.get("linked_from"), dict) else {}
++            matches = expected in (item.get("uri"), linked.get("uri"))
++            position = args.get("position_ms")
++            expected_position = position + (time.monotonic() - play_started) * 1000 if position is not None else None
++            position_ok = expected_position is None or (isinstance(last.get("progress_ms"), (int, float)) and abs(last["progress_ms"] - expected_position) <= 2000)
++            if last.get("is_playing") is True and matches and (not device_id or device.get("id") == device_id) and position_ok:
++                return True
++        return False
++    strategy = "uris"
++    if not verified(2):
++        track = client.request("GET", "/tracks/" + normalize_spotify_id(expected, "track"), params={"market": args.get("market")})
++        album_info = track.get("album") if isinstance(track, dict) and isinstance(track.get("album"), dict) else {}
++        album = album_info.get("uri")
++        if not album:
++            return tool_result({"success": False, "request_accepted": True, "playback_verified": False, "message": "Spotify accepted play but did not start the requested track; no album fallback is available."})
++        fallback = {"context_uri": normalize_spotify_uri(album, "album"), "offset": {"uri": expected}, "position_ms": args.get("position_ms")}
++        play_started = time.monotonic()
++        result = client.request("PUT", "/me/player/play", params={"device_id": device_id}, json_body=fallback)
++        strategy = "album_offset"
++        if not verified(3):
++            item = last.get("item") if isinstance(last.get("item"), dict) else {}
++            device = last.get("device") if isinstance(last.get("device"), dict) else {}
++            return tool_result({"success": False, "request_accepted": True, "playback_verified": False, "message": "Spotify accepted play, but the requested track is not playing on the requested device.", "expected_uri": expected, "actual_uri": item.get("uri"), "actual_device_id": device.get("id")})
++    item = last.get("item") if isinstance(last.get("item"), dict) else {}
++    device = last.get("device") if isinstance(last.get("device"), dict) else {}
++    return _ok(action, result, playback_verified=True, strategy=strategy, track={"name": item.get("name"), "uri": item.get("uri")}, device={"id": device.get("id"), "name": device.get("name")}, progress_ms=last.get("progress_ms"))
+ 
+ 
+ def _pb_cmd(client: SpotifyClient, args: dict, action: str, method: str, path: str, **extra: Any) -> str:
+--- plugins/spotify/__init__.py
++++ plugins/spotify/__init__.py
+@@ -12,7 +12,7 @@
+ 
+ from __future__ import annotations
+ 
+-from plugins.spotify import tools as _t
++from . import tools as _t
+ 
+ _TOOLS = (
+     ("spotify_playback",  _t.SPOTIFY_PLAYBACK_SCHEMA,  _t._handle_spotify_playback,  "🎵"),

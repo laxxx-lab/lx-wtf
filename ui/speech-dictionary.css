@@ -1,0 +1,20 @@
+.speech-dictionary{border:1px solid #29454b;border-radius:10px;padding:12px;margin:14px 0;background:#091820;min-width:0}
+.speech-dictionary h3{font:10px 'Cascadia Code',Consolas,monospace;letter-spacing:1px;color:var(--teal);margin:0 0 10px}
+.speech-dictionary p{font-size:10px;line-height:1.5;margin:8px 0;color:#a9c0bf;overflow-wrap:anywhere}
+.speech-dictionary .sd-help,.speech-dictionary .sd-empty{color:#8da9ac;font-size:9px}
+.speech-dictionary table{table-layout:fixed;width:100%;border-collapse:collapse;margin:12px 0}
+.speech-dictionary th{text-align:left;font-size:9px;font-weight:400;color:#a9c0bf;padding:0 4px 6px 0;vertical-align:bottom}
+.speech-dictionary th:nth-child(1){width:34%}.speech-dictionary th:nth-child(2){width:44%}.speech-dictionary th:nth-child(3){width:22%}
+.speech-dictionary td{vertical-align:top;padding:5px 4px 5px 0;border-top:1px solid var(--line)}
+.speech-dictionary td:last-child{padding-right:0}
+.speech-dictionary input,.speech-dictionary textarea{display:block;width:100%;min-width:0;max-width:100%;font:11px 'Segoe UI',sans-serif;background:#091b25;border:1px solid #2d4a54;border-radius:6px;color:var(--ink);padding:7px;resize:vertical;user-select:text}
+.speech-dictionary textarea{line-height:1.4;min-height:44px}
+.speech-dictionary input:focus-visible,.speech-dictionary textarea:focus-visible{outline:1px solid var(--teal);outline-offset:2px}
+.speech-dictionary button{border:1px solid #33595c;border-radius:5px;padding:6px;font-size:9px;color:var(--teal);max-width:100%;overflow-wrap:anywhere}
+.speech-dictionary .sd-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.speech-dictionary .sd-actions span{color:#8da9ac;font-size:9px;font-variant-numeric:tabular-nums}
+.speech-dictionary .sd-error{color:var(--amber);border-left:2px solid var(--amber);padding-left:8px;user-select:text}
+.speech-dictionary .sd-preview-label{display:block;font-size:9px;color:#a9c0bf;margin:16px 0 5px}
+.speech-dictionary .sd-result{padding:8px;border:1px solid var(--line);border-radius:6px;white-space:pre-wrap;user-select:text;max-height:150px;overflow:auto}
+.speech-dictionary .sd-changes{color:var(--teal);font-size:9px;white-space:pre-wrap;user-select:text}
+.speech-dictionary .sd-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}

@@ -40,6 +40,8 @@ class Gateway extends EventEmitter {
         else entry.resolve(frame.result);
       } else if (frame.method === 'event') {
         const event = { ...frame.params, data: frame.params?.payload || frame.params?.data || {} };
+        if (event.type === 'tool.complete') event.type = 'tool.end';
+        if (['tool.start','tool.end'].includes(event.type) && event.data.tool_id && !event.data.tool_call_id) event.data = {...event.data,tool_call_id:event.data.tool_id};
         this.onEvent(event); this.emit('event', event);
       } else if (frame.method && frame.id != null) {
         this.emit('server-request', frame);

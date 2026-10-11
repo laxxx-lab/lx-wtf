@@ -1,0 +1,11 @@
+# Lilith: verlässliche Ausführung und interaktive Werkstatt
+
+Der Nutzer hat den fünfstufigen Plan ausdrücklich beauftragt. Bestehende Hermes-Session, lokale Modelle, Electron-App und vorhandene Windows-Anbindungen bleiben die Grundlage. Datenschutz war zu Beginn aktiv und wird für Entwicklung oder Tests nicht durch die Agenten aufgehoben. Vor Aktivierung meldete der bestehende Client bereits einen lokal entsperrten Zustand; vorhandene Freigaben bleiben erhalten.
+
+1. Aufträge werden lokal und atomar gespeichert, seriell pro ausgewählter Session gestartet und mit echten Ereignissen verfolgt. Verbindungsabbruch/Timeout bedeutet unbekanntes Ergebnis. Keine automatische Wiederholung; zuerst wieder verbinden, laufenden Hermes-Zustand und vorhandene Ergebnisse prüfen. Nur belegte Wirkung erhält „bestätigt“.
+2. Der Sprachweg erhält inhaltsfreie Zeitmessung. Sichere Gesprächsantworten können satzweise früher gesprochen werden, Aktionsbestätigungen erst nach Abschluss. Dazwischenreden stoppt die Ausgabe, verwirft verspätetes Audio und behält den Satzanfang.
+3. Eine geprüfte native Artcraft-Anwendung lässt sich über ihren Stream bedienen. Eingaben gehören zum frisch aufgelösten PID/HWND und berücksichtigen Videoformat, DPI und Monitorlage. Keine beliebigen Shell-Eingaben oder Annahme, dass ein installierter Editor automatisch Eingaben unterstützt.
+4. Projektkontext, echte Werkzeug-/Dateibelege und ausgewählte Logs erzeugen begrenzte Hinweise mit Zeit und konkreter Benutzeraktion. Der statische Projektgraph wird nicht als Laufzeitbeweis ausgegeben. Neue verschachtelte Projektdateien sollen Veraltung auslösen, ohne ungefragtes Reindexieren oder LLM-Aufträge.
+5. Teach Mode hält bewusst gestartete beobachtete Schritte und vom Nutzer bestätigte Erfolgskriterien fest; kein unbeschränktes heimliches Klick-Recording. Räumliche Gesten betreffen nur Werkstattobjekte/Graphansicht, keine ungezielten globalen Windows-Klicks.
+
+Keine neuen kostenpflichtigen Dienste oder Frameworkmigration. Native Alltagstests soweit unter bestehender Freigabe ausführbar; die aktive Datenschutzsperre respektieren. Sensorprüfungen erfolgen isoliert mit Testquellen. Chrome/Edge-Zugang kann eine eigene lokale Browserfreigabe benötigen; dann Einschränkung belegt benennen statt Zugriff erfinden.

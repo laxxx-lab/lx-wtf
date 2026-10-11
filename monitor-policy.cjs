@@ -64,6 +64,11 @@ function createMonitorPolicy(options = {}) {
       check('disk', 'Disk', free, 'GiB', diskValid, free <= 10 && freePercent <= 10,
         free <= 2 && freePercent <= 2, free >= 15 || freePercent >= 15, 1);
       for (const [kind, key, label] of [['gateway', 'gatewayOnline', 'Gateway'], ['mcp', 'mcpOnline', 'MCP']]) {
+        if(kind==='mcp'&&Number.isFinite(sample.mcpCheckedAt)){
+          const state=states[kind]||={high:0,critical:0,active:null,lastAlert:-Infinity};
+          if(state.sampleStamp===sample.mcpCheckedAt)continue;
+          state.sampleStamp=sample.mcpCheckedAt;
+        }
         const value = sample[key];
         check(kind, label, value, 'online', typeof value === 'boolean', value === false, false, value === true, 3);
       }

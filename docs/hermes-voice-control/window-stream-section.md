@@ -1,0 +1,9 @@
+## Echter Artcraft-Fensterstream
+
+Aktueller Stand: Der frühere Screenshot-Schalter „Live“ ist ersetzt durch **Fensterstream**. Patrik kann im Artcraft-Reiter das ausgewählte native Anwendungsfenster als lokalen Video-MediaStream sehen, Ziel 30 fps. Bei unverändertem Fenster liefert Windows weniger neue Frames; Bewegung wird als Video übertragen. Keine periodische PNG-Schleife mehr für Live.
+
+Der Fensterstream ist unabhängig vom MCP-/GUI-Control-Kanal. Eine geöffnete eindeutige Artcraft-GUI kann als Video sichtbar sein, auch wenn ihre GUI-Steuerung noch nicht verbunden ist. Die Anzeige „GUI-Steuerung verbunden“ bestätigt weiterhin nur den TCP-Control-Kanal. Streamen verbindet keinen Headless-MCP nachträglich mit der sichtbaren GUI. Dokumentbearbeitung weiter über denselben eingerichteten GUI-MCP oder im nativen Fenster durchführen.
+
+Video bleibt lokal in der Werkbank, ohne Upload zum VPS, Aufnahme, Systemaudio oder Mikrofon. Der Stream startet automatisch, sobald die ausgewählte native App geöffnet ist und die Werkbank ihren Artcraft-Reiter zeigt. Kein Einschalten oder Checkbox-Klick erforderlich. Alle drei Sekunden werden nur Metadaten geprüft; extern geöffnete und geschlossene Apps werden automatisch erkannt. Keine entfernte Capture-API erfinden oder heimlich auf den ganzen Desktop ausweichen. Reiterwechsel und Ausblenden beenden Tracks, Wiederanzeigen startet neu. Datenschutz und Not-Aus sperren die Erfassung. Ein bloßer Fokuswechsel darf ihn weiterlaufen lassen. Minimierte Quellfenster können kein aktuelles Bild liefern; bei Bedarf die Originalanwendung anzeigen.
+
+„Aktualisieren“ liest Metadaten und versucht einen fehlgeschlagenen Stream erneut. Der Stream dient der Ansicht; Maus und Tastatur weiter im Originalfenster oder durch Liliths Desktop-/Artcraft-Werkzeuge bedienen. Sprachlich kurz bestätigen, keine langen technischen Erklärungen bei einfachen Befehlen.

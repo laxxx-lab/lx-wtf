@@ -37,3 +37,27 @@ Noch nicht nachgewiesen: authentifizierte Fortsetzung der realen Telegram-Sessio
 echte Mikrofonbedienung, Windows-MCP-Aufträge und deren Freigaben. Die Anmeldung
 am Gateway ist dafür erforderlich. Es wurden keine Spotify-Aufträge, Löschungen,
 Neustarts oder Nachrichten an andere Personen als Test ausgeführt.
+
+## Korrekturen nach dem Nutzertest am 9. Oktober
+
+Das geladene Anmeldefenster blieb durch den versteckten Windows-Start unsichtbar.
+Ein echter Electron-Fenstertest reproduzierte dies; explizites `showInactive()`
+und anschließendes Fokussieren machen das Fenster sichtbar. Authentifizierte
+Session-Fortsetzung und Gespräch wurden anschließend vom Nutzer erprobt.
+
+Live-TTS verwendete zuvor neue VoiceDesign-Synthesen pro Satz. Der Live-Pfad
+verwendet jetzt Base mit festen registrierten Sprecher-Einbettungen. Ausdrucks-
+Referenzen werden einmal vorbereitet. Sehr kurze Texte verwenden dieselbe
+Sprecher-Einbettung ohne langen ICL-Textkontext, da ICL sonst früh EOS ausgeben
+konnte. Leere Synthesen werden mit derselben Identität erneut versucht.
+
+Whisper erkannte Nullsignal als „Vielen Dank“ mit hoher Konfidenz. Silero VAD,
+ein lokales Signalminimum und Segmentprüfung verhindern dies ohne Wort-Blacklist.
+Der echte Produktionspfad verwirft Stille und Rauschen, erlaubt echtes „Vielen
+Dank“ und erkennt weiterhin alle fünf Aktivierungsvarianten in den WAV-Proben.
+
+Die Wakeword-Rückmeldung verwendet 27 geprüfte lokale PCM-Ansagen. Aufnahme
+wartet auf deren Wiedergabe und 400 ms Nachhallabstand. 31 JavaScript- und fünf
+Python-Tests bestehen. Sprecher-Konsistenz wurde mit vier getrennten Synthesen
+geprüft; der Nutzer muss den Höreindruck und das Verhalten im Mikrofonraum noch
+erneut prüfen. Reale Windows-MCP-Aktionen bleiben außerhalb dieser Prüfungen.

@@ -8,5 +8,8 @@
     "start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./launch.ps1",
     "test": "node --test tests/*.test.cjs"
   },
-  "dependencies": { "ws": "8.18.3" }
+  "dependencies": {
+    "@mediapipe/tasks-vision": "1.1.0",
+    "ws": "8.18.3"
+  }
 }
