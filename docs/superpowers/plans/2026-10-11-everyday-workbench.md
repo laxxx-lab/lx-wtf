@@ -16,5 +16,10 @@ kontrollierten lokalen API-Weg.
 - [x] Hermes-Skill konkret ergänzen, gesichert installieren und Werkzeugweg testen.
 - [x] Autostart einschalten; passende Registry-/Electron-Einträge verifizieren.
 - [x] Gesamte Regressionen und eigenständige Prüfung; normale App aktivieren.
-- [ ] Quellbestand/Ignore-Regeln prüfen, committen und ohne Force veröffentlichen.
-- [ ] Remote-Commit verifizieren und Bedienung dokumentieren.
+- [x] Quellbestand/Ignore-Regeln prüfen, committen und ohne Force veröffentlichen.
+- [x] Remote-Commit verifizieren und Bedienung dokumentieren.
+
+Prüfergebnis: [Alltag und Werkstatt](../../everyday-stage-status.md).
+Veröffentlicht unter [laxxx-lab/lx-wtf](https://github.com/laxxx-lab/lx-wtf),
+Zweig `main`. Remote-SHA und Dateibaum wurden gegen den lokalen Stand geprüft;
+248 Quell-/Dokumentationsdateien, keine Runtime-, Token-, Stimmen- oder Fotopfade.
