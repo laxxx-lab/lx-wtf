@@ -41,6 +41,27 @@ function spatialResult(pinchRatio=null,dx=0,dy=0,score=.99){
   for(const point of points){point.x+=dx;point.y+=dy;}
   return {landmarks:[points],worldLandmarks:[],handedness:[[{score,categoryName:'Right'}]]};
 }
+test('fresh camera frames are processed at up to twenty fps without duplicate work',async t=>{
+ const f=fixture(t);await f.controller.enable(f.video);
+ for(const time of [0,25,50,75,100,125,150]){f.setTime(time);f.video.currentTime=time/1000;await f.controller.tick();}
+ assert.deepEqual(f.detections,[0,50,100,150]);
+});
+test('a deliberate stable palm completes in 550 ms and reports hold progress',async t=>{
+ const f=fixture(t);await f.controller.enable(f.video);for(let time=0;time<=500;time+=50)f.controller.process(result(),time);
+ assert.deepEqual(f.actions,[]);assert.ok(f.states.some(s=>s.progress>0&&s.progress<1));f.controller.process(result(),550);assert.deepEqual(f.actions,['workbench-show']);
+});
+test('small pointer jitter is attenuated while deliberate movement stays responsive',async t=>{
+ const spatial=[],f=fixture(t,{onSpatial:p=>spatial.push(p)});await f.controller.enable(f.video);for(const time of [0,50,100,150])f.controller.process(spatialResult(),time);
+ assert.equal(spatial.at(-1)?.kind,'pointer');const origin=spatial.at(-1).x;for(let i=0;i<12;i++)f.controller.process(spatialResult(null,i%2?.006:-.006),200+i*50);
+ const samples=spatial.slice(-10).map(p=>p.x);assert.ok(Math.max(...samples)-Math.min(...samples)<.012,'jitter should shrink, not pass directly');
+ f.controller.process(spatialResult(null,.1),800);assert.ok(spatial.at(-1).x>origin+.09,'fast movement should not feel stuck behind smoothing');
+});
+test('pinch accepts relaxed remaining fingers and modest score changes cannot flicker an active grab',async t=>{
+ const spatial=[],f=fixture(t,{onSpatial:p=>spatial.push(p)});await f.controller.enable(f.video);
+ const relaxed=score=>{const r=result('palm',0,0,score),p=r.landmarks[0];p[4]={x:p[8].x+.18*.21,y:p[8].y,z:0};return r;};
+ for(const time of [0,50,100,150])f.controller.process(relaxed(.99),time);assert.equal(spatial.at(-1)?.pinching,true);
+ f.controller.process(relaxed(.82),200);assert.equal(spatial.at(-1).pinching,true);f.controller.process(relaxed(.75),250);assert.equal(spatial.at(-1).kind,'cancel');
+});
 
 test('confident index pointing emits bounded calibrated object coordinates after a short hold',async t=>{
   const spatial=[];const f=fixture(t,{onSpatial:value=>spatial.push(value),spatialBounds:{left:.2,right:.8,top:.2,bottom:.8}});await f.controller.enable(f.video);
@@ -99,7 +120,7 @@ test('gestures start off and held palms and fists fire once after a stable hold'
   assert.deepEqual(f.actions, []);
   assert.equal(f.controller.active, false);
   await f.controller.enable(f.video);
-  for (let time = 0; time <= 625; time += 125) f.controller.process(result(), time);
+  for (let time = 0; time <= 500; time += 125) f.controller.process(result(), time);
   assert.deepEqual(f.actions, []);
   f.controller.process(result(), 750);
   for (let time = 875; time <= 4000; time += 125) f.controller.process(result(), time);
@@ -166,17 +187,17 @@ test('large diagonal motions, fists and discontinuous frame gaps cannot swipe', 
   assert.deepEqual(f.actions, []);
 });
 
-test('inference uses the existing stream at eight fps and skips duplicate frames', async t => {
+test('inference uses the existing stream and skips duplicate frames or samples faster than twenty fps', async t => {
   const f = fixture(t); await f.controller.enable(f.video);
   await f.controller.enable(f.video);
   assert.equal(f.loads, 1);
   await f.controller.tick();
-  f.setTime(125); await f.controller.tick();
-  f.video.currentTime = 0.1; f.setTime(100); await f.controller.tick();
-  f.video.currentTime = 0.2; f.setTime(125); await f.controller.tick();
-  f.video.currentTime = 0.3; f.setTime(200); await f.controller.tick();
-  f.video.currentTime = 0.4; f.setTime(250); await f.controller.tick();
-  assert.deepEqual(f.detections, [0, 125, 250]);
+  f.setTime(50); await f.controller.tick();
+  f.video.currentTime = 0.1; f.setTime(75); await f.controller.tick();
+  f.video.currentTime = 0.2; f.setTime(100); await f.controller.tick();
+  f.video.currentTime = 0.3; f.setTime(125); await f.controller.tick();
+  f.video.currentTime = 0.4; f.setTime(175); await f.controller.tick();
+  assert.deepEqual(f.detections, [0, 75, 125, 175]);
   assert.equal(f.video.srcObject.getVideoTracks()[0], f.track);
 });
 

@@ -1,5 +1,6 @@
 (function(root) {
   'use strict';
+  const FRAME_MS=50,HOLD_MS=550,COOLDOWN_MS=1000;
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
   function bend(a, b, c) {
     const ab = distance(a, b), bc = distance(b, c);
@@ -27,7 +28,7 @@
     const palm = [0, 5, 9, 13, 17];
     return { pose, x: palm.reduce((sum, i) => sum + image[i].x, 0) / palm.length,
       y: palm.reduce((sum, i) => sum + image[i].y, 0) / palm.length,confidence,fingers,
-      tip:image[8],pinch:distance(points[4],points[8])/Math.max(distance(points[5],points[17]),.00001),
+      tip:image[8],pinchPoint:{x:(image[4].x+image[8].x)/2,y:(image[4].y+image[8].y)/2},pinch:distance(points[4],points[8])/Math.max(distance(points[5],points[17]),.00001),
       indexAway:distance(points[8],points[0])>distance(points[5],points[0])*1.1 };
   }
 
@@ -60,25 +61,29 @@
     cameraLive(video) {
       return Boolean(video?.srcObject && video.srcObject.getVideoTracks?.().some(track => track.readyState === 'live' && track.enabled !== false));
     }
-    state(status, extra = {}) { this.onState({ active: this.active, loading: Boolean(this.pending && !this.active), status, ...extra }); }
+    state(status, extra = {}) {const value={active:this.active,loading:Boolean(this.pending&&!this.active),status,...extra},signature=JSON.stringify(value);if(signature===this.lastState)return;this.lastState=signature;this.onState(value);}
     resetPose() { this.candidate = null; this.swipe = []; this.lastProcess = null; }
     emitSpatial(value) { this.onSpatial({...value,generation:this.generation,sequence:++this.spatialSequence,at:Date.now()}); }
     cancelSpatial() {
-      const wasActive=this.spatialActive;this.spatialActive=false;this.spatialCandidate=null;this.pinching=false;this.pinchSince=null;
+      const wasActive=this.spatialActive;this.spatialActive=false;this.spatialCandidate=null;this.pinching=false;this.pinchSince=null;this.pointerFilter=null;
       if(wasActive)this.emitSpatial({kind:'cancel'});
     }
     processSpatial(hand,time) {
       const folded=hand.fingers.slice(1).every(finger=>finger.folded);
-      const pinchPose=folded&&hand.indexAway&&hand.pinch<=(this.pinching?.4:.24);
+      const pinchPose=hand.indexAway&&hand.pinch<=(this.pinching?.4:.24);
       const pointing=folded&&hand.fingers[0].straight;
-      if(hand.confidence<.85||(!pinchPose&&!pointing)){this.cancelSpatial();return false;}
+      if(hand.confidence<(this.spatialActive?.8:.85)||(!pinchPose&&!pointing)){this.cancelSpatial();return false;}
       if(pinchPose){this.pinchSince??=time;}else this.pinchSince=null;
       const pinch=pinchPose&&(this.pinching||time-this.pinchSince>=100);
       this.candidate=null;this.swipe=[];
       if(!this.spatialCandidate){this.spatialCandidate={since:time};this.state('Zeigefinger erkannt · kurz ruhig halten',{pose:'point'});}
-      if(time-this.spatialCandidate.since<200)return true;
+      if(time-this.spatialCandidate.since<150)return true;
       const bounds=this.spatialBounds,clamp=value=>Math.max(0,Math.min(1,value));
-      const value={kind:'pointer',x:clamp((hand.tip.x-bounds.left)/(bounds.right-bounds.left)),y:clamp((hand.tip.y-bounds.top)/(bounds.bottom-bounds.top)),pinching:pinch};
+      const point=pinch?hand.pinchPoint:hand.tip;
+      const value={kind:'pointer',x:clamp((point.x-bounds.left)/(bounds.right-bounds.left)),y:clamp((point.y-bounds.top)/(bounds.bottom-bounds.top)),pinching:pinch};
+      const previous=this.pointerFilter;
+      if(previous&&pinch===this.pinching){const jump=Math.hypot(value.x-previous.x,value.y-previous.y),dt=time-previous.time,alpha=jump>.25?1:1-Math.exp(-dt/(jump>.06?25:80));value.x=previous.x+alpha*(value.x-previous.x);value.y=previous.y+alpha*(value.y-previous.y);}
+      this.pointerFilter={x:value.x,y:value.y,time};
       this.pinching=pinch;this.spatialActive=true;const generation=this.generation;this.emitSpatial(value);
       if(generation===this.generation)this.state(pinch?'Pinch · Projekt-Orb drehen und zoomen':'Zeigen · Projektknoten hervorheben',{pose:pinch?'pinch':'point'});
       return true;
@@ -113,8 +118,8 @@
           }
           if (typeof detector?.detectForVideo !== 'function' || typeof detector?.close !== 'function') throw new Error('Ungültiges Gestenmodell');
           this.detector = detector;
-          this.timer = setInterval(() => this.tick(), 125);
-          this.state('Gesten aktiv · offene Hand oder Faust zeigen', { loading: false });
+          this.timer = setInterval(() => this.tick(), FRAME_MS/2);
+          this.state('Gesten aktiv'+(detector.delegate?' · '+detector.delegate:'')+' · offene Hand oder Faust zeigen', { loading: false });
           return true;
         } catch (error) {
           if (generation !== this.generation) return false;
@@ -153,7 +158,7 @@
       const time = this.now();
       if(this.inFlight){if(Number.isFinite(time)&&time-this.lastInference>350)this.cancelSpatial();return;}
       if(this.spatialActive&&Number.isFinite(time)&&time-this.lastInference>350&&video.currentTime===this.lastVideoTime){this.cancelSpatial();this.resetPose();}
-      if (!Number.isFinite(time) || time - this.lastInference < 125 || video.readyState < 2 ||
+      if (!Number.isFinite(time) || time - this.lastInference < FRAME_MS-2 || video.readyState < 2 ||
           !(video.videoWidth > 0 && video.videoHeight > 0) || !Number.isFinite(video.currentTime) || video.currentTime === this.lastVideoTime) return;
       this.lastInference = time;
       this.lastVideoTime = video.currentTime;
@@ -215,12 +220,14 @@
       if (Math.hypot(hand.x - candidate.anchor.x, hand.y - candidate.anchor.y) > 0.08) {
         candidate.since = time; candidate.anchor = hand;
       }
-      if (time - candidate.since >= 700) this.fire(hand.pose === 'palm' ? 'workbench-show' : 'workbench-hide', time);
+      const progress=Math.min(1,Math.floor((time-candidate.since)/HOLD_MS*10)/10);
+      this.state((hand.pose==='palm'?'Offene Hand · Werkstatt öffnen':'Faust · Werkstatt schließen')+' · '+Math.round(progress*100)+' %',{pose:hand.pose,progress});
+      if (time - candidate.since >= HOLD_MS) this.fire(hand.pose === 'palm' ? 'workbench-show' : 'workbench-hide', time);
     }
     fire(action, time) {
       this.candidate.consumed = true;
       this.swipe = [];
-      if (time - this.lastAction < 1500) return;
+      if (time - this.lastAction < COOLDOWN_MS) {this.state('Kurze Gestenpause · Hand lösen und neu beginnen',{pose:this.candidate.pose});return;}
       this.lastAction = time;
       const generation = this.generation, pose = this.candidate.pose;
       this.onAction(action);
