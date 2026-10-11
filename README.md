@@ -82,6 +82,13 @@ Der geprüfte Stand und die Grenzen stehen unter
 
 ## Quellcode aus dem Repository einrichten
 
+Hermes kann die App über die bestehende Windows-Anbindung selbst bearbeiten.
+Einstieg und Modulübersicht: [AGENTS.md](AGENTS.md),
+[Wartung und Weiterentwicklung](docs/agent-maintenance.md),
+[Hermes-Entwicklungsskill](docs/hermes-voice-development/SKILL.md).
+Installierter Agentenstand und echte Zugriffstests:
+[Hermes-Projektkenntnis](docs/agent-readiness.md).
+
 Dieses Repository enthält den Client, Helfer, Dokumentation und Tests. Modelle,
 private Referenzstimmen, Fotos, Anmeldung und lokale Einstellungen werden nicht
 mitgeliefert. Voraussetzung: Windows, Node.js/npm und die Electron-Laufzeit einer

@@ -1,9 +1,24 @@
 ---
 name: hermes-voice-control
-description: "Bei Lilith-/Hermes-Voice-Aufträgen mit sichtbaren Ergebnissen, kopiertem Text, aktuellen Fenstern, App-/Projekt-/Systemdaten, Bluetooth, Audioausgabe, Kamera, Bildschirm, Werkbank oder Stop verwenden."
+description: "Bei Steuerung von Liliths Windows-App verwenden."
 ---
 
 # Hermes Voice auf Patriks Windows-PC steuern
+
+## Projektkenntnis und Quellarbeit
+
+Die Voice-App und Werkstatt sind deine lokale Arbeitsoberfläche für dieselbe
+VPS-Hermes-Session. Projekt auf dem PC: `C:\Users\patri\Documents\ChatGPT\Voice`;
+Repository: `https://github.com/laxxx-lab/lx-wtf`. Bei Reparatur, Erweiterung oder
+Architekturfrage den Skill `hermes-voice-development` frisch laden und über die
+Windows-MCP-Shell `AGENTS.md` sowie `docs/agent-maintenance.md` im Projekt lesen.
+Die Quellen und Tests sind dort tatsächlich bearbeitbar; Linux-`terminal` auf
+dem VPS ist kein Windows-Dateizugriff. Aktuelle Verträge statt alter Erinnerungen
+verwenden und neue Funktionen nach geprüfter Änderung auch hier dokumentieren.
+Mikrofonwahl ist unter **Einstellungen → Audio / Mikrofon** gespeichert; es gibt
+noch keinen Mikrofonwechsel-Endpunkt in `control.ps1`. Sennheiser/Corsair lassen
+sich dort für Live, Wakeword und Sprechtaste umschalten, ohne Windows-Standards
+zu verändern. Keine nicht vorhandenen API-Aktionen behaupten.
 
 
 
