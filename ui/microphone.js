@@ -1,8 +1,14 @@
 (function(root){
   'use strict';
+  const validMicrophoneDeviceId=id=>typeof id==='string'&&id.length<=256&&(id===''||/^[A-Za-z0-9+/_=-]+$/.test(id));
+  function microphoneConstraints(deviceId=''){
+    if(!validMicrophoneDeviceId(deviceId))throw Error('Ungültiges Mikrofon.');
+    return {audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,...(deviceId?{deviceId:{exact:deviceId}}:{})},video:false};
+  }
   class Microphone {
     constructor(acquire){this.acquire=acquire;this.stream=null;this.pending=null;this.generation=0;}
     async get(){
+      if(this.stream?.getTracks().some(track=>track.readyState==='ended'))this.release();
       const generation=this.generation;
       if(this.stream)return this.stream;
       if(!this.pending){
@@ -15,5 +21,5 @@
     }
     release(){this.generation++;this.stream?.getTracks().forEach(track=>track.stop());this.stream=null;}
   }
-  if(typeof module==='object'&&module.exports)module.exports={Microphone};else root.Microphone=Microphone;
+  if(typeof module==='object'&&module.exports)module.exports={Microphone,microphoneConstraints,validMicrophoneDeviceId};else Object.assign(root,{Microphone,microphoneConstraints,validMicrophoneDeviceId});
 })(typeof window==='object'?window:globalThis);

@@ -1,7 +1,8 @@
 'use strict';
 const $=id=>document.getElementById(id),api=window.hermes;
 let expanded=false,settings={},sessionInfo=null,busy=false,phase='offline',level=0,replyNode=null,gatewayConnected=false,transcribing=false,liveRequest=0,captureSessionId=null;
-const microphone=new Microphone(()=>navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false}));
+const microphone=new Microphone(()=>navigator.mediaDevices.getUserMedia(microphoneConstraints(settings.microphoneDeviceId||'')));
+let microphoneBound='',microphoneSwitch=Promise.resolve(true),micSilent=null;
 let audioContext=null,audioTime=0,pcmRemainder=null,audioNodes=[],audioGeneration=-1,speakingUntil=0;
 let micStream=null,micSource=null,micProcessor=null,micAnalyser=null,micMuted=true,live=false,capturing=false,speechStarted=false,frames=[],captureStart=0,lastSpeech=0,noiseFloor=.001,lastMicLevel=0,wakePreRoll=[];
 let vadReady=false,captureGeneration=0;
@@ -16,7 +17,7 @@ let orbColors=HermesOrb.normalizeOrbColors(),orbIntensity=1,orbSuccessUntil=0,or
 const orbLabels={idle:'BEREIT',listening:'HÖRT ZU',speaking:'SPRICHT',thinking:'DENKT',working:'ARBEITET',looking:'SCHAUT',success:'ERLEDIGT',alert:'HINWEIS',error:'FEHLER',offline:'OFFLINE'};
 const phases={offline:'OFFLINE',connecting:'VERBINDE',ready:'BEREIT',thinking:'DENKT',working:'ARBEITET',looking:'SCHAUT',transcribing:'ERKENNT SPRACHE',listening:'HÖRT ZU',speaking:'SPRICHT',approval:'FREIGABE',question:'RÜCKFRAGE',error:'HINWEIS'};
 function notice(message){$('notice').hidden=false;$('notice').textContent=message;}
-function acceptSettings(values){settings=privacyLocked?{...values,privacyLocked:true,wakeWord:false,cameraEnabled:false,screenEnabled:false,gesturesEnabled:false}:values;const held=pushToTalk.held||pushToTalk.finishing;if(held&&(!settings.pushToTalkEnabled||held.key!==settings.pushToTalkKey))cancelPushToTalk();syncSpeechSettings();return settings;}
+function acceptSettings(values){const oldMicrophone=settings.microphoneDeviceId||'';settings=privacyLocked?{...values,privacyLocked:true,wakeWord:false,cameraEnabled:false,screenEnabled:false,gesturesEnabled:false}:values;const held=pushToTalk.held||pushToTalk.finishing;if(held&&(!settings.pushToTalkEnabled||held.key!==settings.pushToTalkKey))cancelPushToTalk();syncSpeechSettings();if(oldMicrophone!==(settings.microphoneDeviceId||''))microphoneSwitch=reconnectMicrophone().catch(error=>{notice('Mikrofon: '+error.message);return false;});return settings;}
 function syncSpeechSettings(){
   if($('pushToTalkEnabled')){$('pushToTalkEnabled').checked=settings.pushToTalkEnabled===true;$('pushToTalkEnabled').disabled=privacyLocked;}
   if($('pushToTalkKey'))$('pushToTalkKey').value=settings.pushToTalkKey||'F8';
@@ -158,7 +159,13 @@ async function finishCapture(){
   }catch{markVoice(turnId,'failed');if(current()){if(held)cancelPushToTalk();else await toggleMic(false);}}
   finally{const ownsTranscription=captureTurnId===turnId&&(!held||pushToTalk.finishing===held);if(voiceDispatch?.turnId===turnId)voiceDispatch=null;if(held&&pushToTalk.finishing===held){pushToTalk.finishing=null;capturePushToTalk=null;if(live)awaitingResume=true;releasePushToTalkMic();}if(request===liveRequest&&ownsTranscription){transcribing=false;$('sessions').disabled=busy;}}
 }
-function releaseMic(){microphone.release();if(micProcessor){micProcessor.onaudioprocess=null;micProcessor.disconnect();micProcessor=null;}micSource?.disconnect();micAnalyser?.disconnect();micSource=null;micAnalyser=null;micStream=null;wakePreRoll=[];wakeSpeech=[];wakeSpeechStart=0;bargePreRoll=[];lastMicLevel=0;}
+function releaseMic(){microphone.release();if(micProcessor){micProcessor.onaudioprocess=null;micProcessor.disconnect();micProcessor=null;}micSource?.disconnect();micAnalyser?.disconnect();micSilent?.disconnect?.();micSource=null;micAnalyser=null;micSilent=null;micStream=null;wakePreRoll=[];wakeSpeech=[];wakeSpeechStart=0;bargePreRoll=[];lastMicLevel=0;}
+async function reconnectMicrophone(){
+  cancelPushToTalk();liveRequest++;if(captureTurnId)markVoice(captureTurnId,'capture-discarded');
+  capturing=false;speechStarted=false;frames=[];transcribing=false;captureGeneration++;captureTurnId=null;voiceDispatch=null;captureInterrupt=null;bargeListening=false;bargeAwaitingTurn=false;wakeFrames=[];wakeSamples=0;releaseMic();
+  if(privacyLocked||!live&&!(settings.wakeWord&&wakeReady))return true;
+  await ensureMic();if(live)startCapture();return !!micStream;
+}
 function quiesceLocal(){
   cancelPushToTalk();clearSpeechCorrection();
   sensorControlGeneration++;
@@ -185,9 +192,13 @@ function feedWake(input,rate){
 }
 async function ensureMic(){
   if(privacyLocked)throw new Error('Datenschutzmodus aktiv. Bitte zuerst lokal entsperren.');
-  if(micStream)return;
-  const stream=await microphone.get();if(!stream||privacyLocked||micStream===stream)return;
-  const ctx=context();micStream=stream;micSource=ctx.createMediaStreamSource(micStream);micAnalyser=ctx.createAnalyser();micSource.connect(micAnalyser);micProcessor=ctx.createScriptProcessor(2048,1,1);micSource.connect(micProcessor);const silent=ctx.createGain();silent.gain.value=0;micProcessor.connect(silent);silent.connect(ctx.destination);micMuted=false;noiseFloor=.001;
+  const requested=settings.microphoneDeviceId||'';
+  if(micStream&&microphoneBound===requested&&!micStream.getTracks().some(track=>track.readyState==='ended'))return;
+  if(micStream)releaseMic();
+  const stream=await microphone.get();if(!stream||privacyLocked||requested!==(settings.microphoneDeviceId||'')||micStream===stream)return;
+  const ctx=context();micStream=stream;microphoneBound=requested;micSource=ctx.createMediaStreamSource(micStream);micAnalyser=ctx.createAnalyser();micSource.connect(micAnalyser);micProcessor=ctx.createScriptProcessor(2048,1,1);micSource.connect(micProcessor);micSilent=ctx.createGain();micSilent.gain.value=0;micProcessor.connect(micSilent);micSilent.connect(ctx.destination);micMuted=false;noiseFloor=.001;
+  stream.getAudioTracks?.()[0]?.addEventListener?.('ended',()=>{if(micStream===stream)microphoneSwitch=reconnectMicrophone().catch(error=>{notice('Mikrofon getrennt: '+error.message);return false;});},{once:true});
+  void refreshMicrophones();
   micProcessor.onaudioprocess=event=>{
     const input=event.inputBuffer.getChannelData(0),rms=Math.sqrt(input.reduce((sum,x)=>sum+x*x,0)/input.length),now=performance.now();
     lastMicLevel=rms;
@@ -384,6 +395,7 @@ setInterval(()=>void syncGestures(),500);
 $('save').onclick=async()=>{try{const values={url:$('url').value,voice:$('voice').value,delivery:$('delivery').value,cameraDeviceId:$('cameraDeviceId').value,orbColors,orbIntensity,...workstationControls.values()};for(const id of ['monitoring','proactive','speakAlerts','autoStart','wakeWord','bareNames','cameraEnabled','cameraRecognize','cameraGreetings'])values[id]=$(id).checked;if($('pushToTalkEnabled'))values.pushToTalkEnabled=$('pushToTalkEnabled').checked;if($('pushToTalkKey'))values.pushToTalkKey=$('pushToTalkKey').value;if($('directCommandsEnabled'))values.directCommandsEnabled=$('directCommandsEnabled').checked;values.audioPreferences=audioOutputsReady?{headphones:$('audio-headphones').value,speakers:$('audio-speakers').value}:settings.audioPreferences||{};if(speechDictionaryEditor)values.speechDictionary=speechDictionaryEditor.value();const data=await invoke('settings',values);acceptSettings(data.settings);syncOrbSettings(settings);workstationControls.sync(settings);void syncCameraSettings(settings);void armWake();notice('Einstellungen gespeichert.');}catch(error){notice(error.message);}};
 invoke('snapshot').then(data=>{acceptSettings(data.settings);sessionInfo=data.session;wakeReady=data.wakeReady;vadReady=data.vadReady===true;orbCameraLooking=data.camera?.looking===true;orbScreenLooking=data.screen?.looking===true;renderState(data);renderMetrics(data.sample);renderSessions(data.sessions);syncOrbSettings(settings);workstationControls.sync(settings);$('url').value=settings.url;$('reference-voice-option').hidden=!data.referenceVoiceReady;$('voice').value=settings.voice;$('delivery').value=settings.delivery||'normal';syncVoiceDelivery();for(const id of ['monitoring','proactive','speakAlerts','autoStart','wakeWord','bareNames'])$(id).checked=settings[id];cameraControls.profiles(data.camera?.profiles||[]);void syncCameraSettings(settings);void armWake();}).catch(()=>{});
 setInterval(()=>{
+  renderMicrophoneStatus();
   observePlayback();
   const speaking=!!audioContext&&speakingUntil>0&&audioContext.currentTime<speakingUntil+.4;
   if(awaitingResume&&live&&!wakeResuming&&!pushToTalk.held&&!pushToTalk.finishing&&!busy&&!capturing&&!transcribing&&!ttsPending&&!speaking){awaitingResume=false;startCapture();}
@@ -437,6 +449,29 @@ async function refreshAudioOutputs(){
 $('audio-refresh').onclick=()=>void refreshAudioOutputs();
 $('settings-toggle').addEventListener('click',()=>void refreshAudioOutputs());
 $('audio-apply').onclick=async()=>{const button=$('audio-apply');button.disabled=true;try{const result=await invoke('audio-output',{target:$('audio-output-target').value});notice(result.message);if(result.verified)await refreshAudioOutputs();}catch(error){notice(error.message);}finally{button.disabled=false;}};
+
+function renderMicrophoneStatus(){
+ const track=micStream?.getAudioTracks?.()[0],active=track?.readyState==='live';
+ $('microphone-meter').value=active?Math.min(1,lastMicLevel*8):0;
+ $('microphone-status').textContent=active?(track.label+(track.muted?' · liefert derzeit kein Signal':' · aktiv')):'Mikrofon aus';
+}
+async function refreshMicrophones(){
+ try{
+  const chosen=settings.microphoneDeviceId||'',devices=(await navigator.mediaDevices.enumerateDevices()).filter(device=>device.kind==='audioinput'&&device.deviceId!=='default'&&device.deviceId!=='communications');
+  const select=$('microphone-device');select.replaceChildren(new Option('Windows-Standard',''));
+  for(const device of devices)select.append(new Option(device.label||'Mikrofon',device.deviceId));
+  if(chosen&&!devices.some(device=>device.deviceId===chosen))select.append(new Option('Gespeichertes Mikrofon · derzeit nicht verfügbar',chosen));
+  select.value=chosen;renderMicrophoneStatus();
+ }catch(error){$('microphone-status').textContent=error.message;}
+}
+$('microphone-refresh').onclick=()=>void refreshMicrophones();
+$('settings-toggle').addEventListener('click',()=>void refreshMicrophones());
+$('microphone-device').onchange=async()=>{
+ const select=$('microphone-device');select.disabled=true;
+ try{const data=await invoke('settings',{microphoneDeviceId:select.value});acceptSettings(data.settings);const applied=await microphoneSwitch;await refreshMicrophones();if(applied)notice(micStream?'Mikrofon: '+micStream.getAudioTracks()[0].label:'Mikrofon gespeichert. Aufnahme ist ausgeschaltet.');}
+ catch(error){notice('Mikrofon: '+error.message);}finally{select.disabled=false;}
+};
+navigator.mediaDevices.addEventListener?.('devicechange',()=>void refreshMicrophones());
 
 let bluetoothBusy=false;
 function renderBluetooth(data){

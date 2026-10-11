@@ -10,6 +10,20 @@ function renderer(){
   return {context,calls,event:event=>handlers.forEach(fn=>fn(event)),run:code=>vm.runInContext(code,context),tick:()=>intervals.forEach(fn=>fn())};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
+test('changing the chosen microphone restarts live capture on that exact input and discards the old partial recording',async()=>{
+ const r=renderer(),acquisitions=[],stopped=[];
+ r.context.navigator.mediaDevices.getUserMedia=async constraints=>{acquisitions.push(constraints);const id=constraints.audio.deviceId?.exact||'default';const track={readyState:'live',label:id,enabled:true,muted:false,addEventListener(){},stop(){this.readyState='ended';stopped.push(id);}};return {getTracks:()=>[track],getAudioTracks:()=>[track]};};
+ r.run("settings={wakeWord:true};wakeReady=true;vadReady=true;sessionInfo={id:'selected'};gatewayConnected=true;live=true;");await r.run('ensureMic();');r.run('startCapture();frames=[new Float32Array(1600)];speechStarted=true;');
+ r.event({type:'settings-config',settings:{wakeWord:true,microphoneDeviceId:'desk-mic'}});await r.run('microphoneSwitch');
+ assert.equal(acquisitions.length,2);assert.equal(acquisitions[1].audio.deviceId.exact,'desk-mic');assert.deepEqual(stopped,['default']);
+ assert.equal(r.run('live&&capturing'),true);assert.equal(r.run('speechStarted'),false);assert.equal(r.run('frames.length'),0);assert.equal(r.calls.some(call=>call.method==='submit'||call.method==='transcribe'),false);
+});
+test('changing microphone settings during privacy does not open it, and an unavailable chosen input never falls back',async()=>{
+ const r=renderer();let acquisitions=0;
+ r.context.navigator.mediaDevices.getUserMedia=async()=>{acquisitions++;throw Error('input unavailable');};
+ r.run('privacyLocked=true;');r.event({type:'settings-config',settings:{wakeWord:true,microphoneDeviceId:'desk-mic'}});await r.run('microphoneSwitch');assert.equal(acquisitions,0);
+ r.run("privacyLocked=false;settings={wakeWord:true,microphoneDeviceId:'missing-mic'};wakeReady=true;");assert.equal(await r.run('reconnectMicrophone().catch(()=>false)'),false);assert.equal(acquisitions,1);assert.equal(r.run('micStream'),null);
+});
 async function prepareBarge(r){
   r.run("settings={wakeWord:false};sessionInfo={id:'selected'};gatewayConnected=true;vadReady=true;");await r.run('ensureMic()');r.run('live=true;busy=true;speakingUntil=10;audioGeneration=7;');
   r.context.input=new Float32Array(2048).fill(.08);

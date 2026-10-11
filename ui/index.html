@@ -38,6 +38,13 @@
       <label class="check"><input id="autoStart" type="checkbox"> Mit Windows starten</label>
       <label class="check"><input id="wakeWord" type="checkbox"> Lokal auf „Hey Hermes / Hey Lilith / Hey Lillis“ hören</label>
       <label class="check"><input id="bareNames" type="checkbox"> Auch „Lilith“ und „Lillis“ allein erkennen</label>
+      <section class="speech-settings" aria-label="Mikrofon">
+        <div class="workstation-heading"><span>AUDIO / MIKROFON</span><button id="microphone-refresh" type="button">Aktualisieren</button></div>
+        <label>Spracheingang<select id="microphone-device"><option value="">Windows-Standard</option></select></label>
+        <meter id="microphone-meter" min="0" max="1" value="0" aria-label="Mikrofonpegel" style="width:100%"></meter>
+        <small id="microphone-status">Mikrofon wird beim Öffnen der Einstellungen angezeigt.</small>
+        <small>Die Auswahl wird sofort gespeichert und gilt für Live, Wakeword und Sprechtaste. Windows-Standards bleiben erhalten.</small>
+      </section>
       <section class="speech-settings" aria-label="Audioausgabe">
         <div class="workstation-heading"><span>AUDIO / AUSGABE</span><button id="audio-refresh" type="button">Aktualisieren</button></div>
         <label>Aktuelle Ausgabe<select id="audio-output-target"></select></label>

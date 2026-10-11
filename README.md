@@ -44,6 +44,9 @@ Falls noch die während der Entwicklung geöffnete App läuft, im Infobereich
   Stimme aus** im Infobereich schaltet auch das Aktivierungswort ab.
 - Einstellungen: drei Stimmrichtungen, natürliche/leise/kraftvolle Sprechweise,
   Überwachung, Hinweise an Hermes, gesprochene Hinweise und Windows-Autostart.
+- **Audio / Mikrofon**: Headset oder Tischmikrofon auswählen; die Wahl wird sofort
+  gespeichert. Die Pegelanzeige zeigt den tatsächlich aufgenommenen Eingang.
+  Live, Wakeword und Sprechtaste nutzen dieselbe Auswahl. [Details](docs/microphone.md).
 - Bluetooth: Geräte anzeigen/suchen, Radio schalten, koppeln, unterstützte
   Geräte verbinden/trennen und Bluetooth-Audio wählen. Zum Beispiel
   „Verbinde die Soundbar“ oder „Ton auf die Soundbar“. Der bereits gekoppelte

@@ -37,6 +37,7 @@ const {createDirectCommands}=require('./direct-commands.cjs');
 const {createAudioOutputs,normalizeAudioPreferences,validAudioTarget}=require('./audio-output.cjs');
 const {TaskWaitFeedback}=require('./task-wait-feedback.cjs');
 const {createBluetooth,validBluetoothCommand}=require('./bluetooth.cjs');
+const {validMicrophoneDeviceId}=require('./ui/microphone.js');
 const {normalizeSpeechDictionary,applySpeechDictionary}=require('./speech-dictionary.cjs');
 const {PushToTalkHotkey,PTT_KEYS}=require('./push-to-talk.cjs');
 const {normalizeRoutines,routineIntent,routinePrompt,stopIntent}=require('./routines.cjs');
@@ -65,6 +66,7 @@ try{config.modes=normalizeModes(config.modes);}catch{config.modes=normalizeModes
 config.privacyLocked=config.privacyLocked===true;
 config.contextEnabled=config.contextEnabled===true;
 config.directCommandsEnabled=config.directCommandsEnabled!==false;
+config.microphoneDeviceId=validMicrophoneDeviceId(config.microphoneDeviceId)?config.microphoneDeviceId:'';
 try{config.audioPreferences=normalizeAudioPreferences(config.audioPreferences);}catch{config.audioPreferences=normalizeAudioPreferences();}
 config.pushToTalkEnabled=config.pushToTalkEnabled===true;
 config.pushToTalkKey=PTT_KEYS.includes(config.pushToTalkKey)?config.pushToTalkKey:'F8';
@@ -1069,6 +1071,7 @@ function registerHandlers(){
     'vad-feed':(_e,packet)=>feedSpeechDetector(packet),
     audition:(_e,value)=>{const voice=typeof value==='string'?value:value?.voice,delivery=value?.delivery||config.delivery;if(!validVoice(voice)||!['normal','whisper','power'].includes(delivery))throw new Error('Unbekannte Stimme oder Sprechweise.');if(voice==='reference'&&delivery!=='normal')throw new Error('Die Referenzstimme unterstützt aktuell die natürliche Sprechweise.');stopSpeech();speak('Ich bin Lilith. Sag mir, was anliegt, Boss.',voice,delivery);},
     settings:async(_e,values,standbyTransition=false)=>{
+      if(values?.microphoneDeviceId!==undefined&&!validMicrophoneDeviceId(values.microphoneDeviceId))throw Error('Ungültiges Mikrofon.');
       if(config.privacyLocked&&values?.approvalChoice==='once')requireLocalAccess();
       if(config.privacyLocked&&['cameraEnabled','wakeWord','screenEnabled','gesturesEnabled','contextEnabled'].some(key=>values?.[key]===true))requireLocalAccess();
       if(values?.contextEnabled!==undefined&&typeof values.contextEnabled!=='boolean')throw new Error('Ungültige Kontextfreigabe.');
@@ -1097,6 +1100,7 @@ function registerHandlers(){
       if(nextModes)config.modes=nextModes;
       if(nextDictionary)config.speechDictionary=nextDictionary;
       if(nextAudioPreferences)config.audioPreferences=nextAudioPreferences;
+      if(values?.microphoneDeviceId!==undefined)config.microphoneDeviceId=values.microphoneDeviceId;
       if(values?.pushToTalkKey!==undefined)config.pushToTalkKey=values.pushToTalkKey;
       for(const key of ['pushToTalkEnabled','directCommandsEnabled'])if(typeof values?.[key]==='boolean')config[key]=values[key];
       if(typeof values?.hudEnabled==='boolean'){config.hudEnabled=values.hudEnabled;publishHud();}

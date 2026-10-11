@@ -51,7 +51,7 @@ test('wake camera restoration failure does not start live and returns an error a
 test('wake restoration reopens the selected camera and starts live, while a previously off camera stays off',async()=>{
  for(const enabled of [true,false]){
   const r=renderer();const requests=[];r.context.navigator.mediaDevices.getUserMedia=async value=>{requests.push(value);return {getTracks:()=>[{stop(){}}],getVideoTracks:()=>[{label:'Chosen',getSettings:()=>({deviceId:'chosen'})}]};};
-  vm.runInContext("settings={wakeWord:true};wakeReady=true;gatewayConnected=true;sessionInfo={id:'selected'};vadReady=true;micStream={};audioContext=new AudioContext();cameraControls.controller.video.play=async()=>{};cameraControls.controller.onFrame=null;",r.context);
+  vm.runInContext("settings={wakeWord:true};wakeReady=true;gatewayConnected=true;sessionInfo={id:'selected'};vadReady=true;micStream={getTracks:()=>[]};audioContext=new AudioContext();cameraControls.controller.video.play=async()=>{};cameraControls.controller.onFrame=null;",r.context);
   await r.apply({id:52,action:'wake-resume',enabled:true,sessionId:'selected',settings:{wakeWord:true,cameraEnabled:enabled,cameraDeviceId:'chosen'}});const ack=r.calls.find(c=>c.method==='control-ack'&&c.value.id===52);assert.equal(ack.value.error,undefined);assert.equal(ack.value.state.live,true);assert.equal(ack.value.state.cameraActive,enabled);assert.equal(requests.length,enabled?1:0);if(enabled)assert.equal(requests[0].video.deviceId.exact,'chosen');
   vm.runInContext('cameraControls.controller.disable();',r.context);
  }
