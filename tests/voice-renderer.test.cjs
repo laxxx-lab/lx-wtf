@@ -37,6 +37,12 @@ test('late PCM and start events from an interrupted generation never revive play
   assert.equal(r.run('audioNodes.length'),0);
   await settle();
 });
+test('start audio is marked separately and cannot finish the task or skew reply latency',async()=>{
+ const r=renderer();r.event({type:'audio-start',generation:1,turnId:'ack-timing',purpose:'acknowledgement'});r.event({type:'audio-chunk',generation:1,turnId:'ack-timing',data:Buffer.alloc(4800).toString('base64')});r.run('audioContext.currentTime=.06;observePlayback();');
+ assert.ok(r.calls.some(call=>call.method==='voice-timing'&&call.value.stage==='ack-playback-start'));assert.equal(r.calls.some(call=>call.method==='voice-timing'&&['playback-start','renderer-first-pcm'].includes(call.value.stage)),false);
+ r.run('audioNodes[0].source.onended();');assert.ok(r.calls.some(call=>call.method==='voice-timing'&&call.value.stage==='ack-playback-end'));assert.equal(r.calls.some(call=>call.method==='voice-timing'&&call.value.stage==='playback-end'),false);
+ r.event({type:'audio-start',generation:1,turnId:'ack-timing',purpose:'reply'});r.event({type:'audio-chunk',generation:1,turnId:'ack-timing',data:Buffer.alloc(4800).toString('base64')});r.run('audioContext.currentTime=.3;observePlayback();');assert.ok(r.calls.some(call=>call.method==='voice-timing'&&call.value.stage==='playback-start'));
+});
 
 test('confirmed barge-in transcribes once and waits for the interrupted turn before submitting',async()=>{
   const r=renderer();let terminal,transcribedAudio;

@@ -12,6 +12,10 @@ function fixture(t, initial) {
   return { file, dir, create: options => new (require(modulePath).JobQueue)({ file, now: () => 1000, ...options }) };
 }
 function enqueue(queue, extra = {}) { return queue.enqueue({ text: 'Do this task.', sessionId: 'session-a', ...extra }); }
+test('pending voice identity belongs to the first queued request of that exact owner',t=>{
+ const q=fixture(t).create();enqueue(q,{sessionId:'foreign',turnId:'foreign-turn'});const own=enqueue(q,{turnId:'own-first'});enqueue(q,{turnId:'own-second'});
+ assert.equal(q.pendingTurn({sessionId:'session-a'}),'own-first');assert.equal(q.pendingTurn({sessionId:'session-a',profile:'other'}),null);q.claim({sessionId:'session-a'});assert.equal(q.pendingTurn({sessionId:'session-a'}),'own-second');q.finish(own.id);assert.equal(q.pendingTurn({sessionId:'session-a'}),'own-second');assert.throws(()=>q.pendingTurn({sessionId:''}));
+});
 
 test('local execution identity survives restart without exposing the native command or replaying it', t => {
  const f=fixture(t),queue=f.create(),job=enqueue(queue,{text:'Lautstärke auf 25 Prozent'});queue.claim({sessionId:'session-a'});

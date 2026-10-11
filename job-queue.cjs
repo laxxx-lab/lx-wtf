@@ -203,6 +203,10 @@ class JobQueue {
   }
   active() { return copy(this.#jobs.find(job => ['running', 'outcome-unknown'].includes(job.status)) || null); }
   pending() { return this.#jobs.some(job => job.status === 'queued'); }
+  pendingTurn({sessionId,profile='default'}={}){
+    ownership(sessionId,profile);
+    return this.#jobs.find(job=>job.status==='queued'&&job.sessionId===sessionId&&job.profile===profile)?.turnId||null;
+  }
   snapshot() {
     return { version: 1, held: this.#held, holdReason: redactContext(this.#holdReason, 450), blocked: this.#jobs.some(job => job.status === 'outcome-unknown'), activeJobId: this.#jobs.find(job => ['running', 'outcome-unknown'].includes(job.status))?.id || null, jobs: this.list() };
   }

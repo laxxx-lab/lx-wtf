@@ -57,3 +57,6 @@ test('Stop releases only the old agent lease before waiting for remote interrupt
  const f=fixture();f.run("workbench.presentation={owner:'agent',requestId:'old'};actionHandlers.interrupt=()=>new Promise(resolve=>{resolveInterrupt=resolve;});");const pending=f.run('stopCurrentTask({speak:false})');
  assert.deepEqual(f.calls.map(value=>Array.from(value)),[['release','old']]);f.run("workbench.presentation={owner:'agent',requestId:'new'};resolveInterrupt({ready:true});");await pending;assert.deepEqual(f.calls.map(value=>Array.from(value)),[['release','old']]);
 });
+test('silent typed mode requests do not speak a start or result while opening their configured targets',async()=>{
+ const f=fixture();f.ctx.spoken=[];f.run('speak=text=>spoken.push(text);');await f.run("submit('Arbeitsplatz starten',{speak:false,sessionId:'runtime'})");assert.equal(f.ctx.spoken.length,0);assert.equal(f.events.some(event=>event.type==='task-acknowledgement'),false);
+});

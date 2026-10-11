@@ -31,7 +31,7 @@
     for(const event of events.slice(-200)){
       const row=document.createElement('article');row.className='event '+event.type;
       const time=document.createElement('time');time.textContent=new Date(event.time).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-      const label=document.createElement('span');label.className='event-label';label.textContent={user:'DU',reply:'LILITH',tool:'WERKZEUG',error:'HINWEIS','turn-end':'ABSCHLUSS'}[event.type]||'EREIGNIS';
+      const label=document.createElement('span');label.className='event-label';label.textContent={user:'DU',reply:'LILITH',acknowledgement:'LILITH',tool:'WERKZEUG',error:'HINWEIS','turn-end':'ABSCHLUSS'}[event.type]||'EREIGNIS';
       const body=document.createElement('p');body.textContent=event.text;row.append(time,label,body);fragment.append(row);
     }
     list.replaceChildren(fragment);$('event-count').textContent=events.length+' EREIGNISSE';if(atBottom)list.scrollTop=list.scrollHeight;

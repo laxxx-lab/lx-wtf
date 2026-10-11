@@ -1,10 +1,10 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
-function fixture(){
+function fixture({fileSystem={}}={}){
  const prompts=[],events=[],app={setPath(){},setName(){},setAppUserModelId(){},setLoginItemSettings(){},on(){},isReady:()=>false,quit(){},requestSingleInstanceLock:()=>false};
  const ctx=vm.createContext({__dirname:path.resolve(__dirname,'..'),process,Buffer,setTimeout,clearTimeout,setInterval,clearInterval,AbortSignal,AbortController,fetch,console,require:name=>{
   if(name==='electron')return {app,ipcMain:{handle(){}},Notification:{isSupported:()=>false}};
-  if(name==='node:fs')return {...fs,mkdirSync(){},writeFileSync(){},readFileSync(){throw Error('test settings');}};
+  if(name==='node:fs')return {...fs,mkdirSync(){},writeFileSync(){},readFileSync(){throw Error('test settings');},...fileSystem};
   if(name.startsWith('./'))return require(path.resolve(__dirname,'..',name));return require(name);
  }});
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../main.cjs'),'utf8'),ctx);ctx.prompts=prompts;ctx.events=events;
@@ -100,4 +100,35 @@ test('cancelling a local task retires its ledger and permits a consciously recon
  const first=f.run("submit('Ton aus',{speak:false})");await new Promise(r=>setTimeout(r,0));await f.run("jobAction('job-cancel',{id:getJobs().active().id})");f.run("resolveNative({status:'unverified',message:'Abbruch.'})");await first;
  assert.notEqual(f.run('tasks.view().status'),'running');await f.run("jobAction('job-reconcile',{id:getJobs().active().id})");
  f.run("directController.execute=async()=>({status:'completed',message:'Ton aus.'});");await f.run("submit('Ton aus',{speak:false})");assert.equal(f.run('localCommandRunning'),false);assert.equal(f.run('getJobs().list().at(-1).status'),'completed');
+});
+test('a voice job starts once before the remote call, without waiting for acknowledgement speech',async()=>{
+ const f=fixture();f.ctx.spoken=[];f.run("speak=text=>spoken.push(text);conversation.request=async(method,params)=>{if(method==='prompt.submit'){if(!spoken.includes('Okay.'))throw Error('Missing immediate acknowledgement');prompts.push(params.text);}return {};};");
+ await f.run("submit('Öffne Spotify',{turnId:'voice-start-1'})");assert.deepEqual(f.ctx.spoken,['Okay.']);assert.equal(f.prompts.length,1);assert.equal(f.events.filter(e=>e.type==='task-acknowledgement').length,1);
+ f.run("gatewayEvent({type:'message.start',session_id:'runtime',data:{}});gatewayEvent({type:'tool.start',session_id:'runtime',data:{name:'WindowRead',id:'tool-1'}})");assert.deepEqual(f.ctx.spoken,['Okay.']);assert.equal(f.run('taskStartAnnouncement?.turnId'),'voice-start-1');
+});
+test('queued jobs are acknowledged when they begin, not while another task is still running',async()=>{
+ const f=fixture();f.ctx.spoken=[];f.run("speak=text=>spoken.push(text);conversation.busy=true;");await f.run("submit('Öffne Spotify',{turnId:'voice-queued'})");assert.equal(f.ctx.spoken.length,0);f.run('conversation.busy=false;');await f.run('pumpJobs()');assert.deepEqual(f.ctx.spoken,['Okay.']);
+});
+test('an acknowledged inspection shares its turn with dispatch and does not restart or repeat speech',async()=>{
+ const f=fixture();f.ctx.spoken=[];f.run("speak=text=>spoken.push(text);prepareTaskTurn('inspect-turn',true);announceTaskStart('Prüfe die Verbindung',{kind:'inspect'});ttsPending=1;clientSpeaking=true;");const generation=f.run('speechGeneration');
+ await f.run("submit('Prüfe die Verbindung',{turnId:'inspect-turn'})");assert.equal(f.prompts.length,1);assert.deepEqual(f.ctx.spoken,['Alles klar, ich schaue es mir an.']);assert.equal(f.run('speechGeneration'),generation);
+});
+test('text jobs, stopped jobs, disabled privacy and direct completed controls do not add extra voice starts',async()=>{
+ const f=fixture();f.ctx.spoken=[];f.run('speak=text=>spoken.push(text);');await f.run("submit('Analysiere das Projekt',{speak:false})");assert.equal(f.ctx.spoken.length,0);f.run('config.privacyLocked=true;');assert.equal(f.run("announceTaskStart('Öffne Spotify')"),false);assert.equal(f.ctx.spoken.length,0);
+});
+test('a direct voice action begins alongside its acknowledgement and speaks the real result separately',async()=>{
+ const f=fixture();f.ctx.spoken=[];f.run("speak=text=>spoken.push(text);directController={parse:async()=>({type:'volume',action:'mute'}),execute:async()=>{if(spoken[0]!=='Okay.')throw Error('Start absent');return {status:'completed',message:'Ton ist aus.',evidence:{accepted:true}}}};");await f.run("submit('Ton aus',{turnId:'direct-voice'})");assert.deepEqual(f.ctx.spoken,['Okay.','Ton ist aus.']);assert.equal(f.prompts.length,0);assert.equal(f.run('getJobs().list()[0].verified'),true);
+});
+test('an interrupted acknowledgement cannot resume or exempt a different pending voice turn',async()=>{
+ const f=fixture();f.ctx.spoken=[];f.run("speak=text=>spoken.push(text);prepareTaskTurn('old',true);announceTaskStart('Prüfe die Verbindung');stopSpeech();ttsPending=1;clientSpeaking=true;");await f.run("submit('Öffne Spotify',{turnId:'new'})");assert.equal(f.prompts.length,0);assert.equal(f.run('hasCurrentStartAnnouncement()'),false);assert.equal(f.run('getJobs().list()[0].status'),'queued');
+});
+test('start PCM is cached only for its exact fixed voice and reused without another synthesis',async()=>{
+ const files=new Map(),f=fixture({fileSystem:{existsSync:file=>files.has(file),statSync:file=>({size:files.get(file)?.length||0}),readFileSync:file=>{if(files.has(file))return files.get(file);throw Error('No fixture settings');},writeFileSync:(file,data)=>files.set(file,data)}});f.ctx.syntheses=0;
+ f.run("voiceClient={registry:[{name:'hermes-dark-normal',spk_b64:'fixture-A'}],speech:async()=>{syntheses++;return {ok:true,body:(async function*(){yield Buffer.alloc(2400);yield Buffer.alloc(2400);})()};}};prepareTaskTurn('cache-one');announceTaskStart('Öffne Spotify');");await f.run('speechChain');const first=f.run("startAnnouncementCache('Okay.')");assert.equal(files.get(first).length,4800);assert.equal(f.ctx.syntheses,1);
+ f.run("prepareTaskTurn('cache-two');announceTaskStart('Öffne Spotify');");await f.run('speechChain');assert.equal(f.ctx.syntheses,1);assert.equal(f.events.filter(e=>e.type==='audio-start'&&e.purpose==='acknowledgement').length,2);
+ f.run("voiceClient.registry[0].spk_b64='fixture-B';");assert.notEqual(f.run("startAnnouncementCache('Okay.')"),first);
+});
+test('cancelled start synthesis cannot cache or deliver PCM after its speech generation was revoked',async()=>{
+ const files=new Map(),f=fixture({fileSystem:{existsSync:()=>false,writeFileSync:(file,data)=>files.set(file,data)}});let released,entered;const gate=new Promise(r=>{released=r;}),ready=new Promise(r=>{entered=r;});f.ctx.fixtureBody=(async function*(){entered();await gate;yield Buffer.alloc(2400);})();
+ f.run("voiceClient={registry:[],speech:async()=>({ok:true,body:fixtureBody})};prepareTaskTurn('cancel-cache');announceTaskStart('Öffne Spotify');");const pending=f.run('speechChain');await ready;f.run('stopSpeech();');released();await pending;assert.equal([...files.keys()].some(file=>file.includes('start-announcements')),false);assert.equal(f.events.filter(e=>e.type==='audio-chunk').length,0);
 });

@@ -32,6 +32,10 @@ Falls noch die während der Entwicklung geöffnete App läuft, im Infobereich
 - Nach einem Aktivierungswort antwortet die App mit einer lokal gespeicherten
   kurzen Ansage, z. B. „Ja?“ oder „Lilith einsatzbereit …“. Bei einem bereits
   erkannten angehängten Auftrag geht dieser direkt an Hermes.
+- Beim Beginn eines Sprachauftrags kommt einmal eine kurze lokale Rückmeldung:
+  „Okay“, „Alles klar, ich schaue es mir an“ oder bei Recherche/Bearbeitung
+  „Alles klar. Dazu brauche ich einen Moment“. Die Aufgabe läuft parallel weiter;
+  anschließend folgt die tatsächliche Antwort. [Details](docs/task-start-feedback.md).
 - **Stopp** beendet die aktuelle Arbeit und Sprachausgabe; Live und Kamera bleiben
   erhalten. Noch nicht gesendete Aufträge werden abgebrochen. Eine neue Anfrage
   setzt die Arbeit in derselben Session fort; unklare externe Wirkungen müssen

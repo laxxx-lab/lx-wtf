@@ -8,7 +8,7 @@ let vadReady=false,captureGeneration=0;
 const pushToTalk={sequence:0,held:null,finishing:null};
 let capturePushToTalk=null,speechDictionaryEditor=null,speechDictionarySignature=null;
 const voiceClockOrigin=Number.isFinite(performance.timeOrigin)?performance.timeOrigin:Date.now()-performance.now();
-let voiceSequence=0,captureTurnId=null,voiceDispatch=null,audioTurnId=null,rejectedAudioGeneration=-1,bargeListening=false,bargePreRoll=[],bargeCandidateStart=0,captureInterrupt=null,bargeAwaitingTurn=false;
+let voiceSequence=0,captureTurnId=null,voiceDispatch=null,audioTurnId=null,audioPurpose='reply',rejectedAudioGeneration=-1,bargeListening=false,bargePreRoll=[],bargeCandidateStart=0,captureInterrupt=null,bargeAwaitingTurn=false;
 const voiceStageMarks=new Map();
 let privacyLocked=false,wakeResuming=false,sensorControlGeneration=0;
 let autoResumeTimer=null,interruptAt=0,ttsPending=0,awaitingResume=false,wakeReady=false,wakeFrames=[],wakeSamples=0,bargeFrames=0,lastClientState='',wakeSpeech=[],wakeSpeechStart=0,wakeLastSpeech=0,wakePauseUntil=0;
@@ -64,17 +64,17 @@ function observePlayback(){
   if(!audioContext||audioContext.state!=='running'||privacyLocked)return;
   const output=audioContext.getOutputTimestamp?.(),current=Number.isFinite(output?.contextTime)&&output.contextTime>0?output.contextTime:audioContext.currentTime;
   const observedAt=Number.isFinite(output?.performanceTime)&&output.performanceTime>0?voiceClockOrigin+output.performanceTime:voiceNow();
-  for(const node of audioNodes)if(!node.cancelled&&!node.played&&current>=node.start){node.played=true;markVoice(node.turnId,'playback-start',observedAt-Math.max(0,current-node.start)*1000);}
+  for(const node of audioNodes)if(!node.cancelled&&!node.played&&current>=node.start){node.played=true;markVoice(node.turnId,node.purpose==='acknowledgement'?'ack-playback-start':'playback-start',observedAt-Math.max(0,current-node.start)*1000);}
 }
 function appendPcm(encoded,turnId=audioTurnId){
   const bytes=Uint8Array.from(atob(encoded),c=>c.charCodeAt(0));let data=bytes;
   if(pcmRemainder!==null){data=new Uint8Array(bytes.length+1);data[0]=pcmRemainder;data.set(bytes,1);pcmRemainder=null;}
   if(data.length%2){pcmRemainder=data[data.length-1];data=data.slice(0,-1);}if(!data.length)return;
-  markVoice(turnId,'renderer-first-pcm');
+  markVoice(turnId,audioPurpose==='acknowledgement'?'ack-renderer-first-pcm':'renderer-first-pcm');
   const ctx=context(),audio=ctx.createBuffer(1,data.length/2,24000),floats=audio.getChannelData(0),view=new DataView(data.buffer,data.byteOffset,data.byteLength);
   for(let i=0;i<floats.length;i++)floats[i]=view.getInt16(i*2,true)/32768;
   const source=ctx.createBufferSource(),analyser=ctx.createAnalyser();analyser.fftSize=256;source.buffer=audio;source.connect(analyser);analyser.connect(ctx.destination);
-  const when=Math.max(ctx.currentTime+.045,audioTime),node={source,analyser,start:when,end:when+audio.duration,turnId,cancelled:false,played:false};audioTime=node.end;speakingUntil=node.end;audioNodes.push(node);source.onended=()=>{if(!node.cancelled){observePlayback();markVoice(node.turnId,'playback-end');}audioNodes=audioNodes.filter(x=>x!==node);source.disconnect();analyser.disconnect();};source.start(when);
+  const when=Math.max(ctx.currentTime+.045,audioTime),node={source,analyser,start:when,end:when+audio.duration,turnId,purpose:audioPurpose,cancelled:false,played:false};audioTime=node.end;speakingUntil=node.end;audioNodes.push(node);source.onended=()=>{if(!node.cancelled){observePlayback();markVoice(node.turnId,node.purpose==='acknowledgement'?'ack-playback-end':'playback-end');}audioNodes=audioNodes.filter(x=>x!==node);source.disconnect();analyser.disconnect();};source.start(when);
 }
 function downsample(input,rate){const ratio=rate/16000,out=new Float32Array(Math.floor(input.length/ratio));for(let i=0;i<out.length;i++){const start=Math.floor(i*ratio),end=Math.min(input.length,Math.floor((i+1)*ratio));let sum=0;for(let j=start;j<end;j++)sum+=input[j];out[i]=sum/Math.max(1,end-start);}return out;}
 function wavBytes(chunks){const length=chunks.reduce((sum,x)=>sum+x.length,0),bytes=new Uint8Array(44+length*2),view=new DataView(bytes.buffer);const word=(at,text)=>{for(let i=0;i<text.length;i++)bytes[at+i]=text.charCodeAt(i);};word(0,'RIFF');view.setUint32(4,36+length*2,true);word(8,'WAVE');word(12,'fmt ');view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,1,true);view.setUint32(24,16000,true);view.setUint32(28,32000,true);view.setUint16(32,2,true);view.setUint16(34,16,true);word(36,'data');view.setUint32(40,length*2,true);let n=44;for(const chunk of chunks)for(const x of chunk){view.setInt16(n,Math.max(-1,Math.min(1,x))*(x<0?32768:32767),true);n+=2;}return bytes;}
@@ -256,9 +256,10 @@ api.on(event=>{
   if(event.type==='expanded'){expanded=event.expanded;document.body.classList.toggle('expanded',expanded);}
   if(event.type==='notice'){orbAlertUntil=performance.now()+2400;notice(event.message);}
   if(event.type==='user'){replyNode=null;addMessage('user',event.text);}
+  if(event.type==='task-acknowledgement'&&!privacyLocked)addMessage('assistant',event.text);
   if(event.type==='reply'){replyNode ||= addMessage('assistant','');replyNode.textContent=event.text;$('transcript').scrollTop=$('transcript').scrollHeight;}
   if(event.type==='alert'){orbAlertUntil=performance.now()+3000;addMessage('alert',event.text);}
-  if(event.type==='audio-start'&&!privacyLocked&&!bargeAwaitingTurn&&event.generation>rejectedAudioGeneration){audioGeneration=event.generation;audioTurnId=event.turnId||null;pcmRemainder=null;}
+  if(event.type==='audio-start'&&!privacyLocked&&!bargeAwaitingTurn&&event.generation>rejectedAudioGeneration){audioGeneration=event.generation;audioTurnId=event.turnId||null;audioPurpose=event.purpose==='acknowledgement'?'acknowledgement':'reply';pcmRemainder=null;}
   if(event.type==='audio-chunk'&&!privacyLocked&&!bargeAwaitingTurn&&event.generation===audioGeneration&&event.generation>rejectedAudioGeneration)appendPcm(event.data,event.turnId||audioTurnId);
   if(event.type==='audio-stop'){
     const stopped=Number.isSafeInteger(event.stoppedGeneration)?event.stoppedGeneration:audioGeneration;rejectedAudioGeneration=Math.max(rejectedAudioGeneration,stopped);

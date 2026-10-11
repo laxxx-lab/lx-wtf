@@ -1,5 +1,6 @@
 'use strict';
 const STAGES=new Set(['capture-start','capture-first-frame','vad-speech','vad-end','capture-end','capture-discarded','transcribe-start','transcribe-end','dispatch-start','hermes-submit','hermes-first-delta','hermes-end','tts-queued','tts-start','tts-first-pcm','tts-end','renderer-first-pcm','playback-start','playback-end','barge-confirmed','interrupted','failed']);
+for(const stage of ['tts-queued','tts-start','tts-first-pcm','tts-end','renderer-first-pcm','playback-start','playback-end'])STAGES.add('ack-'+stage);
 const DURATIONS={captureMs:['capture-start','capture-end'],vadDecisionMs:['capture-start','vad-speech'],transcribeMs:['transcribe-start','transcribe-end'],hermesFirstTokenMs:['hermes-submit','hermes-first-delta'],hermesMs:['hermes-submit','hermes-end'],ttsQueueMs:['tts-queued','tts-start'],ttsFirstPcmMs:['tts-start','tts-first-pcm'],ttsMs:['tts-start','tts-end'],playbackDelayMs:['renderer-first-pcm','playback-start'],firstAudioMs:['vad-end','playback-start'],endToEndMs:['capture-end','playback-end']};
 const validId=id=>typeof id==='string'&&/^[a-zA-Z0-9_.:-]{1,96}$/.test(id);
 class VoiceTiming{

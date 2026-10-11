@@ -12,6 +12,9 @@ test('browser navigation accepts explicit web URLs and rejects privileged scheme
   assert.equal(api.validateBrowserUrl('http://localhost:8080'),'http://localhost:8080/');
   for(const url of ['file:///C:/secret','javascript:alert(1)','data:text/html,hi','about:blank','https://user:pass@example.com','example.com','https://example.com\n/secret'])assert.throws(()=>api.validateBrowserUrl(url));
 });
+test('task acknowledgement remains separate from task replies and tool-result evidence',async()=>{
+ const f=fixture();await f.controller.show('console');f.controller.publish({type:'task-acknowledgement',text:'Okay.'});f.controller.publish({type:'reply',text:'Spotify ist geöffnet.'});const state=await f.invoke('snapshot');assert.equal(state.events.at(-2).type,'acknowledgement');assert.equal(state.events.at(-2).text,'Okay.');assert.equal(state.events.at(-1).type,'reply');assert.equal(state.events.filter(value=>value.type==='tool').length,0);f.controller.destroy();
+});
 test('an agent presentation opens without focus and closes only its current untouched lease',async()=>{
  const f=fixture();assert.equal(typeof f.controller.present,'function');assert.equal(typeof f.controller.release,'function');
  const presented=await f.controller.present({tab:'console',reason:'Fenster erklären',requestId:'request-1'});assert.equal(presented.shown,true);assert.equal(f.controller.presentation.owner,'agent');assert.equal((await f.invoke('snapshot')).presentation.requestId,'request-1');assert.equal(f.windows[0].focusCalls,0);assert.equal(f.windows[0].inactiveCalls,1);

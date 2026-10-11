@@ -41,3 +41,6 @@ test('bounded timing history rejects malformed stages and computes nearest rank 
   report.mark('c','transcribe-start',950);
   assert.equal(report.snapshot().rows[1].stages['transcribe-start'],0,'Duplicate marks keep the original start');
 });
+test('local start acknowledgement has measured stages without shortening actual reply latency',()=>{
+ const report=new timing.VoiceTiming({clock:()=>1000});report.begin('task');report.mark('task','vad-end',100);report.mark('task','capture-end',100);assert.equal(report.mark('task','ack-playback-start',150),true);report.mark('task','ack-playback-end',250);assert.equal(report.snapshot().summary.firstAudioMs,undefined);assert.equal(report.snapshot().rows[0].status,'pending');report.mark('task','playback-start',900);assert.equal(report.snapshot().summary.firstAudioMs.p50,800);
+});

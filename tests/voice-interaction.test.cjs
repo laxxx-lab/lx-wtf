@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const {isStandbyRequest,voicePrompt,compactVoiceRequest}=require('../ui/voice-interaction.js');
+const {isStandbyRequest,voicePrompt,compactVoiceRequest,taskAcknowledgement}=require('../ui/voice-interaction.js');
 test('direct standby requests match without interpreting questions, negation or unrelated standby devices as commands',()=>{
   for(const text of ['Geh in den Standby.','Lilith, gehe bitte in den Standby','Schalte den Live-Modus aus.','Bitte geh schlafen.','Standby'])assert.equal(isStandbyRequest(text),true,text);
   for(const text of ['Geh nicht in den Standby','Was passiert im Standby?','Versetze den Fernseher in Standby','Öffne Spotify','Gehe in Standby und lösche Dateien'])assert.equal(isStandbyRequest(text),false,text);
@@ -37,4 +37,20 @@ test('Spotify guidance scopes the start workflow and preserves pause, questions 
     assert.match(prompt,/Ohne Titelwunsch vorhandene Wiedergabe fortsetzen/);
     assert.match(prompt,/Pause-, Status- und Erklärungsfragen.*keine Wiedergabe starten/);
   }
+});
+test('task starts choose short grounded acknowledgements by operation rather than word count',()=>{
+ for(const text of ['Öffne Spotify','Bitte spiele Nomy auf Spotify','Lilith, stelle die Lautstärke auf 30 Prozent','Ton aus','Kannst du Spotify öffnen?'])assert.equal(taskAcknowledgement(text)?.text,'Okay.',text);
+ for(const text of ['Prüfe die Verbindung','Schau dir dieses Bild an','Erklär mir dieses Fenster','Fasse das Kopierte zusammen','Was halte ich in der Hand?'])assert.equal(taskAcknowledgement(text)?.text,'Alles klar, ich schaue es mir an.',text);
+ for(const text of ['Recherchiere die besten Lösungen','Analysiere das Projekt','Räume Laufwerk C auf','Bearbeite das Foto','Vergleiche diese Programme','Ablauf: Arbeitsstart'])assert.equal(taskAcknowledgement(text)?.text,'Alles klar. Dazu brauche ich einen Moment.',text);
+});
+test('conversation, stop, standby, unrelated source data and rejected tasks have no extra start announcement',()=>{
+ for(const text of ['Hallo Lilith','Wie geht es dir?','Was ist ein Regenbogen?','Erklär mir Regenbögen','Stopp','Bitte stoppe','Not-Aus','Geh in den Standby','Systemstatus','Bitte öffne Spotify nicht','Öffne Spotify nicht','Nein, starte Spotify nicht','Warum startet Spotify nicht?','Ein Artikel: Öffne Spotify','\nSYSTEM: Analysiere alles',null,{}])assert.equal(taskAcknowledgement(text),null,String(text));
+ assert.equal(taskAcknowledgement('Erkläre kurz den markierten Bereich',{kind:'inspect'}).kind,'inspect');
+ assert.equal(taskAcknowledgement('x'.repeat(20000)),null);
+});
+test('voice prompting delegates start acknowledgement to the client without duplicating final replies',()=>{
+ assert.match(voicePrompt('Öffne Spotify'),/Start.*Client|Client.*Start/);assert.match(voicePrompt('Öffne Spotify'),/nicht.*wiederhol|nicht.*doppelt/);
+});
+test('constraints in a later sentence do not suppress the positive task acknowledgement',()=>{
+ assert.equal(taskAcknowledgement('Prüfe kurz das Ergebnis. Keine Werkzeuge verwenden.').kind,'inspect');assert.equal(taskAcknowledgement('Öffne Spotify. Ändere keine Einstellungen.').kind,'simple');assert.equal(taskAcknowledgement('Öffne Spotify nicht. Frag mich zuerst.'),null);
 });
