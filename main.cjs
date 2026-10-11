@@ -37,7 +37,7 @@ const {createDirectCommands}=require('./direct-commands.cjs');
 const {createAudioOutputs,normalizeAudioPreferences,validAudioTarget}=require('./audio-output.cjs');
 const {TaskWaitFeedback}=require('./task-wait-feedback.cjs');
 const {createBluetooth,validBluetoothCommand}=require('./bluetooth.cjs');
-const {validMicrophoneDeviceId}=require('./ui/microphone.js');
+const {validMicrophoneDeviceId,validMicrophoneLabel}=require('./ui/microphone.js');
 const {normalizeSpeechDictionary,applySpeechDictionary}=require('./speech-dictionary.cjs');
 const {PushToTalkHotkey,PTT_KEYS}=require('./push-to-talk.cjs');
 const {normalizeRoutines,routineIntent,routinePrompt,stopIntent}=require('./routines.cjs');
@@ -67,6 +67,7 @@ config.privacyLocked=config.privacyLocked===true;
 config.contextEnabled=config.contextEnabled===true;
 config.directCommandsEnabled=config.directCommandsEnabled!==false;
 config.microphoneDeviceId=validMicrophoneDeviceId(config.microphoneDeviceId)?config.microphoneDeviceId:'';
+config.microphoneDeviceLabel=validMicrophoneLabel(config.microphoneDeviceLabel)?config.microphoneDeviceLabel:'';
 try{config.audioPreferences=normalizeAudioPreferences(config.audioPreferences);}catch{config.audioPreferences=normalizeAudioPreferences();}
 config.pushToTalkEnabled=config.pushToTalkEnabled===true;
 config.pushToTalkKey=PTT_KEYS.includes(config.pushToTalkKey)?config.pushToTalkKey:'F8';
@@ -839,7 +840,7 @@ async function submit(text,options){
   }
   if(!options?.queuedJob){
     const job=getJobs().enqueue({text,title:options?.displayText||text,sessionId:conversation.session.storedId||conversation.session.id,profile:conversation.session.profile||'default',appId:options?.appId||null,speak:options?.speak!==false,turnId:validTurnId(options?.turnId)?options.turnId:crypto.randomUUID()});
-    await pumpJobs();if(getJobs().list().find(item=>item.id===job.id)?.status==='queued')emit('notice',{message:'Auftrag vorgemerkt. Er startet nach dem laufenden Auftrag.'});return {ok:true,jobId:job.id};
+    await pumpJobs();if(getJobs().list().find(item=>item.id===job.id)?.status==='queued')emit('notice',{message:getJobs().snapshot().blocked?'Auftrag wartet: Das Ergebnis des vorherigen Auftrags muss zuerst geprüft werden.':conversation.busy?'Auftrag vorgemerkt. Er startet nach dem laufenden Auftrag.':ttsPending||clientSpeaking?'Auftrag vorgemerkt. Die aktuelle Sprachausgabe läuft noch.':clientListening?'Auftrag vorgemerkt. Die Aufnahme wird noch abgeschlossen.':'Auftrag vorgemerkt. Die lokale Verarbeitung läuft noch.'});return {ok:true,jobId:job.id};
   }
   if(conversation.busy||getJobs().active()?.id!==options.queuedJob.id)throw Error('Der vorgemerkte Auftrag kann gerade nicht starten.');
   const visualHint=/artcraft|photocraft|vectorcraft|designcraft|deckcraft|gridcraft|wordcraft|cadcraft|lightcraft|soundcraft|effectcraft|filmcraft|pdfcraft|graphify|projektgraph|werkstatt|werkbank|webcam.*(?:aus|von|in)|erdbeben|lage.*ukrain|(?:erklär\w*|zeig\w*)\b.*\b(?:anwendung|browser|bedienung)/i.test(text)?'\n[Visuelle Werkstatt: Lies den Skill hermes-voice-control. Präsentiere passende Quellen/Browser/Graph/Artcraft über workbench -Agent, ohne Benutzerfokus zu übernehmen. Nur eine bestätigte eigene Präsentations-ID nach Gebrauch freigeben; eine vom Nutzer übernommene Werkstatt offen lassen. Die Console zeigt Auftrag und Quelle. Bei einer Anleitung frische UIA-Positionen mit PID/Fenster-ID verwenden; synthetischer Zeiger zeigt nur, Nutzer klickt selbst. Keine kostenpflichtigen OSIRIS-Prognosen oder private Kamera-Erfassung.]':'';
@@ -1025,6 +1026,8 @@ function registerHandlers(){
       return report;
     },
     snapshot:()=>snapshot(),connect:()=>connect(),login:()=>login(),sessions:()=>sessionRows,
+    'job-reconcile':(_e,value)=>jobAction('job-reconcile',value),
+    'job-resume':(_e,value)=>jobAction('job-resume',value),
     'wake-match':(_e,text)=>typeof text==='string'&&text.length<=20000?wakeDecision(text,config.wakeWord,config.bareNames):null,
     'bluetooth-devices':()=>getBluetooth().read(),
     'bluetooth':(_e,value)=>{if(conversation?.busy)throw Error('Ein Auftrag läuft noch.');return apiBluetooth(value);},
@@ -1072,6 +1075,7 @@ function registerHandlers(){
     audition:(_e,value)=>{const voice=typeof value==='string'?value:value?.voice,delivery=value?.delivery||config.delivery;if(!validVoice(voice)||!['normal','whisper','power'].includes(delivery))throw new Error('Unbekannte Stimme oder Sprechweise.');if(voice==='reference'&&delivery!=='normal')throw new Error('Die Referenzstimme unterstützt aktuell die natürliche Sprechweise.');stopSpeech();speak('Ich bin Lilith. Sag mir, was anliegt, Boss.',voice,delivery);},
     settings:async(_e,values,standbyTransition=false)=>{
       if(values?.microphoneDeviceId!==undefined&&!validMicrophoneDeviceId(values.microphoneDeviceId))throw Error('Ungültiges Mikrofon.');
+      if(values?.microphoneDeviceLabel!==undefined&&!validMicrophoneLabel(values.microphoneDeviceLabel))throw Error('Ungültiger Mikrofonname.');
       if(config.privacyLocked&&values?.approvalChoice==='once')requireLocalAccess();
       if(config.privacyLocked&&['cameraEnabled','wakeWord','screenEnabled','gesturesEnabled','contextEnabled'].some(key=>values?.[key]===true))requireLocalAccess();
       if(values?.contextEnabled!==undefined&&typeof values.contextEnabled!=='boolean')throw new Error('Ungültige Kontextfreigabe.');
@@ -1100,7 +1104,8 @@ function registerHandlers(){
       if(nextModes)config.modes=nextModes;
       if(nextDictionary)config.speechDictionary=nextDictionary;
       if(nextAudioPreferences)config.audioPreferences=nextAudioPreferences;
-      if(values?.microphoneDeviceId!==undefined)config.microphoneDeviceId=values.microphoneDeviceId;
+      if(values?.microphoneDeviceId!==undefined){if(values.microphoneDeviceId!==config.microphoneDeviceId&&values.microphoneDeviceLabel===undefined)config.microphoneDeviceLabel='';config.microphoneDeviceId=values.microphoneDeviceId;}
+      if(values?.microphoneDeviceLabel!==undefined)config.microphoneDeviceLabel=values.microphoneDeviceLabel;
       if(values?.pushToTalkKey!==undefined)config.pushToTalkKey=values.pushToTalkKey;
       for(const key of ['pushToTalkEnabled','directCommandsEnabled'])if(typeof values?.[key]==='boolean')config[key]=values[key];
       if(typeof values?.hudEnabled==='boolean'){config.hudEnabled=values.hudEnabled;publishHud();}

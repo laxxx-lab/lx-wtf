@@ -4,6 +4,7 @@ methods.push('privacy','emergency-stop','context-read','context-clear','routine-
 methods.push('intel-intent','intel-look');
 methods.push('wake-resume');
 methods.push('voice-timing');
+methods.push('job-reconcile','job-resume');
 methods.push('current-content-intent','current-content-read','stop-intent','stop-task','mode-folder-pick');
 contextBridge.exposeInMainWorld('hermes',{
   invoke:(method,payload)=>{

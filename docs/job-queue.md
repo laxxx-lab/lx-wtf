@@ -1,5 +1,12 @@
 # Durable local job queue
 
+The expanded Orb view now shows a blocked/held queue above the conversation.
+“Auftrag prüfen” invokes the existing owner-checked reconciliation, never retry
+or submit. A known idle remote can leave uncertain work paused and release the
+queue without claiming that its original action succeeded. New queued requests
+also name an observed waiting reason: unknown prior outcome, running agent,
+ongoing playback, unfinished capture or local processing.
+
 The approved Jarvis queue task adds `JobQueue` in `job-queue.cjs`, its behavioral tests in `tests/job-queue.test.cjs`, and this integration contract. The queue stores explicit user jobs, owns their original Hermes session/profile, serializes dispatch, and requires reconciliation whenever a remote outcome is uncertain. It performs no Hermes requests or external actions itself.
 
 ## Integration

@@ -10,6 +10,20 @@ function renderer(){
   return {context,calls,event:event=>handlers.forEach(fn=>fn(event)),run:code=>vm.runInContext(code,context),tick:()=>intervals.forEach(fn=>fn())};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
+test('a queued waiting notice does not light an error-looking alert orb',()=>{
+ const r=renderer();r.event({type:'notice',message:'Auftrag vorgemerkt. Die aktuelle Sprachausgabe läuft noch.'});assert.equal(r.run('orbAlertUntil'),0);
+ r.event({type:'notice',message:'Mikrofon ist nicht verfügbar.'});assert.ok(r.run('orbAlertUntil')>0);
+});
+test('unknown queued work is visible and its review button observes instead of retrying or submitting it',async()=>{
+ const r=renderer();const id='11111111-2222-4333-8444-555555555555';
+ r.event({type:'job-update',jobQueue:{blocked:true,held:false,activeJobId:id,jobs:[]}});
+ assert.equal(r.run("document.getElementById('queue-warning').hidden"),false);
+ assert.match(r.run("document.getElementById('queue-warning-text').textContent"),/Ergebnis.*unklar/);
+ assert.equal(r.calls.some(c=>c.method==='job-retry'||c.method==='job-reconcile'),false);
+ await r.run("document.getElementById('queue-review').onclick()");
+ assert.ok(r.calls.some(c=>c.method==='job-reconcile'&&c.value.id===id));assert.equal(r.calls.some(c=>c.method==='job-retry'||c.method==='submit'),false);
+ r.event({type:'job-update',jobQueue:{blocked:false,held:false,jobs:[]}});assert.equal(r.run("document.getElementById('queue-warning').hidden"),true);
+});
 test('changing the chosen microphone restarts live capture on that exact input and discards the old partial recording',async()=>{
  const r=renderer(),acquisitions=[],stopped=[];
  r.context.navigator.mediaDevices.getUserMedia=async constraints=>{acquisitions.push(constraints);const id=constraints.audio.deviceId?.exact||'default';const track={readyState:'live',label:id,enabled:true,muted:false,addEventListener(){},stop(){this.readyState='ended';stopped.push(id);}};return {getTracks:()=>[track],getAudioTracks:()=>[track]};};

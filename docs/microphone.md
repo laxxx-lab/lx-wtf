@@ -13,8 +13,13 @@ fortgesetzt. Bei ausgeschalteter Aufnahme oder Datenschutz öffnet allein das
 Speichern der Auswahl kein Mikrofon. Die Windows-Standard- und
 Kommunikationsgeräte werden nicht verändert.
 
-Ein fest gewähltes, nicht verfügbares Mikrofon erzeugt einen Hinweis. Die App
-weicht nicht heimlich auf ein anderes Gerät aus. Ein beendeter Track wird nicht
+Gerätekennung und zuletzt gewählter Gerätename werden gespeichert. Nach USB-
+Umstecken kann Windows eine neue Kennung und einen Zusatz wie „2-“ vergeben.
+Wenn genau ein Eingang denselben vollständigen Gerätenamen einschließlich
+vorhandener Hardwarekennung trägt, wird diese Kennung neu zugeordnet. Nur der
+Windows-Instanzzusatz in Klammern wird beim Vergleich ignoriert. Bei mehreren
+gleichnamigen Geräten oder fehlendem Treffer ist eine bewusste Auswahl nötig.
+Die App weicht nicht auf Headset, Standardgerät oder Webcam aus. Ein beendeter Track wird nicht
 weiter als verwendbarer Eingang wiederverwendet. Technische Grundlage:
 [MediaTrackConstraints.deviceId](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/deviceId).
 
@@ -30,3 +35,7 @@ antwortet. Es wurden keine Rohaufnahmen für diese Diagnose gespeichert.
 Automatisierte Prüfungen decken Auswahl ohne falschen Fallback, Trackende,
 verzögerte Freigabe, laufenden Live-Wechsel, verworfene alte Aufnahme und
 Datenschutz ab.
+
+Nach dem Umstecken des Sennheiser wurde am echten PC die alte gespeicherte
+Kennung gegen die neu gemeldete Kennung aufgelöst; Aufnahme und gespeicherte
+Auswahl stimmten überein. Wake-Bereitschaft und Live wurden danach geprüft.

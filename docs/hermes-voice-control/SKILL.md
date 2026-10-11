@@ -20,6 +20,15 @@ noch keinen Mikrofonwechsel-Endpunkt in `control.ps1`. Sennheiser/Corsair lassen
 sich dort für Live, Wakeword und Sprechtaste umschalten, ohne Windows-Standards
 zu verändern. Keine nicht vorhandenen API-Aktionen behaupten.
 
+Bei USB-Umstecken kann Windows neue Eingabe- und Ausgabekennungen vergeben.
+Audioausgabe beweist keine Mikrofonwahl. Die App speichert zusätzlich den
+gewählten Mikrofonnamen und ordnet nur einen eindeutigen passenden Eingang neu
+zu. Bei mehreren Treffern lokal gezielt auswählen. Zeigt die App eine blockierte
+Warteschlange, zuerst „Auftrag prüfen“ beziehungsweise die entsprechende
+Werkstatt-Aktion verwenden; keine alten unklaren Aktionen blind wiederholen.
+„Hinweis / vorgemerkt“ kann Warten auf Aufnahme oder Sprachausgabe bedeuten,
+nicht automatisch einen Serverabbruch. Tatsächlichen Status und Fehler prüfen.
+
 
 
 ## Bluetooth und Geräteausgabe

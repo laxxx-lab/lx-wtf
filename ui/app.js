@@ -3,6 +3,14 @@ const $=id=>document.getElementById(id),api=window.hermes;
 let expanded=false,settings={},sessionInfo=null,busy=false,phase='offline',level=0,replyNode=null,gatewayConnected=false,transcribing=false,liveRequest=0,captureSessionId=null;
 const microphone=new Microphone(()=>navigator.mediaDevices.getUserMedia(microphoneConstraints(settings.microphoneDeviceId||'')));
 let microphoneBound='',microphoneSwitch=Promise.resolve(true),micSilent=null;
+let queueReview=null;
+function renderQueueWarning(queue){
+  queueReview=queue?.blocked&&queue.activeJobId?{method:'job-reconcile',id:queue.activeJobId}:queue?.held?{method:'job-resume'}:null;
+  $('queue-warning').hidden=!queueReview;
+  $('queue-warning-text').textContent=queue?.blocked?'Auftrag unterbrochen · Ergebnis noch unklar. Weitere Aufträge warten auf Prüfung.':queue?.held?'Warteschlange angehalten. Aufträge werden noch nicht gesendet.':'';
+  $('queue-review').textContent=queue?.blocked?'Auftrag prüfen':'Warteschlange fortsetzen';
+}
+$('queue-review').onclick=async()=>{const review=queueReview;if(!review)return;const button=$('queue-review');button.disabled=true;try{renderQueueWarning(await invoke(review.method,review.id?{id:review.id}:{}));}catch(error){notice(error.message);}finally{button.disabled=false;}};
 let audioContext=null,audioTime=0,pcmRemainder=null,audioNodes=[],audioGeneration=-1,speakingUntil=0;
 let micStream=null,micSource=null,micProcessor=null,micAnalyser=null,micMuted=true,live=false,capturing=false,speechStarted=false,frames=[],captureStart=0,lastSpeech=0,noiseFloor=.001,lastMicLevel=0,wakePreRoll=[];
 let vadReady=false,captureGeneration=0;
@@ -193,6 +201,11 @@ function feedWake(input,rate){
 async function ensureMic(){
   if(privacyLocked)throw new Error('Datenschutzmodus aktiv. Bitte zuerst lokal entsperren.');
   const requested=settings.microphoneDeviceId||'';
+  if(requested&&settings.microphoneDeviceLabel){
+    const generation=microphone.generation,selected=resolveMicrophoneDevice({deviceId:requested,label:settings.microphoneDeviceLabel},await navigator.mediaDevices.enumerateDevices());
+    if(privacyLocked||generation!==microphone.generation||requested!==(settings.microphoneDeviceId||''))return;
+    if(selected.deviceId!==requested){const data=await invoke('settings',{microphoneDeviceId:selected.deviceId,microphoneDeviceLabel:selected.label});acceptSettings(data.settings);await microphoneSwitch;return;}
+  }
   if(micStream&&microphoneBound===requested&&!micStream.getTracks().some(track=>track.readyState==='ended'))return;
   if(micStream)releaseMic();
   const stream=await microphone.get();if(!stream||privacyLocked||requested!==(settings.microphoneDeviceId||'')||micStream===stream)return;
@@ -246,6 +259,7 @@ async function toggleMic(force){
   }catch(error){notice('Mikrofon: '+error.message);await toggleMic(false);}
 }
 api.on(event=>{
+  if(event.type==='job-update')renderQueueWarning(event.jobQueue);
   if(event.type==='ptt-control')void handlePushToTalk(event).catch(error=>{notice(error.message);cancelPushToTalk();});
   if(event.type==='speech-correction')renderSpeechCorrection(event);
   if(event.type==='system-report')renderSystemReport(event.report);
@@ -265,7 +279,7 @@ api.on(event=>{
   if(event.type==='mode-active')workstationControls.modeStatus(event.mode);
   if(event.type==='camera-greeting')addMessage('assistant',event.text);
   if(event.type==='expanded'){expanded=event.expanded;document.body.classList.toggle('expanded',expanded);}
-  if(event.type==='notice'){orbAlertUntil=performance.now()+2400;notice(event.message);}
+  if(event.type==='notice'){if(!String(event.message).startsWith('Auftrag vorgemerkt.'))orbAlertUntil=performance.now()+2400;notice(event.message);}
   if(event.type==='user'){replyNode=null;addMessage('user',event.text);}
   if(event.type==='bluetooth-update'&&event.bluetooth)renderBluetooth(event.bluetooth);
   if(event.type==='task-progress'&&!privacyLocked){addMessage('assistant',event.text);notice(event.text);}
@@ -393,7 +407,7 @@ async function syncGestures(){
 $('gesturesEnabled').onchange=()=>{gestureRetryAt=0;void invoke('settings',{gesturesEnabled:$('gesturesEnabled').checked}).then(data=>{acceptSettings(data.settings);void syncGestures();});};
 setInterval(()=>void syncGestures(),500);
 $('save').onclick=async()=>{try{const values={url:$('url').value,voice:$('voice').value,delivery:$('delivery').value,cameraDeviceId:$('cameraDeviceId').value,orbColors,orbIntensity,...workstationControls.values()};for(const id of ['monitoring','proactive','speakAlerts','autoStart','wakeWord','bareNames','cameraEnabled','cameraRecognize','cameraGreetings'])values[id]=$(id).checked;if($('pushToTalkEnabled'))values.pushToTalkEnabled=$('pushToTalkEnabled').checked;if($('pushToTalkKey'))values.pushToTalkKey=$('pushToTalkKey').value;if($('directCommandsEnabled'))values.directCommandsEnabled=$('directCommandsEnabled').checked;values.audioPreferences=audioOutputsReady?{headphones:$('audio-headphones').value,speakers:$('audio-speakers').value}:settings.audioPreferences||{};if(speechDictionaryEditor)values.speechDictionary=speechDictionaryEditor.value();const data=await invoke('settings',values);acceptSettings(data.settings);syncOrbSettings(settings);workstationControls.sync(settings);void syncCameraSettings(settings);void armWake();notice('Einstellungen gespeichert.');}catch(error){notice(error.message);}};
-invoke('snapshot').then(data=>{acceptSettings(data.settings);sessionInfo=data.session;wakeReady=data.wakeReady;vadReady=data.vadReady===true;orbCameraLooking=data.camera?.looking===true;orbScreenLooking=data.screen?.looking===true;renderState(data);renderMetrics(data.sample);renderSessions(data.sessions);syncOrbSettings(settings);workstationControls.sync(settings);$('url').value=settings.url;$('reference-voice-option').hidden=!data.referenceVoiceReady;$('voice').value=settings.voice;$('delivery').value=settings.delivery||'normal';syncVoiceDelivery();for(const id of ['monitoring','proactive','speakAlerts','autoStart','wakeWord','bareNames'])$(id).checked=settings[id];cameraControls.profiles(data.camera?.profiles||[]);void syncCameraSettings(settings);void armWake();}).catch(()=>{});
+invoke('snapshot').then(data=>{renderQueueWarning(data.jobQueue);acceptSettings(data.settings);sessionInfo=data.session;wakeReady=data.wakeReady;vadReady=data.vadReady===true;orbCameraLooking=data.camera?.looking===true;orbScreenLooking=data.screen?.looking===true;renderState(data);renderMetrics(data.sample);renderSessions(data.sessions);syncOrbSettings(settings);workstationControls.sync(settings);$('url').value=settings.url;$('reference-voice-option').hidden=!data.referenceVoiceReady;$('voice').value=settings.voice;$('delivery').value=settings.delivery||'normal';syncVoiceDelivery();for(const id of ['monitoring','proactive','speakAlerts','autoStart','wakeWord','bareNames'])$(id).checked=settings[id];cameraControls.profiles(data.camera?.profiles||[]);void syncCameraSettings(settings);void armWake();}).catch(()=>{});
 setInterval(()=>{
   renderMicrophoneStatus();
   observePlayback();
@@ -453,7 +467,7 @@ $('audio-apply').onclick=async()=>{const button=$('audio-apply');button.disabled
 function renderMicrophoneStatus(){
  const track=micStream?.getAudioTracks?.()[0],active=track?.readyState==='live';
  $('microphone-meter').value=active?Math.min(1,lastMicLevel*8):0;
- $('microphone-status').textContent=active?(track.label+(track.muted?' · liefert derzeit kein Signal':' · aktiv')):'Mikrofon aus';
+ $('microphone-status').textContent=active?(track.label+(track.muted?' · liefert derzeit kein Signal':' · aktiv')):settings.wakeWord||live?'Kein Mikrofonzugriff'+(settings.microphoneDeviceLabel?' · '+settings.microphoneDeviceLabel:''):'Mikrofon aus';
 }
 async function refreshMicrophones(){
  try{
@@ -468,10 +482,10 @@ $('microphone-refresh').onclick=()=>void refreshMicrophones();
 $('settings-toggle').addEventListener('click',()=>void refreshMicrophones());
 $('microphone-device').onchange=async()=>{
  const select=$('microphone-device');select.disabled=true;
- try{const data=await invoke('settings',{microphoneDeviceId:select.value});acceptSettings(data.settings);const applied=await microphoneSwitch;await refreshMicrophones();if(applied)notice(micStream?'Mikrofon: '+micStream.getAudioTracks()[0].label:'Mikrofon gespeichert. Aufnahme ist ausgeschaltet.');}
+ try{const device=(await navigator.mediaDevices.enumerateDevices()).find(item=>item.kind==='audioinput'&&item.deviceId===select.value);const data=await invoke('settings',{microphoneDeviceId:select.value,microphoneDeviceLabel:device?.label||''});acceptSettings(data.settings);const applied=await microphoneSwitch;await refreshMicrophones();if(applied)notice(micStream?'Mikrofon: '+micStream.getAudioTracks()[0].label:'Mikrofon gespeichert. Aufnahme ist ausgeschaltet.');}
  catch(error){notice('Mikrofon: '+error.message);}finally{select.disabled=false;}
 };
-navigator.mediaDevices.addEventListener?.('devicechange',()=>void refreshMicrophones());
+navigator.mediaDevices.addEventListener?.('devicechange',()=>{void refreshMicrophones();if(!privacyLocked&&(live||settings.wakeWord&&wakeReady)&&!micStream)microphoneSwitch=reconnectMicrophone().catch(error=>{notice('Mikrofon: '+error.message);return false;});});
 
 let bluetoothBusy=false;
 function renderBluetooth(data){
