@@ -1,8 +1,10 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('status', 'camera', 'live', 'wakewords', 'look', 'standby', 'screen', 'current-content', 'modes', 'mode', 'highlight', 'workbench','privacy','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output')]
+    [ValidateSet('status', 'camera', 'live', 'wakewords', 'look', 'standby', 'screen', 'current-content', 'modes', 'mode', 'highlight', 'workbench','privacy','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth')]
     [string]$Action = 'status',
     [ValidateLength(1,100)][string]$Target,
+    [ValidateSet('radio','scan','connect','disconnect','pair','audio')][string]$Operation,
+    [ValidateLength(1,200)][string]$DeviceId,
     [ValidateSet('photo','vector','design','deck','grid','word','cad','light','sound','effect','film','pdf')][string]$App,
     [ValidateRange(1,65535)][int]$Port,
     [string]$TokenFile,
@@ -42,7 +44,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Action = $Action.ToLowerInvariant()
-if ($Action -notin @('status','look','standby','screen','current-content','modes','mode','highlight','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output') -and -not $PSBoundParameters.ContainsKey('State')) {
+if ($Action -notin @('status','look','standby','screen','current-content','modes','mode','highlight','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth') -and -not $PSBoundParameters.ContainsKey('State')) {
     throw 'Camera, live, and wakewords controls require -State on or off.'
 }
 if ($Action -in @('look','screen') -and [string]::IsNullOrWhiteSpace($Question)) { throw 'Look requires -Question with the current visual question.' }
@@ -80,7 +82,13 @@ $request = @{
     MaximumRedirection = 0
     ErrorAction = 'Stop'
 }
-if ($Action -eq 'audio-output') {
+if ($Action -eq 'bluetooth') {
+    if(-not $Operation){throw 'Bluetooth requires -Operation.'}
+    $btPayload=@{action=$Operation}
+    if($Operation -eq 'radio'){if(-not $State){throw 'Bluetooth radio requires -State on or off.'};$btPayload.enabled=($State -eq 'on')}
+    elseif($Operation -ne 'scan'){if($DeviceId -notmatch '^Bluetooth(LE)?#Bluetooth(LE)?([a-fA-F0-9]{2}:){5}[a-fA-F0-9]{2}-([a-fA-F0-9]{2}:){5}[a-fA-F0-9]{2}$'){throw 'Choose an exact Bluetooth endpoint ID from bluetooth-devices.'};$btPayload.deviceId=$DeviceId}
+    $request.Method='Post';$request.TimeoutSec=50;$request.ContentType='application/json; charset=utf-8';$request.Body=[System.Text.Encoding]::UTF8.GetBytes(($btPayload|ConvertTo-Json -Compress))
+} elseif ($Action -eq 'audio-output') {
     if($Target -notin @('speakers','headphones') -and $Target -notmatch '^\{0\.0\.0\.00000000\}\.\{[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}\}$'){throw 'Choose headphones, speakers, or an active render endpoint ID.'}
     $request.Method='Post';$request.ContentType='application/json; charset=utf-8';$request.Body=[System.Text.Encoding]::UTF8.GetBytes((@{target=$Target}|ConvertTo-Json -Compress))
 } elseif ($Action -in @('artcraft-select','artcraft-open','artcraft-link')) {
@@ -132,7 +140,7 @@ if ($Action -eq 'audio-output') {
     $request.Method = 'Post'
     $request.ContentType = 'application/json'
     $request.Body = '{}'
-} elseif ($Action -notin @('status','modes','context','tasks','routines','graph','intel-catalog','artcraft','audio-outputs')) {
+} elseif ($Action -notin @('status','modes','context','tasks','routines','graph','intel-catalog','artcraft','audio-outputs','bluetooth-devices')) {
     $request.Method = 'Post'
     $request.ContentType = 'application/json'
     $request.Body = @{ enabled = ($State -eq 'on') } | ConvertTo-Json -Compress

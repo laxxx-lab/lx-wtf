@@ -1,6 +1,15 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');
 const {createControlApi}=require('../control-api.cjs');
 
+test('Bluetooth API exposes authenticated discovery and only typed radio or exact endpoint operations',async t=>{
+ const calls=[],token='b'.repeat(64),api=await createControlApi({port:0,token,readStatus:()=>({}),onCommand:()=>{},readBluetooth:()=>({devices:[]}),onBluetooth:value=>{calls.push(value);return {verified:true};}});t.after(()=>api.close());
+ const url=`http://127.0.0.1:${api.address().port}`,headers={Authorization:'Bearer '+token};
+ assert.equal((await fetch(url+'/v1/bluetooth-devices')).status,401);assert.equal((await fetch(url+'/v1/bluetooth-devices',{headers})).status,200);
+ for(const value of [{action:'radio',enabled:true},{action:'scan'},{action:'connect',deviceId:'Bluetooth#Bluetooth00:11:22:33:44:55-66:77:88:99:aa:bb'}])assert.equal((await fetch(url+'/v1/bluetooth',{method:'POST',headers,body:JSON.stringify(value)})).status,200);
+ for(const value of [{action:'remove',deviceId:'x'},{action:'scan',host:'evil'},{action:'radio',enabled:1},{action:'connect',deviceId:';calc'},{action:'connect',name:'Any headphones'},{action:'pair',deviceId:'Bluetooth#Bluetooth00:11:22:33:44:55-66:77:88:99:aa:bb',pin:'0000'}])assert.equal((await fetch(url+'/v1/bluetooth',{method:'POST',headers,body:JSON.stringify(value)})).status,400);
+ assert.equal(calls.length,3);assert.equal(calls[0].type,'bluetooth');
+});
+
 test('audio output API only accepts render identities or configured aliases and reports unverified effects honestly',async t=>{
  const calls=[],token='a'.repeat(64),api=await createControlApi({port:0,token,readStatus:()=>({}),onCommand:()=>{},readAudioOutputs:()=>({devices:[]}),onAudioOutput:target=>{calls.push(target);return {verified:false,status:'unverified'};}});t.after(()=>api.close());
  const url=`http://127.0.0.1:${api.address().port}`,headers={Authorization:'Bearer '+token};
@@ -153,7 +162,7 @@ test('PowerShell helper sends agent leases, explicit content questions and norma
   const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{spawn}=require('node:child_process');
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'voice-control-api-test-'));
   t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
-  const token='4'.repeat(64),calls=[],api=await createControlApi({port:0,token,readAudioOutputs:()=>({devices:[]}),onAudioOutput:target=>({verified:true,target}),readStatus:()=>({}),onCommand:()=>{},onWorkbench:value=>{calls.push(value);return value.enabled?{shown:true,owner:value.agent?'agent':'user',requestId:'cli-lease',reason:value.reason||''}:{closed:true,owner:'none',requestId:value.requestId,reason:''};},onContent:value=>{calls.push(value);return {kind:value.kind,text:'Requested text'};},onStopTask:()=>{calls.push('stop');return {remoteStop:'requested'};}});t.after(()=>api.close());
+  const token='4'.repeat(64),calls=[],api=await createControlApi({port:0,token,readBluetooth:()=>({devices:[]}),onBluetooth:command=>({verified:true,command}),readAudioOutputs:()=>({devices:[]}),onAudioOutput:target=>({verified:true,target}),readStatus:()=>({}),onCommand:()=>{},onWorkbench:value=>{calls.push(value);return value.enabled?{shown:true,owner:value.agent?'agent':'user',requestId:'cli-lease',reason:value.reason||''}:{closed:true,owner:'none',requestId:value.requestId,reason:''};},onContent:value=>{calls.push(value);return {kind:value.kind,text:'Requested text'};},onStopTask:()=>{calls.push('stop');return {remoteStop:'requested'};}});t.after(()=>api.close());
   fs.copyFileSync(path.join(__dirname,'../control.ps1'),path.join(directory,'control.ps1'));fs.mkdirSync(path.join(directory,'.local'));
   fs.writeFileSync(path.join(directory,'.local/control-api.json'),JSON.stringify({url:`http://127.0.0.1:${api.address().port}`,token}));
   const run=args=>new Promise((resolve,reject)=>{
@@ -166,6 +175,8 @@ test('PowerShell helper sends agent leases, explicit content questions and norma
   const stop=await run(['-Action','stop']);assert.equal(stop.code,0,stop.error);assert.equal(JSON.parse(stop.output).result.remoteStop,'requested');
   for(const args of [['-Action','workbench','-State','off','-Agent'],['-Action','current-content','-Kind','news','-Question','Explain.'],['-Action','intel','-Kind','clipboard']])assert.notEqual((await run(args)).code,0);
   const manual=await run(['-Action','workbench','-State','on']);assert.equal(manual.code,0,manual.error);assert.equal(JSON.parse(manual.output).result.owner,'user');
+  const btDevices=await run(['-Action','bluetooth-devices']);assert.equal(btDevices.code,0,btDevices.error);assert.deepEqual(JSON.parse(btDevices.output).devices,[]);
+  const btRadio=await run(['-Action','bluetooth','-Operation','radio','-State','on']);assert.equal(btRadio.code,0,btRadio.error);assert.equal(JSON.parse(btRadio.output).result.command.enabled,true);
   const outputs=await run(['-Action','audio-outputs']);assert.equal(outputs.code,0,outputs.error);assert.deepEqual(JSON.parse(outputs.output).devices,[]);
   const audio=await run(['-Action','audio-output','-Target','speakers']);assert.equal(audio.code,0,audio.error);assert.equal(JSON.parse(audio.output).result.target,'speakers');
   assert.deepEqual(calls,[{enabled:true,tab:'console',agent:true,reason:'Explain window'},{enabled:false,tab:'system',agent:true,requestId:'cli-lease'},{kind:'clipboard',question:'Explain this text.'},{kind:'window',question:'Explain this text.'},'stop',{enabled:true,tab:'system'}]);

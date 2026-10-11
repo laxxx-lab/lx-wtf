@@ -1,5 +1,34 @@
 # Lokale Steuerungs-API
 
+## Bluetooth
+
+`GET /v1/bluetooth-devices` liefert `{radios, devices, observedAt}` mit
+`devices[].id`, `name`, `paired`, `connected`, `containerId`. Gespeicherte
+Verbindungsflags sind keine Bestätigung einer frisch ausgeführten Aktion.
+`POST /v1/bluetooth` akzeptiert exakt eine dieser Formen:
+
+```json
+{"action":"radio","enabled":true}
+{"action":"scan"}
+{"action":"connect","deviceId":"<aktuelle devices[].id>"}
+```
+
+Für Geräte zusätzlich `disconnect`, `pair`, `audio`. Keine Namen statt IDs,
+keine zusätzlichen Schlüssel. Wie die übrigen Endpunkte lokal authentifiziert;
+Browser-Origin-Anfragen sind gesperrt. Erfolg braucht `ok=true` und
+`result.verified=true`. `result.evidence.needsUser=true` verlangt Abschluss im
+nativen Windows-Kopplungsdialog und bestätigt keine Kopplung. Hardware-Grenzen
+und geprüfter Stand: [Bluetooth](bluetooth-control.md).
+
+```powershell
+.\control.ps1 -Action bluetooth-devices
+.\control.ps1 -Action bluetooth -Operation radio -State on
+.\control.ps1 -Action bluetooth -Operation scan
+.\control.ps1 -Action bluetooth -Operation audio -DeviceId '<aktuelle devices[].id>'
+```
+
+## Grundsteuerung
+
 Hermes erreicht die App über seine vorhandene Windows-MCP-Shell und [control.ps1](../control.ps1). Der Helfer liest das lokale Token selbst. Es muss nicht zum VPS kopiert werden. Die API bindet ausschließlich an `127.0.0.1:8872`; es ist kein zusätzlicher Netzwerkport freigegeben.
 
 ```powershell

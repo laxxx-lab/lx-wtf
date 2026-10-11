@@ -1,6 +1,7 @@
 const http = require('node:http');
 const { timingSafeEqual } = require('node:crypto');
 const {validAudioTarget}=require('./audio-output.cjs');
+const {validBluetoothCommand}=require('./bluetooth.cjs');
 
 const MAX_BODY_BYTES = 1024;
 const ACTIONS = new Set(['camera', 'live', 'wakewords']);
@@ -17,7 +18,7 @@ function validCraftLinkRequest(value){
   const local=file=>typeof file==='string'&&file.length<=500&&!/[\x00-\x1f]/.test(file)&&/^[A-Za-z]:[\\/]/.test(file);
   return !!value&&typeof value==='object'&&!Array.isArray(value)&&CRAFT_IDS.includes(value.appId)&&Object.keys(value).every(k=>['appId','port','tokenFile','endpointFile'].includes(k))&&(value.port===undefined||Number.isInteger(value.port)&&value.port>0&&value.port<=65535)&&['tokenFile','endpointFile'].every(k=>value[k]===undefined||local(value[k]))&&(value.appId==='pdf'?!!value.endpointFile:value.port!==undefined);
 }
-async function createControlApi({ port = 8872, token, readStatus, onCommand, onLook, onScreen, onContent, onHighlight, onMode, readModes, onWorkbench,readContext,readTasks,readRoutines,onRoutine,onStop,onStopTask,readGraph,onGraphSearch,onGraphSource,readIntelCatalog,onIntel,onGuide,clearGuide,readArtcraft,onArtcraft,readAudioOutputs,onAudioOutput }) {
+async function createControlApi({ port = 8872, token, readStatus, onCommand, onLook, onScreen, onContent, onHighlight, onMode, readModes, onWorkbench,readContext,readTasks,readRoutines,onRoutine,onStop,onStopTask,readGraph,onGraphSearch,onGraphSource,readIntelCatalog,onIntel,onGuide,clearGuide,readArtcraft,onArtcraft,readAudioOutputs,onAudioOutput,readBluetooth,onBluetooth }) {
   if (typeof token !== 'string' || !token || typeof readStatus !== 'function' || typeof onCommand !== 'function') {
     throw new Error('Invalid control API configuration');
   }
@@ -44,8 +45,8 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
         return reply(401, { error: 'Unauthorized' });
       }
       const action = req.url.slice('/v1/'.length);
-      if (!['status','look','standby','screen','current-content','highlight','mode','modes','workbench','context','tasks','routines','routine','privacy','stop','emergency-stop','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output'].includes(action) && !ACTIONS.has(action)) return reply(404, { error: 'Not found' });
-      if (req.method !== (['status','modes','context','tasks','routines','graph','intel-catalog','artcraft','audio-outputs'].includes(action) ? 'GET' : 'POST')) return reply(405, { error: 'Method not allowed' });
+      if (!['status','look','standby','screen','current-content','highlight','mode','modes','workbench','context','tasks','routines','routine','privacy','stop','emergency-stop','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth'].includes(action) && !ACTIONS.has(action)) return reply(404, { error: 'Not found' });
+      if (req.method !== (['status','modes','context','tasks','routines','graph','intel-catalog','artcraft','audio-outputs','bluetooth-devices'].includes(action) ? 'GET' : 'POST')) return reply(405, { error: 'Method not allowed' });
       if (Number(req.headers['content-length'] || 0) > MAX_BODY_BYTES) {
         req.resume();
         return reply(413, { error: 'Payload too large' });
@@ -64,6 +65,7 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
         req.on('error', () => reject(Object.assign(new Error('Invalid request'), { status: 400 })));
         req.on('aborted', () => reject(Object.assign(new Error('Invalid request'), { status: 400 })));
       });
+      if(action==='bluetooth-devices')return typeof readBluetooth==='function'?reply(200,await readBluetooth()):reply(503,{error:'Bluetooth unavailable'});
       if(action==='audio-outputs')return typeof readAudioOutputs==='function'?reply(200,await readAudioOutputs()):reply(503,{error:'Audio unavailable'});
       if (action === 'status') return reply(200, await readStatus());
       if (action === 'modes') return typeof readModes==='function'?reply(200,{modes:await readModes()}):reply(503,{error:'Modes are unavailable'});
@@ -71,6 +73,12 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
       if(['context','tasks','routines','graph','intel-catalog','artcraft'].includes(action))return typeof reader==='function'?reply(200,await reader()):reply(503,{error:'Resource unavailable'});
       let payload;
       try { payload = JSON.parse(body); } catch { return reply(400, { error: 'Invalid JSON' }); }
+      if(action==='bluetooth'){
+        if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.hasOwn(payload,'type')||!validBluetoothCommand({...payload,type:'bluetooth'}))return reply(400,{error:'Expected a typed Bluetooth operation and exact device ID'});
+        if(typeof onBluetooth!=='function')return reply(503,{error:'Bluetooth unavailable'});
+        req.socket.setTimeout(50000);const epoch=controlEpoch,command=commandChain.then(()=>{if(epoch!==controlEpoch)throw Object.assign(new Error('Stopped'),{status:423});return onBluetooth({...payload,type:'bluetooth'});});commandChain=command.catch(()=>{});
+        const result=await command;return reply(200,{ok:result.verified===true,action,result});
+      }
       if(action==='audio-output'){
         if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.keys(payload).length!==1||!validAudioTarget(payload.target))return reply(400,{error:'Expected a render output or configured alias'});
         if(typeof onAudioOutput!=='function')return reply(503,{error:'Audio unavailable'});

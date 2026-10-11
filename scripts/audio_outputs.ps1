@@ -44,18 +44,19 @@ namespace LilithAudioOutputs {
   void SetPropertyValue([MarshalAs(UnmanagedType.LPWStr)]string id,int fx,IntPtr key,IntPtr value);
   void SetDefaultEndpoint([MarshalAs(UnmanagedType.LPWStr)]string id,int role);
  }
- public class Output {public string id;public string name;public int formFactor;}
+ public class Output {public string id;public string name;public string containerId;public int formFactor;}
  public class Defaults {public string console;public string multimedia;public string communications;}
  public class Snapshot {public Output[] devices;public Defaults defaults;}
  public static class Audio {
   [DllImport("ole32.dll")]static extern int PropVariantClear(ref Value value);
   [DllImport("kernel32.dll")]static extern uint WTSGetActiveConsoleSessionId();
   static string Property(IProperties store,Key key){Value value;store.GetValue(ref key,out value);try{return value.type==31?Marshal.PtrToStringUni(value.text):null;}finally{PropVariantClear(ref value);}}
+  static string Container(IProperties store){var key=new Key("8c7ed206-3f8a-4827-b3ab-ae9e1faefc6c",2);Value value;try{store.GetValue(ref key,out value);}catch{return null;}try{return value.type==72?((Guid)Marshal.PtrToStructure(value.text,typeof(Guid))).ToString("D"):null;}finally{PropVariantClear(ref value);}}
   static string Default(IEnumerator e,int role){IDevice device=null;try{if(e.GetDefaultAudioEndpoint(0,role,out device)!=0||device==null)return null;string id;device.GetId(out id);return id;}finally{if(device!=null)Marshal.ReleaseComObject(device);}}
   public static Snapshot Read(){var e=(IEnumerator)new Enumerator();ICollection list=null;try{
    e.EnumAudioEndpoints(0,1,out list);uint count;list.GetCount(out count);if(count>64)throw new InvalidOperationException("Too many audio outputs");var result=new List<Output>();
    for(uint i=0;i<count;i++){IDevice device=null;IProperties store=null;try{list.Item(i,out device);string id;device.GetId(out id);device.OpenPropertyStore(0,out store);var name=Property(store,new Key("a45c254e-df1c-4efd-8020-67d146a850e0",14));if(String.IsNullOrWhiteSpace(name)){var description=Property(store,new Key("a45c254e-df1c-4efd-8020-67d146a850e0",2));var adapter=Property(store,new Key("b3f8fa53-0004-438e-9003-51a46e139bfc",6));name=description+" ("+adapter+")";}
-    var key=new Key("1da5d803-d492-4edd-8c23-e0c0ffee7f0e",0);Value value;store.GetValue(ref key,out value);int factor=10;try{if(value.type==19)factor=(int)value.number;}finally{PropVariantClear(ref value);}result.Add(new Output{id=id,name=name,formFactor=factor});
+    var key=new Key("1da5d803-d492-4edd-8c23-e0c0ffee7f0e",0);Value value;store.GetValue(ref key,out value);int factor=10;try{if(value.type==19)factor=(int)value.number;}finally{PropVariantClear(ref value);}result.Add(new Output{id=id,name=name,containerId=Container(store),formFactor=factor});
    }finally{if(store!=null)Marshal.ReleaseComObject(store);if(device!=null)Marshal.ReleaseComObject(device);}}
    return new Snapshot{devices=result.ToArray(),defaults=new Defaults{console=Default(e,0),multimedia=Default(e,1),communications=Default(e,2)}};
   }finally{if(list!=null)Marshal.ReleaseComObject(list);Marshal.ReleaseComObject(e);}}

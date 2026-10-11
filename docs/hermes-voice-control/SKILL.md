@@ -1,10 +1,34 @@
 ---
 name: hermes-voice-control
-description: "Bei Lilith-/Hermes-Voice-Aufträgen mit sichtbaren Ergebnissen, kopiertem Text, aktuellen Fenstern, App-/Projekt-/Systemdaten, Kamera, Bildschirm, Werkbank oder Stop verwenden."
+description: "Bei Lilith-/Hermes-Voice-Aufträgen mit sichtbaren Ergebnissen, kopiertem Text, aktuellen Fenstern, App-/Projekt-/Systemdaten, Bluetooth, Audioausgabe, Kamera, Bildschirm, Werkbank oder Stop verwenden."
 ---
 
 # Hermes Voice auf Patriks Windows-PC steuern
 
+
+
+## Bluetooth und Geräteausgabe
+
+Bei ausdrücklich beauftragter Bluetooth-Steuerung die lokale Voice-API benutzen. Keine Dienste, Treiber oder Gerätekopplungen zur Fehlerbehebung entfernen. Keine pauschalen Radio-Neustarts und keine beliebigen Pairing-PINs ausprobieren.
+
+```powershell
+& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action bluetooth-devices
+& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action bluetooth -Operation radio -State on
+& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action bluetooth -Operation radio -State off
+& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action bluetooth -Operation scan
+& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action bluetooth -Operation connect -DeviceId '<devices[].id>'
+& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action bluetooth -Operation disconnect -DeviceId '<devices[].id>'
+& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action bluetooth -Operation pair -DeviceId '<devices[].id>'
+& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action bluetooth -Operation audio -DeviceId '<devices[].id>'
+```
+
+Nur die zum Nutzerauftrag passenden Aktionen ausführen. Platzhalter durch die echte zurückgemeldete Endpunkt-ID ersetzen. Gerätenamen eindeutig zuordnen; bei mehreren passenden Geräten einmal gezielt nachfragen. `scan` sucht acht Sekunden nach Bluetooth/Bluetooth-LE-Geräten und liefert bekannte plus neu gefundene Geräte; das ist keine Vollständigkeitsgarantie. Neue Zielgeräte in den Kopplungsmodus versetzen lassen. Bei noch ausgeschaltetem Bluetooth zunächst den Zustand melden; das Einschalten nicht ohne passenden Auftrag erzwingen.
+
+`connect` verbindet ein gekoppeltes Gerät über dessen gezielten Windows-Verbindungsbutton; `disconnect` trennt dessen Verbindung. Einige Eingabegeräte verbinden sich selbst nach dem Einschalten und bieten Windows keinen Connect-Button. Das ist eine konkrete Geräte-/Windows-Grenze, keine fehlende Agentenberechtigung. Die Windows-Seite darf für diese UIA-Aktionen sichtbar werden. `pair` bedient den nativen Kopplungsdialog für das eindeutige Gerät; PINs/Nummernvergleiche vom Nutzer in Windows bestätigen lassen. Keine PIN in den Hermes-Chat kopieren, kein anderer Kamerablick nötig. `result.evidence.needsUser=true` bedeutet: Kopplung noch nicht bestätigt, nicht erfolgreich nennen.
+
+Patriks bereits gekoppelter Xbox-Controller verbindet sich selbstständig. Dafür keine neue Kopplung, keinen Radio-Neustart und keinen erzwungenen Connect-Versuch ausführen. Bei ausgeschaltetem Controller kurz das Einschalten am Gerät nennen. Die Samsung-Soundbar lässt sich dagegen gezielt verbinden, trennen und als Audioausgabe wählen. Namen immer aus der aktuellen Liste auflösen; keine fest eingebauten IDs verwenden.
+
+`audio` verbindet das gewünschte Gerät und schaltet auf dessen aktive Wiedergabeausgabe. Die Zuordnung erfolgt über die physische Windows-Container-ID, nicht nur über einen ähnlichen Namen. Bei mehreren Ausgaben unter Audio gezielt auswählen; bei fehlender Ausgabe den belegten Grund melden. Erfolg ausschließlich bei `ok=true` und `result.verified=true`. Gekoppelt ist nicht gleich verbunden; verbunden ist nicht gleich richtige Audioausgabe. Die gelesene Geräteliste enthält gespeicherte Windows-Zustände, kein dauerndes Monitoring. Bei unbekannter Wirkung erst prüfen, nicht blind erneut koppeln, verbinden oder umschalten.
 
 ## Audioausgabe ohne GUI-Suchlauf
 

@@ -46,6 +46,14 @@
         <label>„Boxen“ meint<select id="audio-speakers"></select></label>
         <small id="audio-output-status">Geräte werden beim Öffnen der Einstellungen gelesen.</small>
       </section>
+      <section class="speech-settings" aria-label="Bluetooth">
+        <div class="workstation-heading"><span>BLUETOOTH / GERÄTE</span><button id="bluetooth-refresh" type="button">Aktualisieren</button></div>
+        <small id="bluetooth-status">Bluetooth wird beim Öffnen der Einstellungen gelesen.</small>
+        <div class="workstation-actions"><button id="bluetooth-on" type="button">Ein</button><button id="bluetooth-off" type="button">Aus</button><button id="bluetooth-scan" type="button">Geräte suchen</button></div>
+        <label>Gerät<select id="bluetooth-device"></select></label>
+        <div class="workstation-actions"><button id="bluetooth-connect" type="button">Verbinden</button><button id="bluetooth-disconnect" type="button">Trennen</button><button id="bluetooth-pair" type="button">Koppeln</button><button id="bluetooth-audio" type="button">Als Audioausgabe</button></div>
+        <small>Neue Geräte in den Kopplungsmodus versetzen. PINs und Bestätigungen bleiben im Windows-Dialog. Verbinden und Audioausgabe sind getrennte Schritte.</small>
+      </section>
       <section class="speech-settings" aria-label="Sprachbedienung">
         <div class="workstation-heading"><span>SPRACHE / DIREKT</span><small>LOKAL</small></div>
         <label class="check"><input id="directCommandsEnabled" type="checkbox" checked> Standardbefehle direkt ausführen</label>

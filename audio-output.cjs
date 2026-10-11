@@ -17,7 +17,7 @@ function normalizeAudioPreferences(value={}){
 function validateAudioSnapshot(value,now=Date.now()){
  if(!value||!Array.isArray(value.devices)||value.devices.length>64||!Number.isSafeInteger(value.observedAt)||Math.abs(now-value.observedAt)>15000||!value.defaults||['console','multimedia','communications'].some(role=>value.defaults[role]!==null&&(typeof value.defaults[role]!=='string'||!RENDER_ID.test(value.defaults[role]))))throw Error('Windows-Audiozustand ist nicht aktuell oder eindeutig.');
  const ids=new Set();for(const item of value.devices){if(!item||(typeof item.id!=='string'||!RENDER_ID.test(item.id))||ids.has(item.id)||typeof item.name!=='string'||!item.name.trim()||item.name.length>300||/[\p{Cc}\p{Cf}]/u.test(item.name)||!Number.isInteger(item.formFactor)||item.formFactor<0||item.formFactor>10)throw Error('Ungültige Windows-Audioausgabe.');ids.add(item.id);}
- return {devices:value.devices.map(({id,name,formFactor})=>({id,name,formFactor})),defaults:{...value.defaults},observedAt:value.observedAt};
+ return {devices:value.devices.map(({id,name,formFactor,containerId})=>({id,name,formFactor,containerId:typeof containerId==='string'&&/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(containerId)?containerId.toLowerCase():null})),defaults:{...value.defaults},observedAt:value.observedAt};
 }
 function resolveAudioOutput(target,snapshot,preferences={}){
  if(!validAudioTarget(target))throw Error('Ungültige Audioausgabe.');const prefs=normalizeAudioPreferences(preferences);

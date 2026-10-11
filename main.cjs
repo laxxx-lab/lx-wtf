@@ -36,6 +36,7 @@ const {VoiceTiming,validId:validTurnId}=require('./voice-timing.cjs');
 const {createDirectCommands}=require('./direct-commands.cjs');
 const {createAudioOutputs,normalizeAudioPreferences,validAudioTarget}=require('./audio-output.cjs');
 const {TaskWaitFeedback}=require('./task-wait-feedback.cjs');
+const {createBluetooth,validBluetoothCommand}=require('./bluetooth.cjs');
 const {normalizeSpeechDictionary,applySpeechDictionary}=require('./speech-dictionary.cjs');
 const {PushToTalkHotkey,PTT_KEYS}=require('./push-to-talk.cjs');
 const {normalizeRoutines,routineIntent,routinePrompt,stopIntent}=require('./routines.cjs');
@@ -76,7 +77,7 @@ const journal=createContextJournal({file:path.join(LOCAL,process.argv.includes('
 const awareness=new Awareness(),teach=new TeachMode(),voiceTiming=new VoiceTiming();
 let jobQueue=null,jobPumping=false,jobPumpTimer=null,jobSettling=null,currentTurnId=null;
 let directController=null,localCommandRunning=false,localCommandAbort=null,pttHotkey=null;
-let audioOutputs=null,apiAudioRunning=false;
+let audioOutputs=null,apiDeviceRunning=false;
 function getAudioOutputs(){return audioOutputs||=createAudioOutputs({preferences:()=>config.audioPreferences});}
 async function readAudioOutputs(){return {...await getAudioOutputs().read(),preferences:{...config.audioPreferences}};}
 async function switchAudioOutput(target,options={}){
@@ -92,11 +93,29 @@ async function switchAudioOutput(target,options={}){
 }
 async function apiAudioOutput(target){
   requireLocalAccess();if(!validAudioTarget(target))throw Error('Ungültige Audioausgabe.');
-  if(localCommandRunning||apiAudioRunning||conversation?.selecting)throw Error('Die lokale Ausführung läuft noch.');
-  const controller=new AbortController();apiAudioRunning=true;localCommandAbort=controller;
-  try{return await switchAudioOutput(target,{signal:controller.signal});}finally{if(localCommandAbort===controller)localCommandAbort=null;apiAudioRunning=false;scheduleJobs();}
+  if(localCommandRunning||apiDeviceRunning||conversation?.selecting)throw Error('Die lokale Ausführung läuft noch.');
+  const controller=new AbortController();apiDeviceRunning=true;localCommandAbort=controller;
+  try{return await switchAudioOutput(target,{signal:controller.signal});}finally{if(localCommandAbort===controller)localCommandAbort=null;apiDeviceRunning=false;scheduleJobs();}
 }
-function getDirectCommands(){if(directController)return directController;if(!app.isReady())return null;return directController=createDirectCommands({audio:{resolve:(...args)=>getAudioOutputs().resolve(...args),switch:switchAudioOutput,observe:(...args)=>getAudioOutputs().observe(...args)}});}
+let bluetoothController=null;
+function getBluetooth(){return bluetoothController||=createBluetooth({audio:{read:(...args)=>getAudioOutputs().read(...args),switch:switchAudioOutput}});}
+async function runBluetooth(command,options={}){
+ requireLocalAccess();const selected=conversation?.session,generation=safetyGeneration;
+ const result=await getBluetooth().execute(command,options);options.signal?.throwIfAborted();
+ requireLocalAccess();if(selected!==conversation?.session||generation!==safetyGeneration)throw Error('Bluetooth-Auftrag wurde gestoppt oder geändert.');
+ if(result.verified&&command.action!=='scan'&&command.action!=='audio'){
+  try{const route=await clientControl('audio-output','default',4000);options.signal?.throwIfAborted();requireLocalAccess();if(selected!==conversation?.session||generation!==safetyGeneration||route?.systemDefault!==true)throw Error('Sprachausgabe nicht bestätigt.');}
+  catch{return {...result,status:'unverified',verified:false,message:'Bluetooth-Zustand geändert; Liliths Sprachausgabe ist noch nicht bestätigt.'};}
+ }
+ if(result.snapshot)emit('bluetooth-update',{bluetooth:result.snapshot});return result;
+}
+async function apiBluetooth(command){
+ requireLocalAccess();if(!validBluetoothCommand(command))throw Error('Ungültiger Bluetooth-Auftrag.');
+ if(localCommandRunning||apiDeviceRunning||conversation?.selecting)throw Error('Eine lokale Geräteaktion läuft noch.');
+ const controller=new AbortController();apiDeviceRunning=true;localCommandAbort=controller;
+ try{return await runBluetooth(command,{signal:controller.signal});}finally{if(localCommandAbort===controller)localCommandAbort=null;apiDeviceRunning=false;scheduleJobs();}
+}
+function getDirectCommands(){if(directController)return directController;if(!app.isReady())return null;return directController=createDirectCommands({bluetooth:{resolve:(...args)=>getBluetooth().resolve(...args),execute:runBluetooth,observe:(...args)=>getBluetooth().observe(...args)},audio:{resolve:(...args)=>getAudioOutputs().resolve(...args),switch:switchAudioOutput,observe:(...args)=>getAudioOutputs().observe(...args)}});}
 function syncPushToTalk(){
   if(!app.isReady()||process.argv.includes('--smoke'))return;
   pttHotkey||=new PushToTalkHotkey({allowed:()=>!config.privacyLocked&&config.pushToTalkEnabled&&connected&&!!conversation?.session&&!conversation.selecting,onEvent:event=>emit('ptt-control',event),onState:value=>{emit('ptt-state',value);if(value.error)emit('notice',{message:value.error});}});
@@ -117,7 +136,7 @@ function scheduleJobs(){
 }
 async function pumpJobs(){
   const acknowledgement=hasCurrentStartAnnouncement()&&taskStartAnnouncement.active&&conversation?.session&&getJobs().pendingTurn({sessionId:conversation.session.storedId||conversation.session.id,profile:conversation.session.profile||'default'})===taskStartAnnouncement.turnId;
-  if(jobPumping||jobSettling||localCommandRunning||apiAudioRunning||config.privacyLocked||!connected||!conversation?.session||conversation.busy||conversation.selecting||cameraLooking||screenLooking||contentLooking||modeRunning||!acknowledgement&&(ttsPending||clientSpeaking)||clientListening){scheduleJobs();return;}
+  if(jobPumping||jobSettling||localCommandRunning||apiDeviceRunning||config.privacyLocked||!connected||!conversation?.session||conversation.busy||conversation.selecting||cameraLooking||screenLooking||contentLooking||modeRunning||!acknowledgement&&(ttsPending||clientSpeaking)||clientListening){scheduleJobs();return;}
   const job=getJobs().claim({sessionId:conversation.session.storedId||conversation.session.id,profile:conversation.session.profile||'default'});if(!job)return;
   jobPumping=true;const generation=safetyGeneration,selected=conversation.session;
   try{
@@ -200,7 +219,7 @@ let graphState=null,intelState=null,intelAbort=null,intelGeneration=0,guideContr
 config.graphProjectRoot=typeof config.graphProjectRoot==='string'&&path.isAbsolute(config.graphProjectRoot)?config.graphProjectRoot:null;
 const projectGraph=createProjectGraph({cacheRoot:path.join(LOCAL,process.argv.includes('--smoke')?'smoke-project-graph':'project-graph'),onChange:value=>{graphState=value;emit('graph-update',{graph:value});}}),osiris=createOsirisClient();
 let artcraftController=null;
-function craftPacket(value){return {...value,connected,busy:!!(conversation?.busy||conversation?.selecting||localCommandRunning||apiAudioRunning),privacyLocked:config.privacyLocked};}
+function craftPacket(value){return {...value,connected,busy:!!(conversation?.busy||conversation?.selecting||localCommandRunning||apiDeviceRunning),privacyLocked:config.privacyLocked};}
 function getArtcraft(){return artcraftController||=createArtcraft({cacheRoot:path.join(LOCAL,process.argv.includes('--smoke')?'smoke-artcraft':'artcraft'),initialAppId:config.artcraftAppId,canInput:()=>!config.privacyLocked&&workbench?.visible===true&&workbench.activeTab==='artcraft'&&!!workbench.streamTarget,onUpdate:value=>workbench?.publish({type:'craft-update',craft:craftPacket(value)})});}
 function craftSummary(){const {preview,...value}=getArtcraft().snapshot();return craftPacket(value);}
 async function craftAction(method,value){
@@ -530,7 +549,7 @@ function clientControl(action,enabled,timeoutMs=15000){
     pendingControls.set(id,{resolve,reject,timer,action,enabled});emit('control-request',{id,action,enabled,sessionId:conversation?.session?.id||null,settings:config});
   });
 }
-function controlStatus(){return {connected,status,privacy:safety.snapshot(),context:{enabled:config.contextEnabled,project:config.projectName},task:tasks.view(),busy:!!(conversation?.busy||cameraLooking||screenLooking||contentLooking||modeRunning||localCommandRunning||apiAudioRunning),session:conversation?.session?.title||null,camera:{enabled:config.cameraEnabled,active:clientInfo.cameraActive,deviceId:clientInfo.cameraDeviceId||config.cameraDeviceId,label:clientInfo.cameraLabel||null,recognize:config.cameraRecognize,greetings:config.cameraGreetings},screen:{enabled:config.screenEnabled,looking:screenLooking,sourceId:config.screenSourceId},mode:activeMode?{id:activeMode.id,name:activeMode.name,ok:activeMode.ok}:null,live:{active:clientInfo.live,microphoneActive:clientInfo.microphoneActive,audioContextState:clientInfo.audioContextState},wakewords:{enabled:config.wakeWord,ready:wakeReady,armed:clientInfo.wakeArmed,inLive:clientInfo.live&&config.wakeWord},microphoneLevel:clientInfo.micLevel,standby:{active:config.standbyActive,cameraWillResume:config.standbyCameraEnabled},system:currentSystemReport(),workbench:{visible:workbench?.visible===true,presentation:workbench?.presentation||{owner:null,reason:'',requestId:null}},startup:startupSnapshot(app,ROOT)};}
+function controlStatus(){return {connected,status,privacy:safety.snapshot(),context:{enabled:config.contextEnabled,project:config.projectName},task:tasks.view(),busy:!!(conversation?.busy||cameraLooking||screenLooking||contentLooking||modeRunning||localCommandRunning||apiDeviceRunning),session:conversation?.session?.title||null,camera:{enabled:config.cameraEnabled,active:clientInfo.cameraActive,deviceId:clientInfo.cameraDeviceId||config.cameraDeviceId,label:clientInfo.cameraLabel||null,recognize:config.cameraRecognize,greetings:config.cameraGreetings},screen:{enabled:config.screenEnabled,looking:screenLooking,sourceId:config.screenSourceId},mode:activeMode?{id:activeMode.id,name:activeMode.name,ok:activeMode.ok}:null,live:{active:clientInfo.live,microphoneActive:clientInfo.microphoneActive,audioContextState:clientInfo.audioContextState},wakewords:{enabled:config.wakeWord,ready:wakeReady,armed:clientInfo.wakeArmed,inLive:clientInfo.live&&config.wakeWord},microphoneLevel:clientInfo.micLevel,standby:{active:config.standbyActive,cameraWillResume:config.standbyCameraEnabled},system:currentSystemReport(),workbench:{visible:workbench?.visible===true,presentation:workbench?.presentation||{owner:null,reason:'',requestId:null}},startup:startupSnapshot(app,ROOT)};}
 async function observeCamera(frame,question,generation,sessionId){
   validateFrame(frame?.image);
   if(!frame.source||typeof frame.source.deviceId!=='string'||(config.cameraDeviceId&&frame.source.deviceId!==config.cameraDeviceId))throw new Error('Kamera-Quelle stimmt nicht mit der ausgewählten Kamera überein.');
@@ -559,7 +578,7 @@ async function startControlApi(){
   try{const previous=JSON.parse(fs.readFileSync(file,'utf8'));if(/^[a-f0-9]{64}$/.test(previous.token))token=previous.token;}catch{}
   token||=crypto.randomBytes(32).toString('hex');
   const {createControlApi}=require('./control-api.cjs');
-  controlApi=await createControlApi({readAudioOutputs,onAudioOutput:apiAudioOutput,readArtcraft:craftSummary,onArtcraft:async(action,value)=>{const result=await craftAction(action.replace('artcraft-','craft-'),value);const {preview,...summary}=result;return summary;},readGraph:graphSummary,onGraphSearch:query=>graphSearch(query,{forAgent:true}),onGraphSource:id=>{requireLocalAccess();return projectGraph.readSource(id);},readIntelCatalog:()=>osiris.catalog(),onIntel:value=>queryIntel(value,{forAgent:true}),onGuide:showGuidance,clearGuide:clearVisualGuide,token,readStatus:controlStatus,readContext:contextSnapshot,readTasks:()=>tasks.list(),readRoutines:()=>config.routines.map(({id,name,verification})=>({id,name,verification})),onRoutine:id=>runRoutine(id,{prepareOnly:!!conversation?.busy}),onStop:emergencyStop,onStopTask:()=>stopCurrentTask({speak:false}),onContent:value=>lookCurrentContent(value,{forAgent:true}),onLook:lookCurrentCamera,onScreen:lookCurrentScreen,onHighlight:showHighlight,readModes:()=>config.modes,onMode:id=>activateMode(id),onWorkbench:async value=>{if(value.enabled)requireLocalAccess();const w=ensureWorkbench();if(value.agent){if(!value.enabled)return w.release(value.requestId);return w.present({tab:value.url?'browser':value.tab||'system',...(value.url?{url:value.url}:{}),...(value.requestId?{requestId:value.requestId}:{}),reason:value.reason||'Lilith arbeitet hier'});}if(!value.enabled){w.hide();return {closed:true};}await w.show({tab:value.url?'browser':value.tab||'system',...(value.url?{url:value.url}:{})});return {shown:true,owner:'user'};},onCommand:async(action,enabled)=>{
+  controlApi=await createControlApi({readBluetooth:()=>getBluetooth().read(),onBluetooth:apiBluetooth,readAudioOutputs,onAudioOutput:apiAudioOutput,readArtcraft:craftSummary,onArtcraft:async(action,value)=>{const result=await craftAction(action.replace('artcraft-','craft-'),value);const {preview,...summary}=result;return summary;},readGraph:graphSummary,onGraphSearch:query=>graphSearch(query,{forAgent:true}),onGraphSource:id=>{requireLocalAccess();return projectGraph.readSource(id);},readIntelCatalog:()=>osiris.catalog(),onIntel:value=>queryIntel(value,{forAgent:true}),onGuide:showGuidance,clearGuide:clearVisualGuide,token,readStatus:controlStatus,readContext:contextSnapshot,readTasks:()=>tasks.list(),readRoutines:()=>config.routines.map(({id,name,verification})=>({id,name,verification})),onRoutine:id=>runRoutine(id,{prepareOnly:!!conversation?.busy}),onStop:emergencyStop,onStopTask:()=>stopCurrentTask({speak:false}),onContent:value=>lookCurrentContent(value,{forAgent:true}),onLook:lookCurrentCamera,onScreen:lookCurrentScreen,onHighlight:showHighlight,readModes:()=>config.modes,onMode:id=>activateMode(id),onWorkbench:async value=>{if(value.enabled)requireLocalAccess();const w=ensureWorkbench();if(value.agent){if(!value.enabled)return w.release(value.requestId);return w.present({tab:value.url?'browser':value.tab||'system',...(value.url?{url:value.url}:{}),...(value.requestId?{requestId:value.requestId}:{}),reason:value.reason||'Lilith arbeitet hier'});}if(!value.enabled){w.hide();return {closed:true};}await w.show({tab:value.url?'browser':value.tab||'system',...(value.url?{url:value.url}:{})});return {shown:true,owner:'user'};},onCommand:async(action,enabled)=>{
     if(action==='privacy')return setPrivacy(true);
     if(enabled)requireLocalAccess();
     if(action==='standby')return enterStandby({announce:false});
@@ -612,15 +631,15 @@ function validVoice(voice){return voiceNames.includes(voice)||(voice==='referenc
 if(config.voice==='reference'){if(!referenceVoiceReady())config.voice='dark';else config.delivery='normal';}
 const wakeGreetings=['Ja?','Ich bin hier. Was liegt an?','Lilith einsatzbereit. Was kann ich für dich tun, Boss?'];
 function emit(type,data={}) {workbench?.publish({type,...data});if(win&&!win.isDestroyed())win.webContents.send('companion:event',{type,...data});}
-function state(next,message) {status=next;detail=message || '';const data={status,detail,busy:!!(conversation?.busy||conversation?.selecting||cameraLooking||localCommandRunning||apiAudioRunning),connected,session:conversation?.session||null,approval,privacyLocked:config.privacyLocked};emit('state',data);fs.writeFileSync(path.join(LOCAL,process.argv.includes('--smoke')?'smoke-status.json':'status.json'),JSON.stringify(data,null,2));}
-function snapshot(){return {status,detail,connected,busy:!!(conversation?.busy||conversation?.selecting||cameraLooking||screenLooking||contentLooking||modeRunning||localCommandRunning||apiAudioRunning),session:conversation?.session||null,sessions:sessionRows,sample,settings:config,privacyLocked:config.privacyLocked,context:contextSnapshot(),tasks:tasks.list(),jobQueue:getJobs().snapshot(),awareness:awarenessSnapshot(),teach:teach.snapshot(),voiceTiming:voiceTiming.snapshot(),routines:config.routines,currentContent:config.privacyLocked?null:currentContent,startup:startupSnapshot(app,ROOT),camera:{profiles:cameraProfiles,scene:cameraScene,looking:cameraLooking,active:clientInfo.cameraActive},screen:{looking:screenLooking,scene:screenScene},mode:activeMode,hud:hudActivity.view(),approval,wakeReady,wakeArmed:clientInfo.wakeArmed,vadReady,systemReport:currentSystemReport(),workbenchVisible:workbench?.visible===true,referenceVoiceReady:referenceVoiceReady(),voiceReady:fs.existsSync(path.join(ROOT,'runtime/voice/build/tts-server.exe')),sttReady:fs.existsSync(path.join(ROOT,'runtime/stt/models/ggml-large-v3-turbo.bin'))};}
+function state(next,message) {status=next;detail=message || '';const data={status,detail,busy:!!(conversation?.busy||conversation?.selecting||cameraLooking||localCommandRunning||apiDeviceRunning),connected,session:conversation?.session||null,approval,privacyLocked:config.privacyLocked};emit('state',data);fs.writeFileSync(path.join(LOCAL,process.argv.includes('--smoke')?'smoke-status.json':'status.json'),JSON.stringify(data,null,2));}
+function snapshot(){return {status,detail,connected,busy:!!(conversation?.busy||conversation?.selecting||cameraLooking||screenLooking||contentLooking||modeRunning||localCommandRunning||apiDeviceRunning),session:conversation?.session||null,sessions:sessionRows,sample,settings:config,privacyLocked:config.privacyLocked,context:contextSnapshot(),tasks:tasks.list(),jobQueue:getJobs().snapshot(),awareness:awarenessSnapshot(),teach:teach.snapshot(),voiceTiming:voiceTiming.snapshot(),routines:config.routines,currentContent:config.privacyLocked?null:currentContent,startup:startupSnapshot(app,ROOT),camera:{profiles:cameraProfiles,scene:cameraScene,looking:cameraLooking,active:clientInfo.cameraActive},screen:{looking:screenLooking,scene:screenScene},mode:activeMode,hud:hudActivity.view(),approval,wakeReady,wakeArmed:clientInfo.wakeArmed,vadReady,systemReport:currentSystemReport(),workbenchVisible:workbench?.visible===true,referenceVoiceReady:referenceVoiceReady(),voiceReady:fs.existsSync(path.join(ROOT,'runtime/voice/build/tts-server.exe')),sttReady:fs.existsSync(path.join(ROOT,'runtime/stt/models/ggml-large-v3-turbo.bin'))};}
 function saveConfig(){fs.writeFileSync(path.join(LOCAL,process.argv.includes('--smoke')?'smoke-settings.json':'settings.json'),JSON.stringify(config,null,2));}
 function syncStartup(){return syncLoginStartup(app,{root:ROOT,enabled:config.autoStart,smoke:process.argv.includes('--smoke')});}
 function stopSpeech(){const stoppedGeneration=speechGeneration;speechGeneration++;taskStartAnnouncement=null;speechController?.abort();speechController=null;emit('audio-stop',{stoppedGeneration,turnId:currentTurnId});ttsPending=0;emit('speech-pending',{pending:0,generation:speechGeneration});buffer=new SentenceBuffer();speechChain=Promise.resolve();}
 function hasCurrentStartAnnouncement(){return !!taskStartAnnouncement&&!config.privacyLocked&&taskStartAnnouncement.turnId===currentTurnId&&taskStartAnnouncement.speechGeneration===speechGeneration&&taskStartAnnouncement.safetyGeneration===safetyGeneration&&taskStartAnnouncement.sessionKey===(conversation?.session?.storedId||conversation?.session?.id)&&taskStartAnnouncement.profile===(conversation?.session?.profile||'default');}
 let taskWaitOwner=null;
 const taskWaitFeedback=new TaskWaitFeedback({
- current:id=>taskWaitOwner?.id===id&&taskWaitOwner.session===conversation?.session&&taskWaitOwner.generation===safetyGeneration&&id===currentTurnId&&connected&&!config.privacyLocked&&!approval&&!clarification&&!!(conversation?.busy||cameraLooking||screenLooking||contentLooking||modeRunning||localCommandRunning||apiAudioRunning),
+ current:id=>taskWaitOwner?.id===id&&taskWaitOwner.session===conversation?.session&&taskWaitOwner.generation===safetyGeneration&&id===currentTurnId&&connected&&!config.privacyLocked&&!approval&&!clarification&&!!(conversation?.busy||cameraLooking||screenLooking||contentLooking||modeRunning||localCommandRunning||apiDeviceRunning),
  onNotice:(text,{id})=>{emit('task-progress',{text,turnId:id});speak(text,config.voice,config.delivery,startAnnouncementCache(text),{cache:true,acknowledgement:true});}
 });
 function prepareTaskTurn(turnId,voice=true){
@@ -785,7 +804,7 @@ async function selectSession(id){
   circleController?.clear();
   workbench?.stopStream();artcraftController?.stop();
   clearVisualGuide();
-  if(cameraLooking||screenLooking||contentLooking||modeRunning||localCommandRunning||apiAudioRunning)throw new Error('Ein lokaler Auftrag läuft noch.');
+  if(cameraLooking||screenLooking||contentLooking||modeRunning||localCommandRunning||apiDeviceRunning)throw new Error('Ein lokaler Auftrag läuft noch.');
   pttHotkey?.close();
   const row=sessionRows.find(row=>row.id===id);if(!row)throw new Error('Diese Session ist nicht in der aktuellen Hermes-Liste.');
   cancelCurrentContent({clear:true});stopSpeech();const pending=conversation.select(row);state('connecting','Session wird geöffnet');
@@ -1005,6 +1024,8 @@ function registerHandlers(){
     },
     snapshot:()=>snapshot(),connect:()=>connect(),login:()=>login(),sessions:()=>sessionRows,
     'wake-match':(_e,text)=>typeof text==='string'&&text.length<=20000?wakeDecision(text,config.wakeWord,config.bareNames):null,
+    'bluetooth-devices':()=>getBluetooth().read(),
+    'bluetooth':(_e,value)=>{if(conversation?.busy)throw Error('Ein Auftrag läuft noch.');return apiBluetooth(value);},
     'audio-outputs':()=>readAudioOutputs(),
     'audio-output':(_e,value)=>{if(!value||Object.keys(value).length!==1||!validAudioTarget(value.target))throw Error('Ungültige Audioausgabe.');if(conversation?.busy)throw Error('Ein Auftrag läuft noch.');return apiAudioOutput(value.target);},
     'control-ack':(_e,value)=>{const pending=pendingControls.get(value?.id);if(!pending)return;clearTimeout(pending.timer);pendingControls.delete(value.id);const actual=pending.action==='privacy'?value.state?.privacyLocked:pending.action==='camera'?value.state?.cameraActive:pending.action==='live'?value.state?.live:config.wakeWord;const mismatch=pending.action==='privacy'&&pending.enabled?actual!==true||['live','microphoneActive','cameraActive','wakeArmed'].some(key=>value.state?.[key]!==false):pending.action==='standby'?value.state?.live!==false||value.state?.cameraActive!==false||!value.state?.microphoneActive||!config.wakeWord:pending.action==='wake-resume'?value.state?.live!==true||value.state?.cameraActive!==config.cameraEnabled:!['look','screen','audio-output'].includes(pending.action)&&actual!==pending.enabled;if(value.error||mismatch)pending.reject(new Error(value.error||'Oberfläche konnte die Änderung nicht anwenden.'));else{clientInfo={...clientInfo,...value.state};pending.resolve(value.result);}},

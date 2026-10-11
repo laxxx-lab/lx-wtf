@@ -256,6 +256,7 @@ api.on(event=>{
   if(event.type==='expanded'){expanded=event.expanded;document.body.classList.toggle('expanded',expanded);}
   if(event.type==='notice'){orbAlertUntil=performance.now()+2400;notice(event.message);}
   if(event.type==='user'){replyNode=null;addMessage('user',event.text);}
+  if(event.type==='bluetooth-update'&&event.bluetooth)renderBluetooth(event.bluetooth);
   if(event.type==='task-progress'&&!privacyLocked){addMessage('assistant',event.text);notice(event.text);}
   if(event.type==='task-acknowledgement'&&!privacyLocked)addMessage('assistant',event.text);
   if(event.type==='reply'){replyNode ||= addMessage('assistant','');replyNode.textContent=event.text;$('transcript').scrollTop=$('transcript').scrollHeight;}
@@ -436,3 +437,26 @@ async function refreshAudioOutputs(){
 $('audio-refresh').onclick=()=>void refreshAudioOutputs();
 $('settings-toggle').addEventListener('click',()=>void refreshAudioOutputs());
 $('audio-apply').onclick=async()=>{const button=$('audio-apply');button.disabled=true;try{const result=await invoke('audio-output',{target:$('audio-output-target').value});notice(result.message);if(result.verified)await refreshAudioOutputs();}catch(error){notice(error.message);}finally{button.disabled=false;}};
+
+let bluetoothBusy=false;
+function renderBluetooth(data){
+ const select=$('bluetooth-device'),selected=select.value,state=data.radios?.length===1?data.radios[0].state:null;select.replaceChildren();
+ for(const device of data.devices||[])select.append(new Option(device.name+' · '+(device.paired?(state==='On'&&device.connected?'Windows: verbunden':'Gekoppelt'):'Neu gefunden'),device.id));
+ if((data.devices||[]).some(device=>device.id===selected))select.value=selected;
+ $('bluetooth-status').textContent=state==='On'?'Bluetooth an':state==='Off'?'Bluetooth aus':'Bluetooth-Adapter nicht eindeutig verfügbar';
+ $('bluetooth-status').textContent+=' · '+(data.devices?.length||0)+' Geräte';
+}
+async function refreshBluetooth(){try{renderBluetooth(await invoke('bluetooth-devices'));}catch(error){$('bluetooth-status').textContent=error.message;}}
+async function changeBluetooth(action,enabled){
+ if(bluetoothBusy)return;bluetoothBusy=true;const buttons=['on','off','scan','connect','disconnect','pair','audio','refresh'].map(id=>$('bluetooth-'+id));buttons.forEach(button=>button.disabled=true);
+ try{
+  const command={type:'bluetooth',action};if(action==='radio')command.enabled=enabled;else if(action!=='scan')command.deviceId=$('bluetooth-device').value;
+  $('bluetooth-status').textContent=action==='scan'?'Suche nach Bluetooth-Geräten …':'Windows führt die Geräteaktion aus …';
+  const result=await invoke('bluetooth',command);if(result.snapshot)renderBluetooth(result.snapshot);notice(result.message);
+  if(result.verified&&action==='audio')await refreshAudioOutputs();
+ }catch(error){notice(error.message);$('bluetooth-status').textContent=error.message;}finally{bluetoothBusy=false;buttons.forEach(button=>button.disabled=false);}
+}
+$('bluetooth-refresh').onclick=()=>void refreshBluetooth();
+$('settings-toggle').addEventListener('click',()=>void refreshBluetooth());
+$('bluetooth-on').onclick=()=>void changeBluetooth('radio',true);$('bluetooth-off').onclick=()=>void changeBluetooth('radio',false);
+for(const action of ['scan','connect','disconnect','pair','audio'])$('bluetooth-'+action).onclick=()=>void changeBluetooth(action);

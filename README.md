@@ -44,6 +44,10 @@ Falls noch die während der Entwicklung geöffnete App läuft, im Infobereich
   Stimme aus** im Infobereich schaltet auch das Aktivierungswort ab.
 - Einstellungen: drei Stimmrichtungen, natürliche/leise/kraftvolle Sprechweise,
   Überwachung, Hinweise an Hermes, gesprochene Hinweise und Windows-Autostart.
+- Bluetooth: Geräte anzeigen/suchen, Radio schalten, koppeln, unterstützte
+  Geräte verbinden/trennen und Bluetooth-Audio wählen. Zum Beispiel
+  „Verbinde die Soundbar“ oder „Ton auf die Soundbar“. Der bereits gekoppelte
+  Controller verbindet sich selbst beim Einschalten. [Details](docs/bluetooth-control.md).
 - Werkzeugfreigaben und Rückfragen erscheinen in der aufgeklappten Ansicht.
   Freigaben gelten jeweils einmal; die App aktiviert keinen dauerhaften
   Automatik- oder Yolo-Modus.
