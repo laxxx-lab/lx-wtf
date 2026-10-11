@@ -48,6 +48,8 @@ in `control.ps1`: Bedienung über die App-Einstellungen, nicht über erfundene
 API-Aktionen oder direkte Änderung der laufenden `.local/settings.json`.
 [Mikrofon](microphone.md), [Audio/Wartrückmeldung](audio-and-wait-feedback.md),
 [Bluetooth](bluetooth-control.md), [Steuerungs-API](control-api.md).
+Die Rechentiefe wird pro Windows-Auftrag automatisch gesetzt und anschließend
+zurückgestellt; Ablauf und Prüfgrenzen: [Thinking](automatic-thinking.md).
 
 ## Reparatur oder Erweiterung
 

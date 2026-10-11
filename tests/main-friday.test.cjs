@@ -8,7 +8,7 @@ function fixture({fileSystem={}}={}){
   if(name.startsWith('./'))return require(path.resolve(__dirname,'..',name));return require(name);
  }});
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../main.cjs'),'utf8'),ctx);ctx.prompts=prompts;ctx.events=events;
- vm.runInContext("connected=true;emit=(type,data={})=>events.push({type,...data});conversation=new Conversation(async(method,params)=>{if(method==='prompt.submit'){prompts.push(params.text);return {};}return {};});conversation.session={id:'runtime',storedId:'stored',profile:'default',title:'Test'};",ctx);
+ vm.runInContext("let fixtureReasoning='none';connected=true;emit=(type,data={})=>events.push({type,...data});conversation=new Conversation(async(method,params)=>{if(method==='config.get')return {value:fixtureReasoning};if(method==='config.set'){fixtureReasoning=params.value;return {key:'reasoning',value:fixtureReasoning};}if(method==='prompt.submit'){prompts.push(params.text);return {};}return {};});conversation.session={id:'runtime',storedId:'stored',profile:'default',title:'Test'};",ctx);
  return {ctx,prompts,events,run:s=>vm.runInContext(s,ctx)};
 }
 test('busy PC commands queue durably without a second remote submit',async()=>{
@@ -40,7 +40,7 @@ test('reconciliation cannot overwrite a session selected during a pending remote
  await assert.rejects(pending,/Session/);assert.equal(f.run('conversation.session.id'),'runtime-B');assert.equal(f.run('getJobs().snapshot().blocked'),true);
 });
 test('a terminal event before prompt acknowledgment leaves the client ready',async()=>{
- const f=fixture();f.run("gateway={request:async()=>({running:false,session_id:'runtime'}),json:async()=>({messages:[{role:'user',content:prompts[0]}]})};conversation.request=async(method,params)=>{prompts.push(params.text);return new Promise(resolve=>{resolveSubmit=resolve;});};");
+ const f=fixture();f.run("gateway={request:async()=>({running:false,session_id:'runtime'}),json:async()=>({messages:[{role:'user',content:prompts[0]}]})};conversation.request=async(method,params)=>{if(method==='config.get')return {value:fixtureReasoning};if(method==='config.set'){fixtureReasoning=params.value;return {key:'reasoning',value:fixtureReasoning};}prompts.push(params.text);return new Promise(resolve=>{resolveSubmit=resolve;});};");
  const pending=f.run("submit('Nenne 7 mal 8.',{speak:false})");await new Promise(r=>setTimeout(r,0));
  f.run("gatewayEvent({type:'message.complete',session_id:'runtime',data:{status:'complete',text:'56'}})");await new Promise(r=>setTimeout(r,20));assert.equal(f.run('status'),'ready');
  f.run('resolveSubmit({});');await pending;assert.equal(f.run('status'),'ready');assert.equal(f.run('getJobs().list()[0].status'),'agent-finished');
@@ -51,7 +51,7 @@ test('a reconciled runtime rekey updates the voice renderer before the next capt
  assert.equal(f.run('conversation.session.id'),'runtime-new');assert.equal(f.ctx.stateIds.at(-1),'runtime-new');assert.equal(f.run('getJobs().active()'),null);
 });
 test('a late failed acknowledgment cannot replace a correlated completed result with an error',async()=>{
- const f=fixture();f.run("gateway={request:async()=>({running:false,session_id:'runtime'}),json:async()=>({messages:[{role:'user',content:prompts[0]}]})};conversation.request=async(method,params)=>{prompts.push(params.text);return new Promise((resolve,reject)=>{rejectSubmit=reject;});};");
+ const f=fixture();f.run("gateway={request:async()=>({running:false,session_id:'runtime'}),json:async()=>({messages:[{role:'user',content:prompts[0]}]})};conversation.request=async(method,params)=>{if(method==='config.get')return {value:fixtureReasoning};if(method==='config.set'){fixtureReasoning=params.value;return {key:'reasoning',value:fixtureReasoning};}prompts.push(params.text);return new Promise((resolve,reject)=>{rejectSubmit=reject;});};");
  const pending=f.run("submit('Nenne 7 mal 8.',{speak:false})");const settled=Promise.allSettled([pending]);await new Promise(r=>setTimeout(r,0));
  f.run("gatewayEvent({type:'message.complete',session_id:'runtime',data:{status:'complete',text:'56'}})");await new Promise(r=>setTimeout(r,20));f.run("rejectSubmit(Error('Late timeout'))");assert.equal((await settled)[0].status,'fulfilled');
  assert.equal(f.run('tasks.view().status'),'agent-finished');assert.equal(f.run('status'),'ready');
@@ -102,7 +102,7 @@ test('cancelling a local task retires its ledger and permits a consciously recon
  f.run("directController.execute=async()=>({status:'completed',message:'Ton aus.'});");await f.run("submit('Ton aus',{speak:false})");assert.equal(f.run('localCommandRunning'),false);assert.equal(f.run('getJobs().list().at(-1).status'),'completed');
 });
 test('a voice job starts once before the remote call, without waiting for acknowledgement speech',async()=>{
- const f=fixture();f.ctx.spoken=[];f.run("speak=text=>spoken.push(text);conversation.request=async(method,params)=>{if(method==='prompt.submit'){if(!spoken.includes('Okay.'))throw Error('Missing immediate acknowledgement');prompts.push(params.text);}return {};};");
+ const f=fixture();f.ctx.spoken=[];f.run("speak=text=>spoken.push(text);conversation.request=async(method,params)=>{if(method==='config.get')return {value:fixtureReasoning};if(method==='config.set'){fixtureReasoning=params.value;return {key:'reasoning',value:fixtureReasoning};}if(method==='prompt.submit'){if(!spoken.includes('Okay.'))throw Error('Missing immediate acknowledgement');prompts.push(params.text);}return {};};");
  await f.run("submit('Öffne Spotify',{turnId:'voice-start-1'})");assert.deepEqual(f.ctx.spoken,['Okay.']);assert.equal(f.prompts.length,1);assert.equal(f.events.filter(e=>e.type==='task-acknowledgement').length,1);
  f.run("gatewayEvent({type:'message.start',session_id:'runtime',data:{}});gatewayEvent({type:'tool.start',session_id:'runtime',data:{name:'WindowRead',id:'tool-1'}})");assert.deepEqual(f.ctx.spoken,['Okay.']);assert.equal(f.run('taskStartAnnouncement?.turnId'),'voice-start-1');
 });

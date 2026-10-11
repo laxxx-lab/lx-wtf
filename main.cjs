@@ -5,6 +5,7 @@ const readline=require('node:readline');
 const {spawn}=require('node:child_process');
 const {Gateway,validateGatewayUrl}=require('./gateway.cjs');
 const {Conversation,SentenceBuffer}=require('./conversation.cjs');
+const {thinkingForTask}=require('./automatic-thinking.cjs');
 const {createMonitorPolicy}=require('./monitor-policy.cjs');
 const {createSystemSampler,germanAlert}=require('./system-monitor.cjs');
 const {engineSpecs}=require('./engines.cjs');
@@ -552,7 +553,7 @@ function clientControl(action,enabled,timeoutMs=15000){
     pendingControls.set(id,{resolve,reject,timer,action,enabled});emit('control-request',{id,action,enabled,sessionId:conversation?.session?.id||null,settings:config});
   });
 }
-function controlStatus(){return {connected,status,privacy:safety.snapshot(),context:{enabled:config.contextEnabled,project:config.projectName},task:tasks.view(),busy:!!(conversation?.busy||cameraLooking||screenLooking||contentLooking||modeRunning||localCommandRunning||apiDeviceRunning),session:conversation?.session?.title||null,camera:{enabled:config.cameraEnabled,active:clientInfo.cameraActive,deviceId:clientInfo.cameraDeviceId||config.cameraDeviceId,label:clientInfo.cameraLabel||null,recognize:config.cameraRecognize,greetings:config.cameraGreetings},screen:{enabled:config.screenEnabled,looking:screenLooking,sourceId:config.screenSourceId},mode:activeMode?{id:activeMode.id,name:activeMode.name,ok:activeMode.ok}:null,live:{active:clientInfo.live,microphoneActive:clientInfo.microphoneActive,audioContextState:clientInfo.audioContextState},wakewords:{enabled:config.wakeWord,ready:wakeReady,armed:clientInfo.wakeArmed,inLive:clientInfo.live&&config.wakeWord},microphoneLevel:clientInfo.micLevel,standby:{active:config.standbyActive,cameraWillResume:config.standbyCameraEnabled},system:currentSystemReport(),workbench:{visible:workbench?.visible===true,presentation:workbench?.presentation||{owner:null,reason:'',requestId:null}},startup:startupSnapshot(app,ROOT)};}
+function controlStatus(){return {connected,status,reasoning:conversation?.reasoningState||null,privacy:safety.snapshot(),context:{enabled:config.contextEnabled,project:config.projectName},task:tasks.view(),busy:!!(conversation?.busy||cameraLooking||screenLooking||contentLooking||modeRunning||localCommandRunning||apiDeviceRunning),session:conversation?.session?.title||null,camera:{enabled:config.cameraEnabled,active:clientInfo.cameraActive,deviceId:clientInfo.cameraDeviceId||config.cameraDeviceId,label:clientInfo.cameraLabel||null,recognize:config.cameraRecognize,greetings:config.cameraGreetings},screen:{enabled:config.screenEnabled,looking:screenLooking,sourceId:config.screenSourceId},mode:activeMode?{id:activeMode.id,name:activeMode.name,ok:activeMode.ok}:null,live:{active:clientInfo.live,microphoneActive:clientInfo.microphoneActive,audioContextState:clientInfo.audioContextState},wakewords:{enabled:config.wakeWord,ready:wakeReady,armed:clientInfo.wakeArmed,inLive:clientInfo.live&&config.wakeWord},microphoneLevel:clientInfo.micLevel,standby:{active:config.standbyActive,cameraWillResume:config.standbyCameraEnabled},system:currentSystemReport(),workbench:{visible:workbench?.visible===true,presentation:workbench?.presentation||{owner:null,reason:'',requestId:null}},startup:startupSnapshot(app,ROOT)};}
 async function observeCamera(frame,question,generation,sessionId){
   validateFrame(frame?.image);
   if(!frame.source||typeof frame.source.deviceId!=='string'||(config.cameraDeviceId&&frame.source.deviceId!==config.cameraDeviceId))throw new Error('Kamera-Quelle stimmt nicht mit der ausgewählten Kamera überein.');
@@ -699,6 +700,7 @@ function reportTurnFailure(text='Der Auftrag ist fehlgeschlagen.'){
   if(conversation.speakReply)speak(text);
   return true;
 }
+function agentThinkingState(){const effort=conversation?.reasoningState?.effective;state(effort==='none'?'working':'thinking',effort==='none'?'Hermes antwortet':effort==='high'?'Hermes denkt gründlich nach':'Hermes denkt');}
 function gatewayEvent(event){
   if(!conversation?.receive(event))return;
   if(event.type==='message.complete')remoteTerminalSequence++;
@@ -714,7 +716,7 @@ function gatewayEvent(event){
     if(['message.complete','error'].includes(event.type)){approval=null;clarification=null;tasks.finish({status:'interrupted',text:'Auftrag während Datenschutz beendet.',sessionId:event.session_id});state(connected?'ready':'offline','Datenschutz aktiv · Sensoren gesperrt');}
     return;
   }
-  if(event.type==='message.start'){turnFailureAnnounced=false;reply=new ReplyAccumulator();buffer=new SentenceBuffer();if(tasks.view()?.status!=='running'&&!config.privacyLocked)tasks.start({title:'Hermes / aktueller Auftrag',sessionId:event.session_id});if(hudActivity.state!=='busy'||hudActivity.sessionId!==event.session_id)startHud('Hermes / aktueller Auftrag');state('thinking','Hermes denkt');}
+  if(event.type==='message.start'){turnFailureAnnounced=false;reply=new ReplyAccumulator();buffer=new SentenceBuffer();if(tasks.view()?.status!=='running'&&!config.privacyLocked)tasks.start({title:'Hermes / aktueller Auftrag',sessionId:event.session_id});if(hudActivity.state!=='busy'||hudActivity.sessionId!==event.session_id)startHud('Hermes / aktueller Auftrag');agentThinkingState();}
   if(['message.delta','message.interim','tool.start','tool.end'].includes(event.type))taskWaitFeedback.activity(currentTurnId);
   if(['message.complete','error'].includes(event.type))taskWaitFeedback.finish(currentTurnId);
   if(event.type==='message.delta'){timing('hermes-first-delta');reply.delta(data.text);emit('reply',{text:reply.text});for(const sentence of buffer.push(data.text || ''))if(conversation.speakReply&&!compactReply)speak(sentence);}
@@ -738,7 +740,7 @@ function gatewayEvent(event){
     const name=String(data.name||data.tool||'Werkzeug'),queue=hudToolQueues.get(name)||[],explicit=data.tool_call_id||data.call_id||data.id;
     let id=explicit?String(explicit):queue.shift();if(explicit){const at=queue.indexOf(String(explicit));if(at>=0)queue.splice(at,1);}
     if(!id&&!data.name&&!data.tool){const running=[...hudActivity.tools.values()].filter(tool=>tool.status==='running');if(running.length===1)id=running[0].id;}
-    hudActivity.toolEnd({id,status:data.status||'complete',error:data.error,sessionId:event.session_id});publishHud();state('thinking','Hermes prüft das Ergebnis');
+    hudActivity.toolEnd({id,status:data.status||'complete',error:data.error,sessionId:event.session_id});publishHud();agentThinkingState();
     tasks.toolEnd({id,status:data.status||'complete',error:data.error,result:data.result??data.output??data.tool_result,sessionId:event.session_id});
     if(id)observeGraphTool(data,id,data.error?'error':'success');
     if(activeGlowToolId===id)clearVisualGuide();
@@ -794,7 +796,7 @@ async function connect(){
       }else{gateway.respond(frame.id,frame.method==='clarify'?{answers:null}:{value:''});emit('notice',{message:'Hermes benötigt eine Eingabe in der Desktop-App: '+frame.method});}
     });
     await gateway.connect();connected=true;everConnected=true;
-    conversation=new Conversation((method,params)=>gateway.request(method,params));
+    conversation=new Conversation((method,params,timeout)=>gateway.request(method,params,timeout),{onReasoning:value=>{emit('reasoning-update',{reasoning:value});if(value.error)emit('notice',{message:value.error});scheduleJobs();}});
     const response=await gateway.json('/api/sessions?limit=100&order=recent');
     sessionRows=(response.sessions||[]).map(row=>({id:row.id,title:row.title||'Unbenannte Session',source:row.source||'',profile:row.profile||'default',message_count:row.message_count,last_active:row.last_active}));
     emit('sessions',{sessions:sessionRows});state('ready','Session auswählen');
@@ -848,7 +850,9 @@ async function submit(text,options){
   turnFailureAnnounced=false;prepareTaskTurn(options.turnId,voiceTurn);reply=new ReplyAccumulator();const displayed=options?.displayText||text;compactReply=voiceTurn&&(!canStreamVoiceAnswer(displayed)||!!taskAcknowledgement(displayed)||hasCurrentStartAnnouncement());startHud(displayed);emit('user',{text:displayed});
   tasks.start({title:displayed,sessionId:conversation.session.id,appId:options?.appId});recordContext({type:'task-start',summary:displayed,source:'Nutzerauftrag'});
   if(voiceTurn)announceTaskStart(displayed);
-  const owner=conversation,selected=conversation.session,generation=safetyGeneration;timing('hermes-submit');try{await owner.submit(prompt,options);getJobs().accepted(options.queuedJob.id,{runtimeId:selected.id});}catch(error){if(['agent-finished','completed'].includes(getJobs().list().find(job=>job.id===options.queuedJob.id)?.status))return;getJobs().unknown(options.queuedJob.id,'Senden nicht bestätigt: '+error.message);if(owner===conversation&&generation===safetyGeneration){tasks.finish({status:'error',text:error.message});compactReply=false;timing('failed');voiceTiming.finish(currentTurnId,'error');hudActivity.complete({status:'error',text:error.message,sessionId:selected.id});publishHud();}throw error;}if(owner===conversation&&selected===conversation.session&&generation===safetyGeneration&&!config.privacyLocked&&conversation.busy&&getJobs().active()?.id===options.queuedJob.id&&getJobs().active().status==='running')state('thinking','Hermes denkt');
+  const owner=conversation,selected=conversation.session,generation=safetyGeneration,decision=thinkingForTask(text.startsWith(displayed)?text:displayed,{previousEffort:owner.reasoningState?.requested});
+  if(owner.reasoningState)owner.reasoningState.reason=decision.reason;
+  timing('hermes-submit');try{await owner.submit(prompt,{...options,reasoningEffort:decision.effort,isCurrent:()=>owner===conversation&&selected===conversation.session&&generation===safetyGeneration&&connected&&!config.privacyLocked});getJobs().accepted(options.queuedJob.id,{runtimeId:selected.id});}catch(error){if(['agent-finished','completed'].includes(getJobs().list().find(job=>job.id===options.queuedJob.id)?.status))return;if(error.notSubmitted)getJobs().finish(options.queuedJob.id,{status:'error',summary:'Auftrag nicht gesendet: '+error.message});else getJobs().unknown(options.queuedJob.id,'Senden nicht bestätigt: '+error.message);if(owner===conversation&&generation===safetyGeneration){tasks.finish({status:'error',text:error.message});compactReply=false;timing('failed');voiceTiming.finish(currentTurnId,'error');hudActivity.complete({status:'error',text:error.message,sessionId:selected.id});publishHud();}throw error;}if(owner===conversation&&selected===conversation.session&&generation===safetyGeneration&&!config.privacyLocked&&conversation.busy&&getJobs().active()?.id===options.queuedJob.id&&getJobs().active().status==='running')state(decision.effort==='none'?'working':'thinking',decision.effort==='none'?'Hermes antwortet':'Hermes denkt gründlicher nach');
 }
 let standbyGeneration=0;
 function forgetStandby(){standbyGeneration++;config.standbyActive=false;config.standbyCameraEnabled=false;}

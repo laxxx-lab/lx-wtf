@@ -251,6 +251,15 @@ test('silent text submissions bypass voice prompting and voice-only brevity',asy
   await vm.runInContext("submit('Erkläre mein Projekt vollständig.',{speak:false,sessionId:'selected'})",f.context);
   assert.equal(f.context.prompts[0].text.replace(/^\[Lilith-Auftrag: [a-f0-9-]{36}\]\n/,''),'Erkläre mein Projekt vollständig.');assert.equal(vm.runInContext('compactReply',f.context),false);
 });
+test('queued user work chooses thinking from the visible request, not generated prompt context',async()=>{
+ for(const [text,effort] of [['Öffne Spotify und spiele Musik.','none'],['Analysiere die Ursache des Abbruchs.','medium'],['Denke gründlich nach und plane die Architektur.','high'],['Kannst du mir '+('folgende Inhalte '.repeat(40)),'medium']]){
+  const f=fixture();f.context.userRequest=text;f.context.dispatched=[];
+  vm.runInContext("submit=originalSubmit;connected=true;conversation.busy=false;conversation.submit=async(text,options)=>{dispatched.push({text,options});};",f.context);
+  await vm.runInContext("submit(userRequest,{speak:false})",f.context);
+  assert.equal(f.context.dispatched.length,1);assert.equal(f.context.dispatched[0].options.reasoningEffort,effort);
+  assert.equal(f.context.dispatched[0].options.isCurrent(),true);vm.runInContext('config.privacyLocked=true;',f.context);assert.equal(f.context.dispatched[0].options.isCurrent(),false);
+ }
+});
 
 test('speech audio is bounded and generation-scoped before reaching the local worker',()=>{
   const f=fixture();f.context.packets=[];

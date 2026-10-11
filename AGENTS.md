@@ -17,6 +17,7 @@ GUI-Starts und echte Audio-/Sensorprüfung brauchen die interaktive Anbindung.
 | Bereich | Quellen / Vertrag |
 | --- | --- |
 | Electron-Hauptprozess, Session, Aufträge, IPC | `main.cjs`, `preload.cjs`, `conversation.cjs`, `gateway.cjs` |
+| Automatische Rechentiefe pro Auftrag | `automatic-thinking.cjs`, `conversation.cjs`, `docs/automatic-thinking.md` |
 | Orb, Mikrofon, Live, Wakeword, Wiedergabe | `ui/app.js`, `ui/microphone.js`, `ui/speech-activity.js`, `ui/voice-interaction.js`, `ui/orb.js` |
 | Lokale Steuerungs-API und Agentenhelfer | `control-api.cjs`, `control.ps1`, `docs/control-api.md` |
 | Direkte Befehle, Audio, Bluetooth | `direct-commands.cjs`, `audio-output.cjs`, `bluetooth.cjs`, passende Helfer in `scripts/` |
