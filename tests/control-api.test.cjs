@@ -1,6 +1,14 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');
 const {createControlApi}=require('../control-api.cjs');
 
+test('audio output API only accepts render identities or configured aliases and reports unverified effects honestly',async t=>{
+ const calls=[],token='a'.repeat(64),api=await createControlApi({port:0,token,readStatus:()=>({}),onCommand:()=>{},readAudioOutputs:()=>({devices:[]}),onAudioOutput:target=>{calls.push(target);return {verified:false,status:'unverified'};}});t.after(()=>api.close());
+ const url=`http://127.0.0.1:${api.address().port}`,headers={Authorization:'Bearer '+token};
+ assert.equal((await fetch(url+'/v1/audio-outputs')).status,401);assert.equal((await fetch(url+'/v1/audio-outputs',{headers})).status,200);
+ for(const payload of [{target:'; calc'},{target:'speakers',command:'x'},{target:'{0.0.1.00000000}.{00000000-0000-0000-0000-000000000001}'}])assert.equal((await fetch(url+'/v1/audio-output',{method:'POST',headers,body:JSON.stringify(payload)})).status,400);
+ const response=await fetch(url+'/v1/audio-output',{method:'POST',headers,body:'{"target":"speakers"}'});assert.equal(response.status,200);assert.equal((await response.json()).ok,false);assert.deepEqual(calls,['speakers']);
+});
+
 test('Artcraft registration and app operations expose no arbitrary host, command or executable',async t=>{
   const calls=[],token='3'.repeat(64),api=await createControlApi({port:0,token,readStatus:()=>({}),onCommand:()=>{},readArtcraft:()=>({apps:[{id:'photo'}]}),onArtcraft:async(action,payload)=>{calls.push({action,payload});return {selectedAppId:payload.appId};}});t.after(()=>api.close());
   const base=`http://127.0.0.1:${api.address().port}`,headers={Authorization:'Bearer '+token};
@@ -145,7 +153,7 @@ test('PowerShell helper sends agent leases, explicit content questions and norma
   const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{spawn}=require('node:child_process');
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'voice-control-api-test-'));
   t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
-  const token='4'.repeat(64),calls=[],api=await createControlApi({port:0,token,readStatus:()=>({}),onCommand:()=>{},onWorkbench:value=>{calls.push(value);return value.enabled?{shown:true,owner:value.agent?'agent':'user',requestId:'cli-lease',reason:value.reason||''}:{closed:true,owner:'none',requestId:value.requestId,reason:''};},onContent:value=>{calls.push(value);return {kind:value.kind,text:'Requested text'};},onStopTask:()=>{calls.push('stop');return {remoteStop:'requested'};}});t.after(()=>api.close());
+  const token='4'.repeat(64),calls=[],api=await createControlApi({port:0,token,readAudioOutputs:()=>({devices:[]}),onAudioOutput:target=>({verified:true,target}),readStatus:()=>({}),onCommand:()=>{},onWorkbench:value=>{calls.push(value);return value.enabled?{shown:true,owner:value.agent?'agent':'user',requestId:'cli-lease',reason:value.reason||''}:{closed:true,owner:'none',requestId:value.requestId,reason:''};},onContent:value=>{calls.push(value);return {kind:value.kind,text:'Requested text'};},onStopTask:()=>{calls.push('stop');return {remoteStop:'requested'};}});t.after(()=>api.close());
   fs.copyFileSync(path.join(__dirname,'../control.ps1'),path.join(directory,'control.ps1'));fs.mkdirSync(path.join(directory,'.local'));
   fs.writeFileSync(path.join(directory,'.local/control-api.json'),JSON.stringify({url:`http://127.0.0.1:${api.address().port}`,token}));
   const run=args=>new Promise((resolve,reject)=>{
@@ -158,6 +166,8 @@ test('PowerShell helper sends agent leases, explicit content questions and norma
   const stop=await run(['-Action','stop']);assert.equal(stop.code,0,stop.error);assert.equal(JSON.parse(stop.output).result.remoteStop,'requested');
   for(const args of [['-Action','workbench','-State','off','-Agent'],['-Action','current-content','-Kind','news','-Question','Explain.'],['-Action','intel','-Kind','clipboard']])assert.notEqual((await run(args)).code,0);
   const manual=await run(['-Action','workbench','-State','on']);assert.equal(manual.code,0,manual.error);assert.equal(JSON.parse(manual.output).result.owner,'user');
+  const outputs=await run(['-Action','audio-outputs']);assert.equal(outputs.code,0,outputs.error);assert.deepEqual(JSON.parse(outputs.output).devices,[]);
+  const audio=await run(['-Action','audio-output','-Target','speakers']);assert.equal(audio.code,0,audio.error);assert.equal(JSON.parse(audio.output).result.target,'speakers');
   assert.deepEqual(calls,[{enabled:true,tab:'console',agent:true,reason:'Explain window'},{enabled:false,tab:'system',agent:true,requestId:'cli-lease'},{kind:'clipboard',question:'Explain this text.'},{kind:'window',question:'Explain this text.'},'stop',{enabled:true,tab:'system'}]);
 });
 test('only explicit boolean camera, live and wakeword controls are accepted',async t=>{

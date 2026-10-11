@@ -256,6 +256,7 @@ api.on(event=>{
   if(event.type==='expanded'){expanded=event.expanded;document.body.classList.toggle('expanded',expanded);}
   if(event.type==='notice'){orbAlertUntil=performance.now()+2400;notice(event.message);}
   if(event.type==='user'){replyNode=null;addMessage('user',event.text);}
+  if(event.type==='task-progress'&&!privacyLocked){addMessage('assistant',event.text);notice(event.text);}
   if(event.type==='task-acknowledgement'&&!privacyLocked)addMessage('assistant',event.text);
   if(event.type==='reply'){replyNode ||= addMessage('assistant','');replyNode.textContent=event.text;$('transcript').scrollTop=$('transcript').scrollHeight;}
   if(event.type==='alert'){orbAlertUntil=performance.now()+3000;addMessage('alert',event.text);}
@@ -331,7 +332,17 @@ async function applyControl(event){
     if(event.action==='camera'&&cameraControls.controller.active!==event.enabled)throw new Error('Kamerazustand wurde nicht erreicht.');
     if(event.action==='live'&&live!==event.enabled)throw new Error('Live-Modus wurde nicht erreicht.');
     if(event.action==='standby'&&(live||cameraControls.controller.active||!settings.wakeWord||!micStream))throw new Error('Standby wurde nicht erreicht.');
-    const result=event.action==='look'?cameraControls.capture():event.action==='screen'?await workstationControls.capture.capture(event.enabled):undefined;
+    let audioRoute;
+    if(event.action==='audio-output'){
+      if(privacyLocked)throw Error('Datenschutzmodus aktiv.');
+      if(audioContext&&audioContext.state!=='closed'){
+        if(typeof audioContext.setSinkId!=='function')throw Error('Audioausgabe kann nicht neu verbunden werden.');
+        await audioContext.setSinkId({type:'none'});
+        try{await audioContext.setSinkId('');}catch(error){await audioContext.setSinkId('').catch(()=>{});throw error;}
+        audioRoute={systemDefault:audioContext.sinkId===''};
+      }else audioRoute={systemDefault:true};
+    }
+    const result=event.action==='audio-output'?audioRoute:event.action==='look'?cameraControls.capture():event.action==='screen'?await workstationControls.capture.capture(event.enabled):undefined;
     await api.invoke('control-ack',{id:event.id,state:clientState(),result});
   }catch(error){if(event.action==='wake-resume'&&ticket===sensorControlGeneration){cameraControls.controller.disable();gestureController.disable();await toggleMic(false);}await api.invoke('control-ack',{id:event.id,error:String(error.message)});}
 }
@@ -369,7 +380,7 @@ async function syncGestures(){
 }
 $('gesturesEnabled').onchange=()=>{gestureRetryAt=0;void invoke('settings',{gesturesEnabled:$('gesturesEnabled').checked}).then(data=>{acceptSettings(data.settings);void syncGestures();});};
 setInterval(()=>void syncGestures(),500);
-$('save').onclick=async()=>{try{const values={url:$('url').value,voice:$('voice').value,delivery:$('delivery').value,cameraDeviceId:$('cameraDeviceId').value,orbColors,orbIntensity,...workstationControls.values()};for(const id of ['monitoring','proactive','speakAlerts','autoStart','wakeWord','bareNames','cameraEnabled','cameraRecognize','cameraGreetings'])values[id]=$(id).checked;if($('pushToTalkEnabled'))values.pushToTalkEnabled=$('pushToTalkEnabled').checked;if($('pushToTalkKey'))values.pushToTalkKey=$('pushToTalkKey').value;if($('directCommandsEnabled'))values.directCommandsEnabled=$('directCommandsEnabled').checked;if(speechDictionaryEditor)values.speechDictionary=speechDictionaryEditor.value();const data=await invoke('settings',values);acceptSettings(data.settings);syncOrbSettings(settings);workstationControls.sync(settings);void syncCameraSettings(settings);void armWake();notice('Einstellungen gespeichert.');}catch(error){notice(error.message);}};
+$('save').onclick=async()=>{try{const values={url:$('url').value,voice:$('voice').value,delivery:$('delivery').value,cameraDeviceId:$('cameraDeviceId').value,orbColors,orbIntensity,...workstationControls.values()};for(const id of ['monitoring','proactive','speakAlerts','autoStart','wakeWord','bareNames','cameraEnabled','cameraRecognize','cameraGreetings'])values[id]=$(id).checked;if($('pushToTalkEnabled'))values.pushToTalkEnabled=$('pushToTalkEnabled').checked;if($('pushToTalkKey'))values.pushToTalkKey=$('pushToTalkKey').value;if($('directCommandsEnabled'))values.directCommandsEnabled=$('directCommandsEnabled').checked;values.audioPreferences=audioOutputsReady?{headphones:$('audio-headphones').value,speakers:$('audio-speakers').value}:settings.audioPreferences||{};if(speechDictionaryEditor)values.speechDictionary=speechDictionaryEditor.value();const data=await invoke('settings',values);acceptSettings(data.settings);syncOrbSettings(settings);workstationControls.sync(settings);void syncCameraSettings(settings);void armWake();notice('Einstellungen gespeichert.');}catch(error){notice(error.message);}};
 invoke('snapshot').then(data=>{acceptSettings(data.settings);sessionInfo=data.session;wakeReady=data.wakeReady;vadReady=data.vadReady===true;orbCameraLooking=data.camera?.looking===true;orbScreenLooking=data.screen?.looking===true;renderState(data);renderMetrics(data.sample);renderSessions(data.sessions);syncOrbSettings(settings);workstationControls.sync(settings);$('url').value=settings.url;$('reference-voice-option').hidden=!data.referenceVoiceReady;$('voice').value=settings.voice;$('delivery').value=settings.delivery||'normal';syncVoiceDelivery();for(const id of ['monitoring','proactive','speakAlerts','autoStart','wakeWord','bareNames'])$(id).checked=settings[id];cameraControls.profiles(data.camera?.profiles||[]);void syncCameraSettings(settings);void armWake();}).catch(()=>{});
 setInterval(()=>{
   observePlayback();
@@ -408,3 +419,20 @@ function draw(now){requestAnimationFrame(draw);if(now-lastDraw<16)return;lastDra
 }
 function contextWithoutCreating(){return audioContext;}
 requestAnimationFrame(draw);
+
+let audioOutputsReady=false;
+async function refreshAudioOutputs(){
+ try{
+  const data=await invoke('audio-outputs');
+  for(const [id,current,alias] of [['audio-output-target',data.defaults.multimedia,null],['audio-headphones',settings.audioPreferences?.headphones||'','headphones'],['audio-speakers',settings.audioPreferences?.speakers||'','speakers']]){
+   const select=$(id);select.replaceChildren();if(alias)select.append(new Option('Automatisch bei eindeutigem Treffer',''));
+   for(const device of data.devices)select.append(new Option(device.name,device.id));
+   if(current&&!data.devices.some(device=>device.id===current))select.append(new Option('Gespeichertes Gerät ist gerade nicht verfügbar',current));select.value=current||'';
+  }
+  audioOutputsReady=true;
+  $('audio-output-status').textContent='„Boxen“ und „Kopfhörer“ zuordnen und Einstellungen speichern. Sprachbefehl: „Wechsle die Audioausgabe auf Boxen.“';
+ }catch(error){$('audio-output-status').textContent=error.message;}
+}
+$('audio-refresh').onclick=()=>void refreshAudioOutputs();
+$('settings-toggle').addEventListener('click',()=>void refreshAudioOutputs());
+$('audio-apply').onclick=async()=>{const button=$('audio-apply');button.disabled=true;try{const result=await invoke('audio-output',{target:$('audio-output-target').value});notice(result.message);if(result.verified)await refreshAudioOutputs();}catch(error){notice(error.message);}finally{button.disabled=false;}};

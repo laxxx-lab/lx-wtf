@@ -60,5 +60,5 @@ test('vision warm-up loads the local model without any camera image or user mess
   const service=new sandbox.module.exports.CameraService(process.cwd());
   await service.warmVision();service.close();
   assert.equal(requests.length,1);assert.equal(requests[0].url,'http://127.0.0.1:11435/api/chat');
-  assert.deepEqual(requests[0].body.messages,[]);assert.ok(!JSON.stringify(requests[0]).includes('images'));
+  assert.deepEqual(requests[0].body.messages,[]);assert.equal(requests[0].body.options.num_ctx,8192);assert.ok(!JSON.stringify(requests[0]).includes('images'));
 });

@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('status', 'camera', 'live', 'wakewords', 'look', 'standby', 'screen', 'current-content', 'modes', 'mode', 'highlight', 'workbench','privacy','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link')]
+    [ValidateSet('status', 'camera', 'live', 'wakewords', 'look', 'standby', 'screen', 'current-content', 'modes', 'mode', 'highlight', 'workbench','privacy','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output')]
     [string]$Action = 'status',
+    [ValidateLength(1,100)][string]$Target,
     [ValidateSet('photo','vector','design','deck','grid','word','cad','light','sound','effect','film','pdf')][string]$App,
     [ValidateRange(1,65535)][int]$Port,
     [string]$TokenFile,
@@ -41,7 +42,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Action = $Action.ToLowerInvariant()
-if ($Action -notin @('status','look','standby','screen','current-content','modes','mode','highlight','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link') -and -not $PSBoundParameters.ContainsKey('State')) {
+if ($Action -notin @('status','look','standby','screen','current-content','modes','mode','highlight','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output') -and -not $PSBoundParameters.ContainsKey('State')) {
     throw 'Camera, live, and wakewords controls require -State on or off.'
 }
 if ($Action -in @('look','screen') -and [string]::IsNullOrWhiteSpace($Question)) { throw 'Look requires -Question with the current visual question.' }
@@ -79,7 +80,10 @@ $request = @{
     MaximumRedirection = 0
     ErrorAction = 'Stop'
 }
-if ($Action -in @('artcraft-select','artcraft-open','artcraft-link')) {
+if ($Action -eq 'audio-output') {
+    if($Target -notin @('speakers','headphones') -and $Target -notmatch '^\{0\.0\.0\.00000000\}\.\{[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}\}$'){throw 'Choose headphones, speakers, or an active render endpoint ID.'}
+    $request.Method='Post';$request.ContentType='application/json; charset=utf-8';$request.Body=[System.Text.Encoding]::UTF8.GetBytes((@{target=$Target}|ConvertTo-Json -Compress))
+} elseif ($Action -in @('artcraft-select','artcraft-open','artcraft-link')) {
     if(-not $App){throw 'Artcraft requires -App.'}
     $craftPayload=@{appId=$App}
     if($Action -eq 'artcraft-link'){if($PSBoundParameters.ContainsKey('Port')){$craftPayload.port=$Port};if($TokenFile){$craftPayload.tokenFile=$TokenFile};if($EndpointFile){$craftPayload.endpointFile=$EndpointFile}}
@@ -128,7 +132,7 @@ if ($Action -in @('artcraft-select','artcraft-open','artcraft-link')) {
     $request.Method = 'Post'
     $request.ContentType = 'application/json'
     $request.Body = '{}'
-} elseif ($Action -notin @('status','modes','context','tasks','routines','graph','intel-catalog','artcraft')) {
+} elseif ($Action -notin @('status','modes','context','tasks','routines','graph','intel-catalog','artcraft','audio-outputs')) {
     $request.Method = 'Post'
     $request.ContentType = 'application/json'
     $request.Body = @{ enabled = ($State -eq 'on') } | ConvertTo-Json -Compress

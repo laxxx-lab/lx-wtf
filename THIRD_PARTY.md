@@ -66,3 +66,5 @@ Projektgraph, Globus und Hinweisoverlay verwenden lokale SVG-/Canvas-/HTML-
 Darstellung. Es wurde kein zusätzlicher Cloud-Bilddienst für diese Ansichten
 eingebunden. Funktionsumfang und Grenzen: [Projektgraph](docs/project-graph.md),
 [OSIRIS](docs/osiris.md), [Steuerungs-API](docs/control-api.md).
+
+- Windows-Audioausgabe: Core Audio/MMDevice-Schnittstellen (Microsoft), https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/ ; PolicyConfig-ABI anhand der öffentlich dokumentierten Interop-Signaturen im Projekt AudioDeviceCmdlets geprüft, https://github.com/frgnca/AudioDeviceCmdlets. Es wird kein Modul oder dessen Quellcode ausgeliefert. Der lokale Adapter enthält ausschließlich die benötigten festen Schnittstellen und Render-Standardsetter.

@@ -54,3 +54,7 @@ test('voice prompting delegates start acknowledgement to the client without dupl
 test('constraints in a later sentence do not suppress the positive task acknowledgement',()=>{
  assert.equal(taskAcknowledgement('Prüfe kurz das Ergebnis. Keine Werkzeuge verwenden.').kind,'inspect');assert.equal(taskAcknowledgement('Öffne Spotify. Ändere keine Einstellungen.').kind,'simple');assert.equal(taskAcknowledgement('Öffne Spotify nicht. Frag mich zuerst.'),null);
 });
+test('audio routing and image questions receive a start acknowledgement without an extra decision model',()=>{
+ for(const text of ['Audio auf Boxen','Wechsle die Audioausgabe auf Kopfhörer','Nutze das Headset'])assert.equal(taskAcknowledgement(text)?.kind,'simple',text);
+ for(const text of ['Was steht auf diesem Screenshot?','Was ist auf diesem Foto zu sehen?','Kannst du dieses Bild analysieren?'])assert.equal(taskAcknowledgement(text)?.kind,'inspect',text);
+});

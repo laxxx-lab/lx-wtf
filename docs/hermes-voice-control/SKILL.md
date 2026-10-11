@@ -5,6 +5,19 @@ description: "Bei Lilith-/Hermes-Voice-Aufträgen mit sichtbaren Ergebnissen, ko
 
 # Hermes Voice auf Patriks Windows-PC steuern
 
+
+## Audioausgabe ohne GUI-Suchlauf
+
+Für ausdrücklich gewünschtes Umstellen zwischen Boxen und Kopfhörern die native Voice-API über die verbundene Windows-MCP-Shell verwenden. Die Zuordnungen stammen aus Patriks lokalen Einstellungen; keine beliebigen Geräte erraten. Kein Exe-Suchlauf und kein Öffnen der Windows-Einstellungen für diese Aktion.
+
+```powershell
+& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action audio-outputs
+& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action audio-output -Target speakers
+& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action audio-output -Target headphones
+```
+
+Nur die zum Nutzerauftrag passende Änderungszeile ausführen. `audio-outputs` liest aktuelle aktive Windows-Ausgaben, Standardgeräte und die gespeicherte Zuordnung. Für ein ausdrücklich genanntes anderes Gerät dessen aktuelle `devices[].id` exakt als `-Target` verwenden; ausschließlich Render-Geräte. Erfolg nur bei `ok=true`, `result.verified=true`, passenden `result.evidence.after.console` und `multimedia` sowie `voiceSystemDefault=true` bestätigen. Die Kommunikations-Ausgabe bleibt unverändert. Bei fehlender/mehrdeutiger Zuordnung einmal konkret nachfragen; bei unbestätigter Wirkung nicht blind wiederholen. Diese API ändert Windows-Standard und Liliths Sprachausgabe. Separat festgelegte App-Ausgaben und externe Spotify-Connect-Geräte sind damit nicht nachgewiesen umgeschaltet.
+
 ## Werkbank als Arbeitsfläche
 
 **Bei sichtbaren Ergebnissen, Quellen-Erklärungen sowie App-, Projekt- oder Systemdaten die Werkbank tatsächlich verwenden.** Zeige die passende bestehende Ansicht über die verbundene Windows-MCP-Shell auf Patriks PC: `console` für Auftrag, Fortschritt, Erklärung und gelesene Textquelle; `artcraft` für die echte App/den Bildbeleg; `graph` für Projektcode; `intel` für öffentliche Lage-/Kartendaten; `system` für Messwerte; `context` für vorhandene Kontextmetadaten; `browser` für ausdrücklich beauftragte Webseiten. Eine reine kurze Aktionsbestätigung braucht keine zusätzliche Ansicht. Alle Schritte bleiben in derselben Hermes-Session.

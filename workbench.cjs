@@ -83,7 +83,7 @@ function validateAction(payload){
   throw new Error('Unbekannte Aktion.');
 }
 function normalizeConsoleEvent(event){
-  const type={'activity':'tool','tool.start':'tool','tool.end':'tool','notice':'error','task-acknowledgement':'acknowledgement'}[event?.type]||event?.type;
+  const type={'activity':'tool','tool.start':'tool','tool.end':'tool','notice':'error','task-acknowledgement':'acknowledgement','task-progress':'acknowledgement'}[event?.type]||event?.type;
   if(!['user','reply','acknowledgement','tool','error','turn-end'].includes(type))return null;
   const body=text(event.text||event.message||event.name||event.data?.name||event.data?.tool||event.status,6000);
   if(!body)return null;

@@ -233,3 +233,5 @@ sind an dieselbe Session und Auftragsliste angebunden:
 
 Keine zusätzlichen Sprach-API-Gebühren oder Sprachabos. Strom, der bestehende
 VPS und dein bisheriger Hermes-Modellanbieter bleiben Teil deines Setups.
+
+Audioausgabe, einmalige Wartehinweise nach 20 Sekunden und Modellvorbereitung für den lokalen Bildblick: [Bedienung und geprüfte Grenzen](docs/audio-and-wait-feedback.md).

@@ -3,6 +3,7 @@ const path = require('node:path');
 const { execFile: nativeExecFile } = require('node:child_process');
 const { normalizeAppCatalog, readAppCatalog } = require('./app-catalog.cjs');
 const { validateAppReference } = require('./modes.cjs');
+const {audioOutputIntent,validAudioTarget}=require('./audio-output.cjs');
 const SPOTIFY_SOURCES = new Set(['Spotify.exe', 'SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify']);
 const key = value => typeof value === 'string' ? value.replace(/\//g, '\\').toLocaleLowerCase('de') : '';
 const nameKey = value => value.normalize('NFKC').toLocaleLowerCase('de').replace(/\s+/g, ' ').trim();
@@ -16,6 +17,7 @@ function commandText(text, enabled) {
 function parseDirectCommand(text, { apps = [], enabled = true } = {}) {
   const value = commandText(text, enabled);
   if (!value) return null;
+  const output=audioOutputIntent(text);if(output)return output;
   if (/^(?:lauter|(?:mach|mache) (?:es|den ton|die lautstärke) lauter|(?:erhöhe|erhoehe) (?:die )?lautstärke|lautstärke erhöhen)$/.test(value)) return { type: 'volume', action: 'up' };
   if (/^(?:leiser|(?:mach|mache) (?:es|den ton|die lautstärke) leiser|(?:senke|verringere) (?:die )?lautstärke|lautstärke verringern)$/.test(value)) return { type: 'volume', action: 'down' };
   if (/^(?:ton aus|stummschalten|(?:schalte|schalt) (?:den )?ton aus|(?:schalte|schalt) (?:den )?ton stumm)$/.test(value)) return { type: 'volume', action: 'mute' };
@@ -38,6 +40,7 @@ function parseDirectCommand(text, { apps = [], enabled = true } = {}) {
 const exactKeys = (object, keys) => Object.keys(object).sort().join('|') === keys.sort().join('|');
 function validDirectCommand(command) {
   if (!command || typeof command !== 'object' || Array.isArray(command)) return false;
+  if(command.type==='audio.output')return exactKeys(command,['type','target'])&&validAudioTarget(command.target);
   if (command.type === 'volume') return exactKeys(command, ['type', 'action']) && ['up', 'down', 'mute', 'unmute'].includes(command.action)
     || exactKeys(command, ['type', 'action', 'value']) && command.action === 'set' && Number.isInteger(command.value) && command.value >= 0 && command.value <= 100;
   if (command.type === 'spotify') return exactKeys(command, ['type', 'action']) && ['play', 'pause', 'next', 'previous'].includes(command.action);
@@ -81,7 +84,7 @@ function successMessage(command, evidence) {
   return { play: 'Spotify spielt.', pause: 'Spotify ist pausiert.', next: 'Spotify hat zum nächsten Titel gewechselt.', previous: 'Spotify hat zum vorherigen Titel gewechselt.' }[command.action];
 }
 
-function createDirectCommands({ getApps, execFile = nativeExecFile, platform = process.platform, windowsDir = process.env.SystemRoot || 'C:\\Windows' } = {}) {
+function createDirectCommands({ getApps, audio, execFile = nativeExecFile, platform = process.platform, windowsDir = process.env.SystemRoot || 'C:\\Windows' } = {}) {
   const apps = getApps || (() => readAppCatalog({ execFile, platform, windowsDir }));
   async function run(command, { signal, observeOnly = false } = {}) {
       const failure = (message, evidence = null) => ({ status: 'failed', verified: false, message, evidence });
@@ -89,6 +92,11 @@ function createDirectCommands({ getApps, execFile = nativeExecFile, platform = p
       if (!validDirectCommand(command)) return failure('Ungültiger direkter Befehl.');
       if (signal?.aborted) return failure('Direkter Befehl wurde abgebrochen.');
       if (platform !== 'win32') return failure('Direkte Befehle benötigen Windows.');
+      if(command.type==='audio.output'){
+        if(!audio)return failure('Windows-Audioausgabe ist nicht verfügbar.');
+        if(['speakers','headphones'].includes(command.target))return failure('Bitte Boxen und Kopfhörer einmal in den Audio-Einstellungen zuordnen.');
+        return observeOnly?audio.observe(command.target,{signal}):audio.switch(command.target,{signal});
+      }
       try {
         if (command.type === 'app.open' && !normalizeAppCatalog(await apps()).some(app => key(app.id) === key(command.app.id) && nameKey(app.name) === nameKey(command.app.name))) return failure('Die Anwendung ist nicht mehr im bekannten App-Katalog.');
       } catch (error) { return failure('App-Katalog ist nicht verfügbar: ' + error.message); }
@@ -113,6 +121,7 @@ function createDirectCommands({ getApps, execFile = nativeExecFile, platform = p
   return {
     async parse(text, { enabled = true } = {}) {
       const quick = parseDirectCommand(text, { enabled });
+      if(quick?.type==='audio.output'&&audio){try{return {...quick,target:(await audio.resolve(quick.target)).id};}catch{return quick;}}
       if (quick || !commandText(text, enabled) || !/^(?:öffne|oeffne|starte|öffnen|starten) /.test(commandText(text, enabled))) return quick;
       try { return parseDirectCommand(text, { enabled, apps: await apps() }); } catch { return null; }
     },

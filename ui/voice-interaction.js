@@ -23,7 +23,9 @@
     if(!value||isStandbyRequest(value)||/^(?:stopp?|bitte stoppe|hör auf|ruhe|not[ -]?aus|stoppe alles|alles stoppen|systemstatus)$/.test(value)||/\b(?:nicht|keine?n?|nein)\b/.test(value))return null;
     const phrases={simple:'Okay.',inspect:'Alles klar, ich schaue es mir an.',effort:'Alles klar. Dazu brauche ich einen Moment.'};
     if(!Object.hasOwn(phrases,kind)){
-      if(/^ablauf:/.test(value)||/^(?:recherchier\w*|analysier\w*|untersuch\w*|vergleich\w*|bearbeit\w*|verbesser\w*|überarbeit\w*|organisier\w*|erstelle?|schreib\w*|baue?|plane?|berechne?|räume?|such\w*|finde?|artcraft-auftrag)\b/.test(value))kind='effort';
+      if(/^(?:was (?:steht|ist|siehst du).*\b(?:screenshot|bild|foto)\b|(?:dieses|das) (?:bild|foto|screenshot) (?:analysieren|erklären))/.test(value))kind='inspect';
+      else if(/^(?:wechsle|wechsele|wechsel|nutze|benutze|verwende|audio auf|ton auf|sound auf)\b/.test(value))kind='simple';
+      else if(/^ablauf:/.test(value)||/^(?:recherchier\w*|analysier\w*|untersuch\w*|vergleich\w*|bearbeit\w*|verbesser\w*|überarbeit\w*|organisier\w*|erstelle?|schreib\w*|baue?|plane?|berechne?|räume?|such\w*|finde?|artcraft-auftrag)\b/.test(value))kind='effort';
       else if(/^(?:prüfe?|kontrollier\w*|schau\w*)\b/.test(value)||/^(?:erklär\w*|fass\w*|lies|übersetze)\b.*\b(?:fenster|anwendung|app|kopiert\w*|zwischenablage|bild|foto|bildschirm|text|markiert\w*)\b/.test(value)||/^was (?:halte ich|siehst du|ist (?:auf|in) (?:meinem|dem|diesem) (?:bildschirm|fenster))\b/.test(value))kind='inspect';
       else if(/^(?:öffne?|starte?|spiele?|pausier\w*|schließ\w*|stelle?|stell|setze?|schalte?|aktiviere?|deaktiviere?|mach\w*|ton (?:an|aus)|lautstärke)\b/.test(value)||/(?:^|\s)(?:öffnen|starten|abspielen|pausieren|schließen)$/.test(value))kind='simple';
       else return null;
