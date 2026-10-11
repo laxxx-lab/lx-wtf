@@ -400,23 +400,23 @@ function startHud(title,kind='task'){hudToolQueues.clear();hudActivity.start(tit
 let circleController=null;
 function cancelScreen(){circleController?.clear();screenGeneration++;screenAbort?.abort();screenAbort=null;screenLooking=false;screenScene=null;emit('screen-cancel');emit('screen-activity',{active:false});}
 async function askCircle(value){
-  requireLocalAccess();if(!config.screenEnabled||!connected||value.sessionId!==conversation?.session?.id)throw Error('Die Bildschirmfreigabe oder Session hat sich geändert.');
+  requireLocalAccess();if(!connected||value.sessionId!==conversation?.session?.id)throw Error('Die Verbindung oder Session hat sich geändert.');
   if(screenLooking||conversation.busy||conversation.selecting)throw Error('Ein Auftrag läuft noch. Bitte danach erneut markieren.');
   validateFrame(value.image);const generation=screenGeneration,controller=new AbortController();screenAbort=controller;screenLooking=true;emit('screen-activity',{active:true});emit('notice',{message:'Lilith analysiert den markierten Bereich lokal …'});
   const turnId=prepareTaskTurn(value.turnId);announceTaskStart(value.question,{kind:'inspect'});
   let observation;
   try{const service=getCameraService();await service.ensureVision();observation=await describeScreen(value.image,value.question,{selection:true,signal:AbortSignal.any([controller.signal,service.abort.signal,AbortSignal.timeout(120000)])});
-    if(generation!==screenGeneration||!config.screenEnabled||value.sessionId!==conversation?.session?.id)throw Error('Bereichsanalyse wurde abgebrochen.');
+    if(generation!==screenGeneration||!connected||value.sessionId!==conversation?.session?.id)throw Error('Bereichsanalyse wurde abgebrochen.');
   }finally{if(generation===screenGeneration){screenLooking=false;screenAbort=null;emit('screen-activity',{active:false});}}
   requireLocalAccess();screenScene={...observation,source:value.source,capturedAt:value.capturedAt};emit('screen-scene',{scene:screenScene});
   await submit(screenPrompt(value.question,screenScene)+'\nDer Nutzer hat diesen Bereich selbst eingekreist. Die Aufnahme ist eingefroren; ihren Zeitstempel beachten. Erkläre gezielt und knapp. Wenn die Frage aktuelle Informationen erfordert, nutze deine vorhandene Websuche mit der lokalen Beschreibung. Keine Bilddatei an eine externe Bildsuche senden.',{sessionId:value.sessionId,displayText:'[Markierter Bereich] '+value.question,turnId});
   await ensureWorkbench().show('console');return {ok:true};
 }
 async function showCircle(){
-  requireLocalAccess();if(!config.screenEnabled)throw Error('Bitte Bildschirmblick in den Einstellungen aktivieren.');
+  requireLocalAccess(); // Explicit local selection grants one frozen crop, independent of general screen access.
   if(!connected||!conversation?.session)throw Error('Bitte eine verbundene Lilith-Session auswählen.');
   if(conversation.busy||conversation.selecting||screenLooking)throw Error('Ein Auftrag läuft noch. Bitte danach markieren.');
-  circleController||=require('./circle-interest.cjs').createCircleInterest({electron:require('electron'),root:ROOT,allowed:()=>config.screenEnabled&&!config.privacyLocked&&connected,context:()=>conversation?.session?.id,onQuestion:async value=>{try{return await askCircle(value);}catch(error){emit('notice',{message:error.message});throw error;}}});
+  circleController||=require('./circle-interest.cjs').createCircleInterest({electron:require('electron'),root:ROOT,allowed:()=>!config.privacyLocked&&connected,context:()=>conversation?.session?.id,onQuestion:async value=>{try{return await askCircle(value);}catch(error){emit('notice',{message:error.message});throw error;}}});
   return circleController.show();
 }
 async function screenSources(){

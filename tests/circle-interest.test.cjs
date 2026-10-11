@@ -9,7 +9,7 @@ test('circle selection crops normalized geometry to source pixels, including mix
 function fixture(){
  const windows=[],handlers=new Map(),root=path.resolve(__dirname,'..');let permitted=true,crop=null,submitted=null,options=null;
  const image={isEmpty:()=>false,getSize:()=>({width:1920,height:1080}),toDataURL:()=> 'data:image/png;base64,aGVsbG8=',crop:r=>{crop=r;return {getSize:()=>({width:r.width,height:r.height}),resize(){return this;},toJPEG:()=>Buffer.from([255,216,255,224,0,0,0,0])};}};
- class Window extends EventEmitter {constructor(options){super();this.options=options;this.webContents=new EventEmitter();this.webContents.mainFrame={url:''};this.webContents.setWindowOpenHandler=()=>{};this.webContents.send=(_c,value)=>{this.value=value;};windows.push(this);}async loadFile(file){this.webContents.mainFrame.url=pathToFileURL(file).href;}show(){}focus(){}isDestroyed(){return !!this.dead;}destroy(){this.dead=true;this.emit('closed');}}
+ class Window extends EventEmitter {constructor(options){super();this.options=options;this.webContents=new EventEmitter();this.webContents.mainFrame={url:''};this.webContents.setWindowOpenHandler=()=>{};this.webContents.send=(_c,value)=>{this.value=value;};windows.push(this);}async loadFile(file){this.webContents.mainFrame.url=pathToFileURL(file).href;}show(){this.visible=true;}setFullScreen(){this.visible=false;}focus(){}isDestroyed(){return !!this.dead;}destroy(){this.dead=true;this.emit('closed');}}
  const electron={BrowserWindow:Window,screen:new EventEmitter(),desktopCapturer:{getSources:async value=>{options=value;return [{id:'screen:0:0',display_id:'2',thumbnail:image}];}},ipcMain:{handle:(key,fn)=>handlers.set(key,fn),removeHandler:key=>handlers.delete(key)}};
  Object.assign(electron.screen,{getCursorScreenPoint:()=>({x:-100,y:100}),getDisplayNearestPoint:()=>({id:2,bounds:{x:-1920,y:0,width:1920,height:1080},scaleFactor:1})});
  const c=api.createCircleInterest({electron,root,allowed:()=>permitted,context:()=> 'session-1',onQuestion:async value=>{submitted=value;return {ok:true};}});
@@ -20,6 +20,9 @@ test('only the local selection frame may submit a crop; cancelled or private sel
  await assert.rejects(f.invoke('ask',{region:{x:.1,y:.1,width:.2,height:.2},question:'Was ist das?'},{sender:{},senderFrame:{}}),/Zugriff/);
  const preview=await f.invoke('preview',{region:{x:.1,y:.1,width:.2,height:.2}});await f.invoke('ask',{selectionId:preview.selectionId,question:'Was ist das?'});assert.deepEqual(f.crop,{x:192,y:108,width:384,height:216});assert.equal(f.submitted.sessionId,'session-1');assert.equal(f.submitted.question,'Was ist das?');assert.equal(f.windows[0].dead,true);
  await f.c.show();f.setAllowed(false);await assert.rejects(f.invoke('ask',{region:{x:.1,y:.1,width:.2,height:.2},question:'Was ist das?'},{sender:f.windows[1].webContents,senderFrame:f.windows[1].webContents.mainFrame}));assert.equal(f.windows[1].dead,true);f.c.dispose();assert.equal(f.handlers.size,0);
+});
+test('the selection is shown after the Windows fullscreen transition can hide it',async()=>{
+ const f=fixture();await f.c.show();assert.equal(f.windows[0].visible,true);f.c.dispose();
 });
 test('the exact preview bytes are analyzed; a superseded preview or unpreviewed region cannot be submitted',async()=>{
  const f=fixture();await f.c.show();const first=await f.invoke('preview',{region:{x:.1,y:.1,width:.2,height:.2}}),second=await f.invoke('preview',{region:{x:.5,y:.3,width:.2,height:.2}});

@@ -8,6 +8,7 @@ function fixture({singleInstance=false,dialog}={}){
     if(name==='./system-monitor.cjs')return {createSystemSampler:()=>async()=>({}),germanAlert:()=>''};
     if(name==='./context-observer.cjs'){const observer=require('../context-observer.cjs');return {...observer,readForegroundContext:async()=>context.fixtureForeground||{app:null,windowTitle:null,excluded:false}};}
     if(name==='./screen-service.cjs'){const service=require('../screen-service.cjs');return {...service,describeScreen:(image,question,options)=>service.describeScreen(image,question,{...options,fetcher:context.fetch})};}
+    if(name==='./circle-interest.cjs')return {createCircleInterest:options=>{context.circleOptions=options;return {show:async()=>{assert.equal(options.allowed(),true);context.circleShown=true;return {ok:true};},clear(){context.circleCleared=true;}};}};
     if(name.startsWith('./'))return require(path.resolve(__dirname,'..',name));
     return require(name);
   }});
@@ -317,20 +318,27 @@ test('screen inspection uses the selected source, returns text only and does not
 test('disabled screen inspection does not enumerate or capture windows',async()=>{
   const f=fixture();await assert.rejects(vm.runInContext("lookCurrentScreen('Was siehst du?')",f.context),/aktivieren/);assert.equal(f.context.captureOptions,undefined);
 });
-test('a circle crop is analyzed locally and Hermes receives only its text description with the same session',async()=>{
+test('explicit circle selection opens with general screen inspection off without enabling it',async()=>{
+ const f=fixture();vm.runInContext('connected=true;conversation.busy=false;config.screenEnabled=false;',f.context);
+ await vm.runInContext('showCircle()',f.context);assert.equal(f.context.circleShown,true);assert.equal(vm.runInContext('config.screenEnabled',f.context),false);
+ vm.runInContext('config.privacyLocked=true;',f.context);assert.equal(f.context.circleOptions.allowed(),false);await assert.rejects(vm.runInContext('showCircle()',f.context),/Datenschutz/);
+ vm.runInContext('config.privacyLocked=false;connected=false;',f.context);assert.equal(f.context.circleOptions.allowed(),false);await assert.rejects(vm.runInContext('showCircle()',f.context),/Session/);
+ vm.runInContext('connected=true;conversation.busy=true;',f.context);await assert.rejects(vm.runInContext('showCircle()',f.context),/Auftrag/);
+});
+test('a circle crop works with general screen inspection off and Hermes receives only text in the same session',async()=>{
  const f=fixture();f.context.fixtureService.ensureVision=async()=>{};f.context.fixtureService.abort=new AbortController();
  f.context.fetch=async(_url,options)=>{f.context.visionBody=JSON.parse(options.body);return Response.json({message:{content:JSON.stringify({description:'Ein Diagramm mit drei Knoten.',text:'Drei Knoten',uncertain:false})}});};
  f.context.circlePayload={image:f.context.fixtureFrame.image,question:'Erklär das Diagramm.',sessionId:'selected',source:{id:'screen:1:0',name:'Monitor · markierter Bereich'},capturedAt:new Date().toISOString()};
  f.context.submitSpy=(text,options)=>f.submitted.push({text,options});
- vm.runInContext("connected=true;config.screenEnabled=true;conversation.busy=false;submit=submitSpy;ensureWorkbench=()=>({show:async()=>{}});",f.context);
+ vm.runInContext("connected=true;config.screenEnabled=false;conversation.busy=false;submit=submitSpy;ensureWorkbench=()=>({show:async()=>{}});",f.context);
  await vm.runInContext('askCircle(circlePayload)',f.context);assert.deepEqual(f.context.visionBody.messages.at(-1).images,[f.context.circlePayload.image]);assert.equal(f.submitted.length,1);assert.match(f.submitted[0].text,/drei Knoten/);assert.ok(!f.submitted[0].text.includes(f.context.circlePayload.image));assert.equal(f.submitted[0].options.sessionId,'selected');
 });
-test('stopping the screen or switching sessions during circle analysis suppresses the late Hermes submission',async()=>{
- for(const change of ['cancelScreen();','conversation.session={id:"other"};']){
+test('stopping, privacy, disconnecting or switching sessions during a one-shot circle suppresses late submission',async()=>{
+ for(const change of ['cancelScreen();','config.privacyLocked=true;','connected=false;','conversation.session={id:"other"};']){
   const f=fixture();let release,entered;const started=new Promise(r=>entered=r);f.context.fixtureService.ensureVision=async()=>{};f.context.fixtureService.abort=new AbortController();
   f.context.fetch=async()=>{entered();return new Promise(r=>release=()=>r(Response.json({message:{content:'{"description":"Spätes Ergebnis","text":"Spätes Ergebnis","uncertain":false}'}})));};
-  f.context.circlePayload={image:f.context.fixtureFrame.image,question:'Was ist das?',sessionId:'selected',source:{id:'screen:1:0',name:'Monitor'},capturedAt:new Date().toISOString()};vm.runInContext('connected=true;config.screenEnabled=true;conversation.busy=false;',f.context);
-  const pending=vm.runInContext('askCircle(circlePayload)',f.context);await started;vm.runInContext(change,f.context);release();await assert.rejects(pending,/abgebrochen/);assert.equal(f.submitted.length,0);
+  f.context.circlePayload={image:f.context.fixtureFrame.image,question:'Was ist das?',sessionId:'selected',source:{id:'screen:1:0',name:'Monitor'},capturedAt:new Date().toISOString()};vm.runInContext('connected=true;config.screenEnabled=false;conversation.busy=false;',f.context);
+  const pending=vm.runInContext('askCircle(circlePayload)',f.context);const rejection=assert.rejects(pending,/abgebrochen|Datenschutz/);await started;vm.runInContext(change,f.context);release();await rejection;assert.equal(f.submitted.length,0);
  }
 });
 

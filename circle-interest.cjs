@@ -11,7 +11,7 @@ function createCircleInterest({electron,root,allowed,context,onQuestion}){
  let win=null,image=null,source=null,sessionId=null,capturedAt=null,generation=0,disposed=false,submitting=false,preview=null,selectionSequence=0;
  function clear(){generation++;const previous=win;win=null;image=null;source=null;sessionId=null;preview=null;if(previous&&!previous.isDestroyed())previous.destroy();}
  const valid=ticket=>!disposed&&ticket===generation&&allowed()&&sessionId===context();
- function access(){if(!allowed()){clear();throw Error('Bildschirmblick ist aus oder Datenschutz ist aktiv.');}}
+ function access(){if(!allowed()){clear();throw Error('Bereichsauswahl ist wegen Datenschutz oder fehlender Verbindung gesperrt.');}}
  async function show(){
   if(disposed)throw Error('Bereichsauswahl wurde beendet.');access();clear();sessionId=context();if(!sessionId)throw Error('Bitte eine verbundene Lilith-Session auswählen.');const ticket=generation;
   const display=screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
@@ -20,7 +20,7 @@ function createCircleInterest({electron,root,allowed,context,onQuestion}){
   if(!valid(ticket))throw Error('Bereichsauswahl wurde abgebrochen.');source=sources.find(value=>value.display_id===String(display.id));image=source?.thumbnail;capturedAt=new Date().toISOString();if(!image||image.isEmpty())throw Error('Dieser Monitor liefert kein Bild.');
   const window=new BrowserWindow({...display.bounds,title:'Lilith · Circle of Interest',frame:false,show:false,alwaysOnTop:true,skipTaskbar:true,resizable:true,movable:false,backgroundColor:'#07111a',webPreferences:{preload:path.join(root,'circle-preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});win=window;
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',event=>event.preventDefault());window.on('closed',()=>{if(win===window)clear();});
-  try{await window.loadFile(file);if(!valid(ticket))throw Error('Bereichsauswahl wurde abgebrochen.');window.setMenu?.(null);window.webContents.send('circle:event',{image:image.toDataURL(),source:source.name,capturedAt});window.show();window.setFullScreen?.(true);window.focus();return {ok:true};}catch(error){if(ticket===generation)clear();throw error;}
+  try{await window.loadFile(file);if(!valid(ticket))throw Error('Bereichsauswahl wurde abgebrochen.');window.setMenu?.(null);window.webContents.send('circle:event',{image:image.toDataURL(),source:source.name,capturedAt});window.setFullScreen?.(true);window.show();window.focus();return {ok:true};}catch(error){if(ticket===generation)clear();throw error;}
  }
  ipcMain.handle('circle:invoke',async(event,method,value)=>{
   if(!win||event.sender!==win.webContents||event.senderFrame!==win.webContents.mainFrame||event.senderFrame?.url!==url)throw Error('Bereichsauswahl-Zugriff verweigert.');
