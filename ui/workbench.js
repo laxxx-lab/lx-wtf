@@ -2,6 +2,8 @@
   'use strict';
   const bridge=window.workbench,$=id=>document.getElementById(id),tabs=['system','console','browser','context','graph','intel','artcraft'];
   let current={},activeTab='system',pending=false,lastEvents='',noticeTimer,animation=null;
+  let gestureHelpChosen=false;
+  function showGestureHelp(enabled){$('gesture-guide').hidden=!enabled;document.body.classList.toggle('gesture-help-open',enabled);$('gesture-help').setAttribute('aria-expanded',String(enabled));void invoke('gesture-help',{enabled});}
   let editingRoutine=null,routineDirty=false,projectDirty=false,lastContextRows='',lastTaskRows='',lastRoutineRows='',lastLogs='',lastOperationRows='',lastSource='';
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const orb=new window.HermesOrb.OrbRenderer($('reactor'),{reducedMotion:reduced});
@@ -16,6 +18,8 @@
     if(!tabs.includes(tab))return;if(activeTab==='graph'&&tab!=='graph')graphView?.cancelGesture?.();activeTab=tab;
     for(const name of tabs){$(name).hidden=name!==tab;$('tab-'+name).setAttribute('aria-selected',String(name===tab));$('tab-'+name).tabIndex=name===tab?0:-1;}
     $('browser-caption').hidden=tab!=='browser';
+    $('gesture-next-tab').textContent=$('tab-'+tabs[(tabs.indexOf(tab)+1)%tabs.length]).textContent.trim().replace(/^\d+\s*/,'');
+    $('gesture-previous-tab').textContent=$('tab-'+tabs[(tabs.indexOf(tab)+tabs.length-1)%tabs.length]).textContent.trim().replace(/^\d+\s*/,'');
   }
   function metric(name,value,unit='%'){
     const valid=Number.isFinite(value),node=$(name+'-value');node.replaceChildren();
@@ -36,7 +40,15 @@
     }
     list.replaceChildren(fragment);$('event-count').textContent=events.length+' EREIGNISSE';if(atBottom)list.scrollTop=list.scrollHeight;
   }
-  function renderGesture(value){if(!value?.enabled||!value.ready)graphView?.cancelGesture?.();$('gesture-status').textContent=!value?.enabled?'GESTEN AUS':value.ready?(value.label||'GESTEN BEREIT').toUpperCase():'GESTEN WARTEN';}
+  function renderGesture(value){
+    const enabled=value?.enabled&&!current.privacyLocked,ready=enabled&&value.ready;
+    if(!ready)graphView?.cancelGesture?.();$('gesture-status').textContent=!enabled?'GESTEN AUS':ready?(value.label||'GESTEN BEREIT').toUpperCase():'GESTEN WARTEN';
+    if(enabled&&!gestureHelpChosen){gestureHelpChosen=true;showGestureHelp(true);}
+    $('gesture-step').textContent=!enabled?'Kamera und Gesten in den Einstellungen einschalten.':value.label||'Eine offene Hand zeigen.';
+    const n=ready?value.navigation:null;$('gesture-point').hidden=!n;
+    if(n){$('gesture-point').style.left=(n.x*100)+'%';$('gesture-track').dataset.phase=n.phase;}
+    $('gesture-progress').value=n?.progress||0;
+  }
   function node(tag,text,className){const value=document.createElement(tag);if(text!==undefined)value.textContent=String(text);if(className)value.className=className;return value;}
   function timeLabel(timestamp){return Number.isFinite(timestamp)?new Date(timestamp).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'—';}
   function runningTask(){return (current.tasks||[]).find(task=>task.status==='running')||null;}
@@ -156,7 +168,8 @@
   for(const id of ['minimize','close'])$(id).addEventListener('click',()=>invoke('hide'));
   $('task-jump').addEventListener('click',jumpToTask);
   $('circle-open').addEventListener('click',()=>invoke('circle-open'));
-  document.addEventListener('keydown',event=>{if(event.key==='Escape')invoke('hide');});
+  $('gesture-help').addEventListener('click',()=>{gestureHelpChosen=true;showGestureHelp($('gesture-guide').hidden);});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!$('gesture-guide').hidden){gestureHelpChosen=true;showGestureHelp(false);}else invoke('hide');}});
   for(const button of document.querySelectorAll('[data-action]'))button.addEventListener('click',()=>invoke('action',{name:button.dataset.action}));
   $('context-enabled').addEventListener('change',()=>invoke('action',{name:'context-settings',values:{contextEnabled:$('context-enabled').checked}}));
   $('project-name').addEventListener('input',()=>{projectDirty=true;});

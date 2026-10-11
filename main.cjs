@@ -1020,7 +1020,7 @@ function registerHandlers(){
       }
       const w=ensureWorkbench();if(action==='workbench-show')return w.show();if(action==='workbench-hide')return w.hide();if(action==='workbench-next'&&w.visible)return w.cycleTab(1);if(action==='workbench-previous'&&w.visible)return w.cycleTab(-1);
     },
-    'gesture-state':(_e,value)=>{if(value?.active!==true){spatialGeneration=-1;spatialSequence=-1;}return workbench?.publish({type:'gesture-state',enabled:!config.privacyLocked&&config.gesturesEnabled&&config.cameraEnabled,ready:!config.privacyLocked&&value?.active===true,label:String(value?.status||'Gesten aus').slice(0,160)});},
+    'gesture-state':(_e,value)=>{if(value?.active!==true){spatialGeneration=-1;spatialSequence=-1;}return workbench?.publish({type:'gesture-state',enabled:!config.privacyLocked&&config.gesturesEnabled&&config.cameraEnabled,ready:!config.privacyLocked&&value?.active===true,label:String(value?.status||'Gesten aus').slice(0,160),navigation:value?.navigation});},
     'apps-catalog':()=>readAppCatalog(),
     'system-intent':(_e,text)=>systemReportIntent(text),
     'system-report':(_e,value)=>{

@@ -26,7 +26,7 @@ function fixture(t, options = {}) {
     srcObject: { getVideoTracks: () => [track] } };
   const detector = { detectForVideo(input, timestamp) { assert.equal(input, video); detections.push(timestamp); return result(); }, close() { closes++; } };
   const controller = new GestureController({ loadDetector: async () => { loads++; return detector; }, now: () => time,
-    onAction: action => actions.push(action), onState: state => states.push(state), ...options });
+    onAction: action => actions.push(action), onState: state => states.push(state), mirror:false,...options });
   t.after(() => controller.disable());
   return { controller, actions, states, video, track, detector, detections,
     setTime(value) { time = value; }, get closes() { return closes; }, get loads() { return loads; } };
@@ -170,6 +170,25 @@ test('deliberate horizontal open-palm swipes navigate once and jitter does not n
   f.controller.process({ landmarks: [] }, 3250);
   for (let i = 0; i < 35; i++) f.controller.process(result('palm', i % 2 ? 0.018 : -0.018), 3375 + i * 125);
   assert.equal(f.actions.filter(action => /next|previous/.test(action)).length, 2);
+});
+test('successive swipes rearm after returning to the center without changing the open-hand pose',async t=>{
+ const f=fixture(t);await f.controller.enable(f.video);
+ for(let turn=0;turn<4;turn++){
+  const start=turn*1500;[0,-.08,-.16,-.25].forEach((dx,i)=>f.controller.process(result('palm',dx),start+i*125));
+  // Return movement is ignored, then a stable center rearms the next swipe.
+  for(const [elapsed,dx] of [[500,-.16],[625,-.08],[750,0],[875,0],[1000,0],[1125,0],[1250,0]])f.controller.process(result('palm',dx),start+elapsed);
+ }
+ assert.deepEqual(f.actions,['workbench-next','workbench-next','workbench-next','workbench-next']);
+ assert.ok(f.states.some(s=>s.navigation?.phase==='ready'));assert.ok(f.states.some(s=>s.navigation?.phase==='return'));
+});
+test('opening the workbench with a palm does not permanently disable swiping with that same hand',async t=>{
+ const f=fixture(t);await f.controller.enable(f.video);for(let time=0;time<=2000;time+=125)f.controller.process(result(),time);
+ [0,-.08,-.16,-.25].forEach((dx,i)=>f.controller.process(result('palm',dx),2125+i*125));assert.deepEqual(f.actions,['workbench-show','workbench-next']);
+});
+test('mirrored front-camera gestures invert navigation and the pointer together',async t=>{
+ const spatial=[],f=fixture(t,{mirror:true,onSpatial:p=>spatial.push(p)});await f.controller.enable(f.video);
+ [0,.08,.16,.25].forEach((dx,i)=>f.controller.process(result('palm',dx),i*125));assert.deepEqual(f.actions,['workbench-next']);
+ f.controller.process({landmarks:[]},500);for(const time of [625,750,875])f.controller.process(spatialResult(),time);assert.ok(Math.abs(spatial.at(-1).x-.625)<.001);
 });
 
 test('large diagonal motions, fists and discontinuous frame gaps cannot swipe', async t => {

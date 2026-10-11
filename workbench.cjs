@@ -92,7 +92,7 @@ function normalizeConsoleEvent(event){
 function createWorkbench({electron,root,stateFile=null,getSnapshot=()=>({}),onCommand=async()=>{},onAction=async()=>{},onVisual=async()=>{},onBrowserChange=()=>{},onVisibility=()=>{}}){
   const {BrowserWindow,WebContentsView,session,ipcMain}=electron;
   const localFile=path.join(root,'ui/workbench.html'),localUrl=pathToFileURL(localFile).href;
-  let win=null,browser=null,ready=null,tab='system',destroyed=false,attached=false,events=[],gesture={enabled:false,ready:false,label:''},sequence=0;
+  let win=null,browser=null,ready=null,tab='system',destroyed=false,attached=false,events=[],gesture={enabled:false,ready:false,label:'',navigation:null},sequence=0,gestureHelp=false;
   let placement=null,placementTimer=null,restoringPlacement=false,placementReady=false,lastPlacementJson='';
   let inputFrameId=null,inputEpoch=0;
   let presentation={owner:null,reason:'',requestId:null},presentationEpoch=0,userShowPending=null;
@@ -152,7 +152,7 @@ function createWorkbench({electron,root,stateFile=null,getSnapshot=()=>({}),onCo
   function layout(){
     if(!browser||!win||win.isDestroyed())return;
     browser.setVisible(tab==='browser'&&browser.webContents.getURL()!=='about:blank');
-    const bounds=win.getContentBounds();browser.setBounds({x:22,y:190,width:Math.max(1,bounds.width-44),height:Math.max(1,bounds.height-230)});
+    const bounds=win.getContentBounds(),offset=gestureHelp?140:0;browser.setBounds({x:22,y:190+offset,width:Math.max(1,bounds.width-44),height:Math.max(1,bounds.height-230-offset)});
   }
   function selectTab(next){if(!TABS.includes(next))throw new Error('Unbekannter Arbeitsbereich.');if(next!==tab)streamBroker.stop();tab=next;layout();send({type:'tab',tab});if(next==='browser')browserStatus();onVisibility(controller.visible,tab);}
   function retain(event){
@@ -207,6 +207,7 @@ function createWorkbench({electron,root,stateFile=null,getSnapshot=()=>({}),onCo
   async function handle(event,method,payload){
     if(!trustedSender(event,win?.webContents,localUrl))throw new Error('Arbeitsbereich-Zugriff verweigert.');
     if(method==='snapshot')return snapshot();
+    if(method==='gesture-help'){if(!payload||Object.keys(payload).length!==1||typeof payload.enabled!=='boolean')throw Error('Ungültige Gestenhilfe.');gestureHelp=payload.enabled;layout();return {ok:true};}
     if(USER_METHODS.has(method)||method==='craft-refresh'&&payload?.preview===true)claimUser();
     if(method==='craft-stream-start'){if(!validCraftAppRequest(payload))throw new Error('Ungültiger Fensterstream.');resetInput();return streamBroker.arm(payload.appId);}
     if(method==='craft-stream-stop'){if(payload!==undefined&&payload!==null)throw new Error('Keine Argumente erwartet.');resetInput();streamBroker.stop();return {ok:true};}
@@ -310,7 +311,7 @@ function createWorkbench({electron,root,stateFile=null,getSnapshot=()=>({}),onCo
       if(event?.type==='guide-update'){send({type:'guide-update',guide:event.guide});return;}
       if(event?.type==='open-browser'){controller.show({tab:'browser',url:event.url}).catch(error=>retain({type:'error',text:error.message}));return;}
       if(event?.type==='workspace-cycle'){controller.cycleTab(event.direction);return;}
-      if(event?.type==='gesture-state'){gesture={enabled:event.enabled===true,ready:event.ready===true,label:text(event.label,120)};send({type:'gesture-state',...gesture});return;}
+      if(event?.type==='gesture-state'){const n=event.navigation,allowed=!safeSnapshot(getSnapshot()).privacyLocked;gesture={enabled:allowed&&event.enabled===true,ready:allowed&&event.ready===true,label:text(event.label,120),navigation:allowed&&event.enabled===true&&event.ready===true&&n&&Number.isFinite(n.x)&&n.x>=0&&n.x<=1&&Number.isFinite(n.progress)&&n.progress>=0&&n.progress<=1&&['ready','return','center','cooldown','moving','tracking'].includes(n.phase)?{x:n.x,phase:n.phase,progress:n.progress}:null};send({type:'gesture-state',...gesture});return;}
       if(event?.type==='gesture-update'){
         const value=event.gesture;if(!controller.visible||tab!=='graph'||safeSnapshot(getSnapshot()).privacyLocked||!value||!['pointer','cancel','zoom'].includes(value.kind)||!Number.isSafeInteger(value.generation)||value.generation<0||!Number.isSafeInteger(value.sequence)||value.sequence<0||!Number.isFinite(value.at)||Math.abs(Date.now()-value.at)>1000)return;
         const metadata={kind:value.kind,generation:value.generation,sequence:value.sequence,at:value.at};

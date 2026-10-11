@@ -33,10 +33,11 @@
   }
 
   class GestureController {
-    constructor({ loadDetector, onAction = () => {}, onSpatial = () => {}, onState = () => {}, now = () => performance.now(), spatialBounds = {left:.1,right:.9,top:.1,bottom:.9} }) {
+    constructor({ loadDetector, onAction = () => {}, onSpatial = () => {}, onState = () => {}, now = () => performance.now(), mirror=true,spatialBounds = {left:.1,right:.9,top:.1,bottom:.9} }) {
       this.loadDetector = loadDetector;
       this.onAction = onAction;
       this.onSpatial = onSpatial;
+      if(typeof mirror!=='boolean')throw TypeError('Ungültige Gestenrichtung');this.mirror=mirror;
       if(!spatialBounds||!['left','right','top','bottom'].every(key=>Number.isFinite(spatialBounds[key])&&spatialBounds[key]>=0&&spatialBounds[key]<=1)||spatialBounds.right-spatialBounds.left<.1||spatialBounds.bottom-spatialBounds.top<.1)throw new TypeError('Ungültiger Gestenbereich');
       this.spatialBounds = {...spatialBounds};
       this.onState = onState;
@@ -63,6 +64,7 @@
     }
     state(status, extra = {}) {const value={active:this.active,loading:Boolean(this.pending&&!this.active),status,...extra},signature=JSON.stringify(value);if(signature===this.lastState)return;this.lastState=signature;this.onState(value);}
     resetPose() { this.candidate = null; this.swipe = []; this.lastProcess = null; }
+    navigation(hand,phase,progress=0){return {x:Math.round(Math.max(0,Math.min(1,hand.x))*100)/100,phase,progress:Math.max(0,Math.min(1,progress))};}
     emitSpatial(value) { this.onSpatial({...value,generation:this.generation,sequence:++this.spatialSequence,at:Date.now()}); }
     cancelSpatial() {
       const wasActive=this.spatialActive;this.spatialActive=false;this.spatialCandidate=null;this.pinching=false;this.pinchSince=null;this.pointerFilter=null;
@@ -186,13 +188,15 @@
     }
     process(result, time = this.now()) {
       if (!this.active || !Number.isFinite(time)) return;
-      const hand = readHand(result);
+      let hand = readHand(result);
       if (!hand) {
         const hadPose = Boolean(this.candidate)||this.spatialActive;
         this.cancelSpatial();this.resetPose();
-        if (hadPose) this.state('Gesten aktiv · keine sichere Hand');
+        if (result?.landmarks?.length>1)this.state('Zwei Hände erkannt · bitte nur eine Hand zeigen',{navigation:null});
+        else if (hadPose)this.state('Gesten aktiv · keine sichere Hand',{navigation:null});
         return;
       }
+      if(this.mirror)hand={...hand,x:1-hand.x,tip:{...hand.tip,x:1-hand.tip.x},pinchPoint:{...hand.pinchPoint,x:1-hand.pinchPoint.x}};
       if (this.lastProcess !== null && time <= this.lastProcess) {this.cancelSpatial();this.resetPose();return;}
       if (this.lastProcess !== null && time - this.lastProcess > 350) {this.cancelSpatial();this.resetPose();}
       this.lastProcess = time;
@@ -203,8 +207,18 @@
         this.swipe = [];
         this.state(hand.pose === 'palm' ? 'Offene Hand erkannt · ruhig halten oder wischen' : 'Faust erkannt · ruhig halten', { pose: hand.pose });
       }
-      const candidate = this.candidate;
-      if (candidate.consumed) return;
+      let candidate = this.candidate;
+      candidate.handX=hand.x;
+      if (candidate.consumed) {
+        if(hand.pose!=='palm')return;
+        if(hand.x<.35||hand.x>.65){candidate.rearm=null;this.state('Hand zur Mitte zurückführen',{pose:'palm',navigation:this.navigation(hand,'return')});return;}
+        if(!candidate.rearm||Math.hypot(hand.x-candidate.rearm.x,hand.y-candidate.rearm.y)>.025)candidate.rearm={x:hand.x,y:hand.y,since:time};
+        if(time-this.lastAction<COOLDOWN_MS){this.state('Kurz warten · Hand in der Mitte halten',{pose:'palm',navigation:this.navigation(hand,'cooldown',(time-this.lastAction)/COOLDOWN_MS)});return;}
+        const progress=(time-candidate.rearm.since)/150;
+        if(progress<1){this.state('Hand in der Mitte kurz ruhig halten',{pose:'palm',navigation:this.navigation(hand,'center',progress)});return;}
+        candidate=this.candidate={pose:'palm',since:time,anchor:hand,handX:hand.x,consumed:false,navigationOnly:true};this.swipe=[];
+        this.state('Bereit für den nächsten Wisch',{pose:'palm',navigation:this.navigation(hand,'ready')});
+      }
       if (hand.pose === 'palm') {
         this.swipe.push({ x: hand.x, y: hand.y, time });
         this.swipe = this.swipe.filter(point => time - point.time <= 850);
@@ -216,12 +230,15 @@
             Math.abs(dx) >= Math.abs(dy) * 1.7 && steady) {
           this.fire(dx < 0 ? 'workbench-next' : 'workbench-previous', time); return;
         }
+        if(Math.abs(dx)>.035){this.state('Weiter seitlich wischen',{pose:'palm',navigation:this.navigation(hand,'moving',Math.abs(dx)/.22)});}
+        else if(candidate.navigationOnly)this.state('Bereit · Handpunkt seitlich bewegen',{pose:'palm',navigation:this.navigation(hand,'ready')});
       }
       if (Math.hypot(hand.x - candidate.anchor.x, hand.y - candidate.anchor.y) > 0.08) {
         candidate.since = time; candidate.anchor = hand;
       }
+      if(candidate.navigationOnly)return;
       const progress=Math.min(1,Math.floor((time-candidate.since)/HOLD_MS*10)/10);
-      this.state((hand.pose==='palm'?'Offene Hand · Werkstatt öffnen':'Faust · Werkstatt schließen')+' · '+Math.round(progress*100)+' %',{pose:hand.pose,progress});
+      if(hand.pose!=='palm'||this.swipe.length<2||Math.abs(hand.x-this.swipe[0].x)<=.035)this.state((hand.pose==='palm'?'Offene Hand · Werkstatt öffnen':'Faust · Werkstatt schließen')+' · '+Math.round(progress*100)+' %',{pose:hand.pose,progress,navigation:hand.pose==='palm'?this.navigation(hand,'tracking'):null});
       if (time - candidate.since >= HOLD_MS) this.fire(hand.pose === 'palm' ? 'workbench-show' : 'workbench-hide', time);
     }
     fire(action, time) {
@@ -234,7 +251,7 @@
       if (generation !== this.generation) return;
       const status = { 'workbench-show': 'Workbench eingeblendet', 'workbench-hide': 'Workbench ausgeblendet',
         'workbench-next': 'Nächster Workbench-Bereich', 'workbench-previous': 'Vorheriger Workbench-Bereich' }[action];
-      this.state(status, { pose, action });
+      this.state(status, { pose, action,navigation:pose==='palm'?{x:Math.max(0,Math.min(1,this.candidate.handX)),phase:'return',progress:0}:null });
     }
   }
   if (typeof module === 'object' && module.exports) module.exports = { GestureController };

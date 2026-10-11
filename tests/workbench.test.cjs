@@ -301,6 +301,12 @@ test('spatial graph gestures only reach a visible, unlocked graph pane',async()=
  let locked=false;const f=fixture({getSnapshot:()=>({privacyLocked:locked})}),gesture={kind:'pointer',x:.5,y:.5,pinching:false,generation:1,sequence:1,at:Date.now()};await f.controller.show('graph');f.controller.publish({type:'gesture-update',gesture});assert.equal(f.windows[0].webContents.sent.at(-1).data.type,'gesture-update');
  const before=f.windows[0].webContents.sent.length;locked=true;f.controller.publish({type:'gesture-update',gesture});assert.equal(f.windows[0].webContents.sent.length,before);locked=false;await f.invoke('tab','system');const after=f.windows[0].webContents.sent.length;f.controller.publish({type:'gesture-update',gesture});assert.equal(f.windows[0].webContents.sent.length,after);f.controller.destroy();
 });
+test('gesture navigation feedback is bounded and the help reserves space above the embedded browser',async()=>{
+ const f=fixture();await f.controller.show('browser');f.controller.publish({type:'gesture-state',enabled:true,ready:true,label:'Bereit',navigation:{x:.5,phase:'ready',progress:.8,privateImage:'never-forward'}});
+ const event=f.windows[0].webContents.sent.at(-1).data;assert.deepEqual(event.navigation,{x:.5,phase:'ready',progress:.8});
+ f.controller.publish({type:'gesture-state',enabled:true,ready:true,navigation:{x:99,phase:'ready',progress:.8}});assert.equal(f.windows[0].webContents.sent.at(-1).data.navigation,null);
+ const before=f.views[0].bounds;await f.invoke('gesture-help',{enabled:true});assert.equal(f.views[0].bounds.y,before.y+140);await f.invoke('gesture-help',{enabled:false});assert.equal(f.views[0].bounds.y,before.y);f.controller.destroy();
+});
 
 test('renderer hides its empty browser placeholder after a real page loads and restores it for blank',()=>{
   const fs=require('node:fs'),vm=require('node:vm'),nodes=new Map();let receive;
