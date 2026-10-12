@@ -32,10 +32,11 @@ class BackgroundJobs{
  isDelegated(id){return !!this.jobs.find(j=>j.id===id)?.delegationId;}
  abandon(id){const j=this.jobs.find(j=>j.id===id);if(j?.status==='preparing'){this.jobs=this.jobs.filter(x=>x!==j);this.save();}}
  receive(e){
-  if(!['subagent.start','subagent.tool','subagent.progress','subagent.complete'].includes(e?.type))return null;
+  if(!['subagent.start','subagent.thinking','subagent.tool','subagent.progress','subagent.complete'].includes(e?.type))return null;
   const d=e.data||{},j=this.jobs.find(j=>j.runtimeId===e.session_id&&j.children.some(c=>c.id===d.subagent_id));
-  if(!j){if(['subagent.start','subagent.complete'].includes(e.type)&&this.jobs.some(j=>j.runtimeId===e.session_id&&ACTIVE.has(j.status)&&!j.delegationId)){this.early.push(copy(e));this.early=this.early.slice(-20);}return null;}
+  if(!j){if(['subagent.start','subagent.thinking','subagent.complete'].includes(e.type)&&this.jobs.some(j=>j.runtimeId===e.session_id&&ACTIVE.has(j.status)&&!j.delegationId)){this.early.push(e.type==='subagent.thinking'?{type:e.type,session_id:e.session_id,data:{subagent_id:d.subagent_id,delegation_id:d.delegation_id}}:copy(e));this.early=this.early.slice(-20);}return null;}
   if(d.delegation_id&&j.delegationId!==d.delegation_id||!ACTIVE.has(j.status))return null;const c=j.children.find(c=>c.id===d.subagent_id);if(!ACTIVE.has(c.status))return null;
+  if(e.type==='subagent.thinking'){if(c.phase==='thinking')return null;c.phase='thinking';}else if(['subagent.start','subagent.tool'].includes(e.type))c.phase='working';
   if(typeof d.tool_name==='string')c.lastTool=safe(d.tool_name,96);if(Number.isSafeInteger(d.tool_count)&&d.tool_count>=0)c.toolCount=d.tool_count;
   if(identifier(d.child_session_id))c.childSessionId=d.child_session_id;
   if(e.type==='subagent.complete'){

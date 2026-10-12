@@ -153,7 +153,7 @@ test('orb color settings are saved with bounded motion while retaining camera an
   const f=fixture();
   const result=await vm.runInContext("registerHandlers().settings(null,{orbColors:{idle:'#ffaa33',thinking:'url(secret)'},orbIntensity:99})",f.context);
   const saved=JSON.parse(f.saved.find(item=>item.file.endsWith('settings.json')).text);
-  assert.equal(saved.orbColors.idle,'#ffaa33');assert.equal(saved.orbColors.thinking,'#ffc078');assert.equal(saved.orbIntensity,1.6);
+  assert.equal(saved.orbColors.idle,'#ffaa33');assert.equal(saved.orbColors.thinking,'#ffc078');assert.equal(saved.orbIntensity,2.4);
   assert.equal(saved.cameraEnabled,true);assert.equal(saved.cameraDeviceId,'chosen');assert.equal(result.settings.orbColors.idle,saved.orbColors.idle);
 });
 

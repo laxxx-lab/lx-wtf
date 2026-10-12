@@ -16,7 +16,7 @@ const {transcribeAudio}=require('./transcription.cjs');
 const {CameraService,cameraPrompt,needsCameraLook,validateFrame}=require('./camera-service.cjs');
 const {CameraPresence}=require('./camera-presence.cjs');
 const {wakeDecision}=require('./wake-flow.cjs');
-const {normalizeOrbColors}=require('./ui/orb.js');
+const {normalizeOrbColors,normalizeOrbIntensity}=require('./ui/orb.js');
 const {voicePrompt,canStreamVoiceAnswer,taskAcknowledgement}=require('./ui/voice-interaction.js');
 const {HudActivity}=require('./hud-activity.cjs');
 const {normalizeModes,modeIntent,runMode,validateFolderPath,validateSiteUrl}=require('./modes.cjs');
@@ -60,7 +60,7 @@ config.standbyActive=config.standbyActive===true&&!config.privacyLocked;
 config.standbyCameraEnabled=config.standbyActive&&config.standbyCameraEnabled===true;
 if(config.standbyActive)config.cameraEnabled=false;
 config.orbColors=normalizeOrbColors(config.orbColors);
-config.orbIntensity=Number.isFinite(config.orbIntensity)?Math.min(1.6,Math.max(.4,config.orbIntensity)):1;
+config.orbIntensity=normalizeOrbIntensity(config.orbIntensity);
 config.hudEnabled=typeof config.hudEnabled==='boolean'?config.hudEnabled:true;
 config.screenEnabled=config.screenEnabled===true&&!process.argv.includes('--smoke');
 config.screenSourceId=typeof config.screenSourceId==='string'?config.screenSourceId:'current-monitor';
@@ -669,7 +669,7 @@ function validVoice(voice){return voiceNames.includes(voice)||(voice==='referenc
 if(config.voice==='reference'){if(!referenceVoiceReady())config.voice='dark';else config.delivery='normal';}
 const wakeGreetings=['Ja?','Ich bin hier. Was liegt an?','Lilith einsatzbereit. Was kann ich für dich tun, Boss?'];
 function emit(type,data={}) {workbench?.publish({type,...data});if(win&&!win.isDestroyed())win.webContents.send('companion:event',{type,...data});}
-function state(next,message) {status=next;detail=message || '';const data={status,detail,busy:speechLaneBusy(),connected,session:conversation?.session||null,approval,privacyLocked:config.privacyLocked};emit('state',data);fs.writeFileSync(path.join(LOCAL,process.argv.includes('--smoke')?'smoke-status.json':'status.json'),JSON.stringify(data,null,2));}
+function state(next,message) {status=next;detail=message || '';const data={status,detail,background:backgroundSnapshot(),busy:speechLaneBusy(),connected,session:conversation?.session||null,approval,privacyLocked:config.privacyLocked};emit('state',data);fs.writeFileSync(path.join(LOCAL,process.argv.includes('--smoke')?'smoke-status.json':'status.json'),JSON.stringify(data,null,2));}
 function snapshot(){return {status,detail,connected,background:backgroundSnapshot(),busy:speechLaneBusy(),session:conversation?.session||null,sessions:sessionRows,sample,settings:config,privacyLocked:config.privacyLocked,context:contextSnapshot(),tasks:tasks.list(),jobQueue:getJobs().snapshot(),awareness:awarenessSnapshot(),teach:teach.snapshot(),voiceTiming:voiceTiming.snapshot(),routines:config.routines,currentContent:config.privacyLocked?null:currentContent,startup:startupSnapshot(app,ROOT),camera:{profiles:cameraProfiles,scene:cameraScene,looking:cameraLooking,active:clientInfo.cameraActive},screen:{looking:screenLooking,scene:screenScene},mode:activeMode,hud:hudActivity.view(),approval,wakeReady,wakeArmed:clientInfo.wakeArmed,vadReady,systemReport:currentSystemReport(),workbenchVisible:workbench?.visible===true,referenceVoiceReady:referenceVoiceReady(),voiceReady:fs.existsSync(path.join(ROOT,'runtime/voice/build/tts-server.exe')),sttReady:fs.existsSync(path.join(ROOT,'runtime/stt/models/ggml-large-v3-turbo.bin'))};}
 function saveConfig(){fs.writeFileSync(path.join(LOCAL,process.argv.includes('--smoke')?'smoke-settings.json':'settings.json'),JSON.stringify(config,null,2));}
 function syncStartup(){return syncLoginStartup(app,{root:ROOT,enabled:config.autoStart,smoke:process.argv.includes('--smoke')});}
@@ -1177,7 +1177,7 @@ function registerHandlers(){
       if(typeof values?.url==='string')config.url=validateGatewayUrl(values.url);
       if(validVoice(values?.voice))config.voice=values.voice;
       if(values?.orbColors&&typeof values.orbColors==='object')config.orbColors=normalizeOrbColors(values.orbColors);
-      if(Number.isFinite(values?.orbIntensity))config.orbIntensity=Math.min(1.6,Math.max(.4,values.orbIntensity));
+      if(Number.isFinite(values?.orbIntensity))config.orbIntensity=normalizeOrbIntensity(values.orbIntensity);
       if(nextModes)config.modes=nextModes;
       if(nextDictionary)config.speechDictionary=nextDictionary;
       if(nextAudioPreferences)config.audioPreferences=nextAudioPreferences;

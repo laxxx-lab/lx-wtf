@@ -4,7 +4,7 @@ let expanded=false,settings={},sessionInfo=null,busy=false,phase='offline',level
 const microphone=new Microphone(()=>navigator.mediaDevices.getUserMedia(microphoneConstraints(settings.microphoneDeviceId||'')));
 let microphoneBound='',microphoneSwitch=Promise.resolve(true),micSilent=null;
 let queueReview=null;
-function renderBackgroundSummary(value){const node=$('background-summary');if(!node)return;const count=privacyLocked?0:(value?.jobs||[]).filter(j=>['preparing','running','stopping','outcome-unknown'].includes(j.status)).length;node.hidden=!count;node.textContent=count+' Auftrag'+(count===1?'':'e')+' im Hintergrund · Du kannst weiter mit Lilith sprechen.';}
+function renderBackgroundSummary(value){orbBackground=privacyLocked?{jobs:[]}:(value||{jobs:[]});const node=$('background-summary');if(!node)return;const count=privacyLocked?0:(value?.jobs||[]).filter(j=>['preparing','running','stopping','outcome-unknown'].includes(j.status)).length;node.hidden=!count;node.textContent=count+' Auftrag'+(count===1?'':'e')+' im Hintergrund · Du kannst weiter mit Lilith sprechen.';}
 function renderQueueWarning(queue){
   queueReview=queue?.blocked&&queue.activeJobId?{method:'job-reconcile',id:queue.activeJobId}:queue?.held?{method:'job-resume'}:null;
   $('queue-warning').hidden=!queueReview;
@@ -22,6 +22,7 @@ let voiceSequence=0,captureTurnId=null,voiceDispatch=null,audioTurnId=null,audio
 const voiceStageMarks=new Map();
 let privacyLocked=false,wakeResuming=false,sensorControlGeneration=0;
 let autoResumeTimer=null,interruptAt=0,ttsPending=0,awaitingResume=false,wakeReady=false,wakeFrames=[],wakeSamples=0,bargeFrames=0,lastClientState='',wakeSpeech=[],wakeSpeechStart=0,wakeLastSpeech=0,wakePauseUntil=0;
+let orbBackground={jobs:[]};
 let orbColors=HermesOrb.normalizeOrbColors(),orbIntensity=1,orbSuccessUntil=0,orbAlertUntil=0,orbPreviewState=null,orbPreviewUntil=0,lastOrbAccent='',orbCameraLooking=false,orbScreenLooking=false;
 const orbLabels={idle:'BEREIT',listening:'HÖRT ZU',speaking:'SPRICHT',thinking:'DENKT',working:'ARBEITET',looking:'SCHAUT',success:'ERLEDIGT',alert:'HINWEIS',error:'FEHLER',offline:'OFFLINE'};
 const phases={offline:'OFFLINE',connecting:'VERBINDE',ready:'BEREIT',thinking:'DENKT',working:'ARBEITET',looking:'SCHAUT',transcribing:'ERKENNT SPRACHE',listening:'HÖRT ZU',speaking:'SPRICHT',approval:'FREIGABE',question:'RÜCKFRAGE',error:'HINWEIS'};
@@ -61,7 +62,7 @@ function sendVoiceCommand(text,sessionId,dispatch){
   controls.invoke=camera.invoke=scopedInvoke;controls.sendCamera=(text,id)=>camera.send(text,id);
   return controls.send(text,sessionId);
 }
-function renderState(data){if(data.privacyLocked===true||data.settings?.privacyLocked===true)quiesceLocal();phase=data.status;busy=!!data.busy;sessionInfo=data.session||null;gatewayConnected=!!data.connected;const held=pushToTalk.held||pushToTalk.finishing;if(held&&(!gatewayConnected||held.sessionId!==sessionInfo?.id||(pushToTalk.held&&busy)))cancelPushToTalk();$('phase').textContent=privacyLocked?'PRIVAT':phases[phase]||phase.toUpperCase();$('detail').textContent=privacyLocked?'Sensoren gesperrt':data.detail||'';$('connection').textContent=data.connected?'VERBUNDEN':'OFFLINE';$('connection').classList.toggle('online',!!data.connected);$('auth').hidden=!!data.connected;$('sessions').disabled=busy||transcribing;if(!gatewayConnected&&live)void toggleMic(false);void armWake();}
+function renderState(data){if(data.background)renderBackgroundSummary(data.background);if(data.privacyLocked===true||data.settings?.privacyLocked===true)quiesceLocal();phase=data.status;busy=!!data.busy;sessionInfo=data.session||null;gatewayConnected=!!data.connected;const held=pushToTalk.held||pushToTalk.finishing;if(held&&(!gatewayConnected||held.sessionId!==sessionInfo?.id||(pushToTalk.held&&busy)))cancelPushToTalk();$('phase').textContent=privacyLocked?'PRIVAT':phases[phase]||phase.toUpperCase();$('detail').textContent=privacyLocked?'Sensoren gesperrt':data.detail||'';$('connection').textContent=data.connected?'VERBUNDEN':'OFFLINE';$('connection').classList.toggle('online',!!data.connected);$('auth').hidden=!!data.connected;$('sessions').disabled=busy||transcribing;if(!gatewayConnected&&live)void toggleMic(false);void armWake();}
 function renderMetrics(sample){
   for(const [id,key] of [['cpu','cpuPercent'],['memory','memoryPercent'],['gpu','gpuPercent']]){const n=sample[key];$(id).textContent=Number.isFinite(n)?Math.round(n)+'%':'—';$(id+'-bar').style.width=Number.isFinite(n)?n+'%':'0%';}
   $('disk').textContent=Number.isFinite(sample.diskFreeGiB)?Math.round(sample.diskFreeGiB)+' GiB':'—';$('disk-total').textContent=Number.isFinite(sample.diskTotalGiB)?'von '+Math.round(sample.diskTotalGiB)+' GiB':'Nicht verfügbar';
@@ -182,7 +183,7 @@ function quiesceLocal(){
   liveRequest++;captureGeneration++;live=false;capturing=false;speechStarted=false;transcribing=false;awaitingResume=false;frames=[];captureSessionId=null;clearTimeout(autoResumeTimer);
   bargeListening=false;bargeAwaitingTurn=false;bargePreRoll=[];captureInterrupt=null;captureTurnId=null;capturePushToTalk=null;voiceDispatch=null;rejectedAudioGeneration=Math.max(rejectedAudioGeneration,audioGeneration);audioTurnId=null;
   audioGeneration=-1;ttsPending=0;stopAudio();releaseMic();micMuted=true;wakeFrames=[];wakeSamples=0;bargeFrames=0;
-  cameraControls.controller.disable();cameraControls.settingRequest++;workstationControls.capture.cancel();gestureController.disable();orbCameraLooking=false;orbScreenLooking=false;
+  cameraControls.controller.disable();cameraControls.settingRequest++;workstationControls.capture.cancel();gestureController.disable();orbCameraLooking=false;orbScreenLooking=false;renderBackgroundSummary(null);
   for(const id of ['camera-frame','camera-overlay']){$(id).width=0;$(id).height=0;}
   workstationControls.capture.canvas.width=0;workstationControls.capture.canvas.height=0;$('camera-description').textContent='';$('screen-description').textContent='';
   $('mic').classList.remove('active');$('mic').querySelector('span').textContent='Live starten';$('phase').textContent='PRIVAT';$('detail').textContent='Sensoren gesperrt';
@@ -423,14 +424,14 @@ const orbRenderer=new HermesOrb.OrbRenderer($('neural'),{reducedMotion:motionPre
 const orbPreviewRenderer=new HermesOrb.OrbRenderer($('orb-preview'),{reducedMotion:motionPreference.matches});
 motionPreference.addEventListener?.('change',event=>{orbRenderer.reducedMotion=orbPreviewRenderer.reducedMotion=event.matches;});
 function orbPointer(event){const rect=$('orb').getBoundingClientRect();return {x:(event.clientX-rect.left)/rect.width*2-1,y:(event.clientY-rect.top)/rect.height*2-1};}
-function syncOrbSettings(values){orbColors=HermesOrb.normalizeOrbColors(values.orbColors);orbIntensity=Number.isFinite(values.orbIntensity)?Math.max(.4,Math.min(1.6,values.orbIntensity)):1;orbRenderer.setColors(orbColors);orbPreviewRenderer.setColors(orbColors);for(const key of Object.keys(orbColors))$('orb-color-'+key).value=orbColors[key];$('orb-intensity').value=orbIntensity;}
+function syncOrbSettings(values){orbColors=HermesOrb.normalizeOrbColors(values.orbColors);orbIntensity=HermesOrb.normalizeOrbIntensity(values.orbIntensity);orbRenderer.setColors(orbColors);orbPreviewRenderer.setColors(orbColors);for(const key of Object.keys(orbColors))$('orb-color-'+key).value=orbColors[key];$('orb-intensity').value=orbIntensity;}
 function previewOrb(state){orbPreviewState=state;orbPreviewUntil=performance.now()+3500;orbRenderer.pulse(0,0);orbPreviewRenderer.pulse(0,0);}
 for(const key of Object.keys(orbColors)){
   $('orb-preview-'+key).onclick=()=>previewOrb(key);
   $('orb-color-'+key).addEventListener('input',event=>{orbColors=HermesOrb.normalizeOrbColors({...orbColors,[key]:event.target.value});orbRenderer.setColors(orbColors);orbPreviewRenderer.setColors(orbColors);previewOrb(key);});
 }
 $('orb-reset').onclick=()=>{syncOrbSettings({orbColors:HermesOrb.ORB_DEFAULTS,orbIntensity:1});previewOrb('idle');};
-$('orb-intensity').addEventListener('input',event=>{orbIntensity=Math.max(.4,Math.min(1.6,Number(event.target.value)||1));});
+$('orb-intensity').addEventListener('input',event=>{orbIntensity=HermesOrb.normalizeOrbIntensity(Number(event.target.value));});
 let lastDraw=0;
 function draw(now){requestAnimationFrame(draw);if(now-lastDraw<16)return;lastDraw=now;
   observePlayback();
@@ -438,9 +439,10 @@ function draw(now){requestAnimationFrame(draw);if(now-lastDraw<16)return;lastDra
   if(audio){const active=audioNodes.find(node=>audio.currentTime>=node.start&&audio.currentTime<node.end);if(active){const values=new Uint8Array(128);active.analyser.getByteTimeDomainData(values);const rms=Math.sqrt(values.reduce((sum,n)=>sum+((n-128)/128)**2,0)/128);amplitude=Math.sqrt(rms)*1.8;}else if(live&&micAnalyser){const values=new Uint8Array(micAnalyser.fftSize);micAnalyser.getByteTimeDomainData(values);amplitude=Math.sqrt(values.reduce((sum,n)=>sum+((n-128)/128)**2,0)/values.length)*4;}}
   if(capturing)amplitude=Math.max(amplitude,Math.sqrt(lastMicLevel)*3.2);
   level=.78*level+.22*Math.min(1,amplitude);const talking=!!audio&&audio.currentTime<speakingUntil;
-  const actual=HermesOrb.orbState({phase:!live&&!busy&&phase==='listening'?'ready':phase,speaking:talking,capturing,looking:orbCameraLooking||orbScreenLooking,now,successUntil:orbSuccessUntil,alertUntil:orbAlertUntil});
+  const actual=HermesOrb.orbState({phase:!live&&!busy&&phase==='listening'?'ready':phase,speaking:talking,capturing,looking:orbCameraLooking||orbScreenLooking,background:privacyLocked?null:orbBackground,now,successUntil:orbSuccessUntil,alertUntil:orbAlertUntil});
   const visual=now<orbPreviewUntil?orbPreviewState:actual;
-  $('phase').textContent=privacyLocked?'PRIVAT':now<orbPreviewUntil?'VORSCHAU / '+orbLabels[visual]:(['success','alert','error','looking'].includes(actual)?orbLabels[actual]:(talking?phases.speaking:capturing?phases.listening:phases[phase]||phase.toUpperCase()));
+  const backgroundPhase=HermesOrb.backgroundOrbState(orbBackground),backgroundLabel=['ready','listening'].includes(phase)&&actual===backgroundPhase&&backgroundPhase?orbLabels[actual]+' IM HINTERGRUND':null;
+  $('phase').textContent=privacyLocked?'PRIVAT':now<orbPreviewUntil?'VORSCHAU / '+orbLabels[visual]:backgroundLabel||(['success','alert','error','looking'].includes(actual)?orbLabels[actual]:actual==='idle'&&settings.standbyActive?'STANDBY':talking?phases.speaking:capturing?phases.listening:phases[phase]||phase.toUpperCase());
   if(lastOrbAccent!==orbColors[visual]){lastOrbAccent=orbColors[visual];document.documentElement.style.setProperty('--orb-accent',lastOrbAccent);}
   const orbAmplitude=now<orbPreviewUntil&&visual==='speaking'?.5+Math.sin(now*.01)*.3:level;
   orbRenderer.draw(now,{state:visual,amplitude:orbAmplitude,intensity:orbIntensity});

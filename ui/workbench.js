@@ -154,7 +154,8 @@
     if(document.body){document.body.dataset.glass=String(snapshot.appearance?.glass!==false);const opacity=snapshot.appearance?.opacity;document.body.style.setProperty('--glass-opacity',Number.isFinite(opacity)?String(Math.max(.9,Math.min(1,opacity))):'.94');}
     $('signal').classList.toggle('online',snapshot.connected);
     $('session-title').textContent=snapshot.sessionTitle||'Keine Session gewählt';
-    $('phase').textContent=snapshot.privacyLocked?'PRIVAT':phases[snapshot.status]||snapshot.status?.toUpperCase()||'OFFLINE';
+    const backgroundPhase=snapshot.status==='ready'?window.HermesOrb.backgroundOrbState(snapshot.background):null,backgroundLabel=backgroundPhase?(phases[backgroundPhase]||backgroundPhase.toUpperCase())+' IM HINTERGRUND':null;
+    $('phase').textContent=snapshot.privacyLocked?'PRIVAT':backgroundLabel||phases[snapshot.status]||snapshot.status?.toUpperCase()||'OFFLINE';
     $('detail').textContent=snapshot.detail||'Kein aktueller Status verfügbar.';
     $('footer-state').textContent=snapshot.connected?'HERMES VERBUNDEN':'HERMES OFFLINE';
     const sample=snapshot.sample||{},age=sample.timestamp===null||!Number.isFinite(sample.timestamp)?null:Math.max(0,Math.round((Date.now()-sample.timestamp)/1000));
@@ -165,7 +166,7 @@
     metric('disk',sample.diskFreeGiB,'GiB');$('disk-meter').style.width=Number.isFinite(sample.diskFreeGiB)&&sample.diskTotalGiB>0?Math.min(100,sample.diskFreeGiB/sample.diskTotalGiB*100)+'%':'0%';
     $('disk-note').textContent=sample.diskTotalGiB>0?'VON '+Math.round(sample.diskTotalGiB)+' GiB':'FREIER SPEICHER';
     const core=snapshot.hud||{};const phase=snapshot.status||'offline';
-    $('core-code').textContent=snapshot.privacyLocked?'LOCKED':core.state?.toUpperCase()||'IDLE';$('core-state').textContent=snapshot.privacyLocked?'PRIVAT':snapshot.camera?.looking||snapshot.screen?.looking?'SIEHT HIN':phases[phase]||phase.toUpperCase();
+    $('core-code').textContent=snapshot.privacyLocked?'LOCKED':core.state?.toUpperCase()||'IDLE';$('core-state').textContent=snapshot.privacyLocked?'PRIVAT':snapshot.camera?.looking||snapshot.screen?.looking?'SIEHT HIN':backgroundLabel||phases[phase]||phase.toUpperCase();
     $('core-detail').textContent=core.title||snapshot.detail||'Warte auf Verbindung';$('tool-count').textContent=Number.isFinite(core.completedTools)?core.completedTools+' SCHRITTE':'—';
     const links=snapshot.systemReport?.links?.length?snapshot.systemReport.links:[{label:'Hermes-Verbindung',state:snapshot.connected?'online':'offline'},{label:'Sprachsynthese lokal',state:snapshot.voice?.ready?'online':'unknown'},{label:'Spracherkennung lokal',state:snapshot.voice?.sttReady?'online':'unknown'}];
     $('links').replaceChildren(...links.map(link=>{const row=document.createElement('li'),label=document.createElement('span'),state=document.createElement('strong');label.textContent=link.label;state.textContent={online:'BEREIT',offline:'OFFLINE',unknown:'UNBEKANNT'}[link.state]||'UNBEKANNT';state.className=link.state;row.append(label,state);return row;}));
@@ -216,7 +217,7 @@
     else if(event.type==='intel-update')intelView?.update(event.intel);
     else if(event.type==='guide-update')$('guide-clear').hidden=!event.guide?.visible;
   });
-  function draw(now){if(!document.hidden&&activeTab==='system'){const state=window.HermesOrb.orbState({phase:current.privacyLocked?'offline':current.status||'offline',looking:current.camera?.looking||current.screen?.looking});orb.draw(now,{state,intensity:1});}animation=requestAnimationFrame(draw);}
+  function draw(now){if(!document.hidden&&activeTab==='system'){const state=window.HermesOrb.orbState({phase:current.privacyLocked?'offline':current.status||'offline',looking:current.camera?.looking||current.screen?.looking,background:current.privacyLocked?null:current.background});orb.draw(now,{state,intensity:1});}animation=requestAnimationFrame(draw);}
   animation=requestAnimationFrame(draw);window.addEventListener('unload',()=>{cancelAnimationFrame(animation);craftView?.dispose();});
   invoke('snapshot').then(snapshot=>{if(snapshot)render(snapshot);});
 })();

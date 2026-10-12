@@ -2,20 +2,28 @@
   'use strict';
   const ORB_DEFAULTS=Object.freeze({idle:'#39dcff',listening:'#36efc3',speaking:'#85dcff',thinking:'#ffc078',working:'#659bff',looking:'#aaa9ff',success:'#66f0a6',alert:'#ff9955',error:'#ff5679',offline:'#647d95'});
   function normalizeOrbColors(value){const result={...ORB_DEFAULTS};for(const key of Object.keys(result))if(typeof value?.[key]==='string'&&/^#[0-9a-f]{6}$/i.test(value[key]))result[key]=value[key].toLowerCase();return result;}
-  function orbState({phase='ready',speaking=false,capturing=false,looking=false,now=0,successUntil=0,alertUntil=0}={}){
+  function backgroundOrbState(value){
+    const jobs=(value?.jobs||[]).filter(j=>['preparing','running','stopping','outcome-unknown'].includes(j.status));
+    if(jobs.some(j=>j.status==='outcome-unknown'))return 'alert';
+    if(jobs.some(j=>j.status==='preparing'||j.status==='running'&&j.children?.some(c=>c.status==='running'&&c.phase==='thinking')))return 'thinking';
+    return jobs.length?'working':null;
+  }
+  function normalizeOrbIntensity(value){return Number.isFinite(value)?Math.max(.4,Math.min(2.4,value)):1;}
+  function orbState({phase='ready',speaking=false,capturing=false,looking=false,background=null,now=0,successUntil=0,alertUntil=0}={}){
     if(phase==='offline')return 'offline';if(phase==='error')return 'error';
     if(['approval','question'].includes(phase)||alertUntil>now)return 'alert';
     if(looking)return 'looking';
-    if(successUntil>now&&['ready','listening'].includes(phase))return 'success';
+    if(successUntil>now&&!backgroundOrbState(background)&&['ready','listening'].includes(phase))return 'success';
     if(speaking)return 'speaking';if(capturing)return 'listening';
     if(['connecting','transcribing'].includes(phase))return 'thinking';
+    if(['ready','listening'].includes(phase)&&backgroundOrbState(background))return backgroundOrbState(background);
     return Object.hasOwn(ORB_DEFAULTS,phase)?phase:'idle';
   }
   const TAU=Math.PI*2,clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
   function orbDynamics(state,amplitude=0){
     const energy=clamp(Number.isFinite(amplitude)?amplitude:0,0,1),rest=state==='idle'||state==='offline';
-    const speed={idle:.65,listening:1.15,speaking:1.55,thinking:2.4,working:1.8,looking:.85,success:.8,alert:1.3,error:.8,offline:.45}[state]||.65;
-    return {scale:rest?.62:Math.min(1,.87+(state==='speaking'?energy*.13:state==='listening'?energy*.08:0)),spread:rest?.7:1,speed};
+    const speed={idle:.9,listening:1.35,speaking:1.9,thinking:3.4,working:2.5,looking:1.2,success:.8,alert:1.3,error:.8,offline:.45}[state]||.65;
+    return {scale:rest?.62:Math.min(1,(state==='thinking'?.95:state==='working'?.92:.87)+(state==='speaking'?energy*.13:state==='listening'?energy*.08:0)),spread:rest?.7:1,speed};
   }
   const rgb=hex=>[1,3,5].map(at=>parseInt(hex.slice(at,at+2),16));
   class OrbRenderer{
@@ -39,9 +47,9 @@
       const sizeSmooth=this.reducedMotion?1:1-Math.exp(-dt*4.5);
       this.size+=(dynamics.scale-this.size)*sizeSmooth;this.spread+=(dynamics.spread-this.spread)*sizeSmooth;
       this.speed+=(dynamics.speed-this.speed)*smooth;
-      const motion=clamp(Number.isFinite(intensity)?intensity:1,.4,1.6);
+      const motion=normalizeOrbIntensity(intensity);
       if(!this.reducedMotion)this.rotation+=dt*this.speed*motion;
-      const t=this.rotation,rest=state==='idle'||state==='offline',breathe=this.reducedMotion?0:Math.sin(now*.0023)*(rest?.022:.035),energy=this.level;
+      const t=this.rotation,rest=state==='idle'||state==='offline',breathe=this.reducedMotion?0:Math.sin(now*(rest?.0023:.0038))*(rest?.035:.06)*motion,energy=this.level,excitation=this.reducedMotion?0:['thinking','working'].includes(state)?(.5+.5*Math.sin(t*2.8))*motion:0;
       const color=this.color.map(Math.round).join(','),ink=(alpha=1)=>`rgba(${color},${clamp(alpha,0,1)})`;
       ctx.clearRect(0,0,this.canvas.width,this.canvas.height);ctx.save();ctx.scale(this.canvas.width/400,this.canvas.height/400);ctx.translate(200,200);ctx.scale(this.size,this.size);
       // Transparent atmospheric corona, leaving the desktop visible behind it.
@@ -65,7 +73,7 @@
       // Five gyroscopic orbits. Segment depth controls opacity and luminous front edges.
       const rings=[{r:126,x:1.07,y:.36,z:t*.32},{r:133,x:-.65,y:1.15,z:-t*.43},{r:146,x:.5,y:.9,z:t*.27},{r:103,x:1.34,y:-.45,z:-t*.52},{r:150,x:.22,y:.25,z:t*.12}];
       for(let k=0;k<rings.length;k++){
-        const ring=rings[k],rot=ring.z,xTilt=ring.x+Math.sin(t*.35+k)*.3,yTilt=ring.y+t*(k%2?-.22:.18),cx=Math.cos(xTilt),sx=Math.sin(xTilt),cy=Math.cos(yTilt),sy=Math.sin(yTilt);
+        const ring=rings[k],rot=ring.z,xTilt=ring.x+Math.sin(t*.5+k)*.42*motion,yTilt=ring.y+t*(k%2?-.22:.18),cx=Math.cos(xTilt),sx=Math.sin(xTilt),cy=Math.cos(yTilt),sy=Math.sin(yTilt);
         const pts=[];
         for(let i=0;i<=96;i++){
           const a=i*TAU/96+rot,r=ring.r*this.spread*(1+breathe+energy*.075),x=Math.cos(a)*r,y=Math.sin(a)*r;
@@ -92,10 +100,10 @@
       // Three moving magnetic filaments run through the reactor, visibly alive at idle.
       for(let i=0;i<3;i++){
         ctx.save();ctx.rotate(t*.43+i*TAU/3);ctx.strokeStyle=ink(.3+energy*.25);ctx.lineWidth=.9;
-        const bend=this.reducedMotion?18:18+Math.sin(t*.9+i)*17+energy*35;
+        const bend=this.reducedMotion?18:18+Math.sin(t*1.1+i)*24*motion+energy*35+excitation*9;
         ctx.beginPath();ctx.moveTo(-106,0);ctx.bezierCurveTo(-46,-bend,39,bend,106,0);ctx.stroke();ctx.restore();
       }
-      const core=28+breathe*80+energy*24;
+      const core=28+breathe*95+energy*24+excitation*9;
       const bloom=ctx.createRadialGradient(0,0,2,0,0,core*2.7);bloom.addColorStop(0,'rgba(229,251,255,.9)');bloom.addColorStop(.15,ink(.75));bloom.addColorStop(.42,ink(.16));bloom.addColorStop(1,ink(0));ctx.fillStyle=bloom;ctx.beginPath();ctx.arc(0,0,core*2.7,0,TAU);ctx.fill();
       for(let i=0;i<6;i++)arc(core+7,i*TAU/6-t*.65,i*TAU/6-t*.65+.65,3.2,.67);
       arc(core-2,0,TAU,.8,.62);arc(58+energy*7,t, t+1.8,1.2,.72);arc(64,-t*.7,-t*.7+.8,.8,.4);
@@ -104,7 +112,7 @@
       ctx.shadowColor=ink(1);ctx.shadowBlur=15+energy*12;ctx.fillStyle='rgba(226,251,255,.95)';ctx.beginPath();ctx.arc(0,0,6+energy*5,0,TAU);ctx.fill();ctx.shadowBlur=0;
       // State signatures, beyond a color change.
       if(['thinking','working'].includes(state)){
-        for(let i=0;i<4;i++){arc(91+i*4,t*(i%2?-.7:.9)+i,t*(i%2?-.7:.9)+i+.35,1.3,.8);}
+        for(let i=0;i<6;i++){const a=t*(i%2?-.8:1.1)+i;arc(89+i*4+excitation*3,a,a+.45,1.5,.65+excitation*.12);}
       }
       if(['speaking','listening'].includes(state)){
         for(let i=0;i<40;i++){const a=i*TAU/40,band=this.reducedMotion?0:Math.sin(t*2+i*.65)*4;
@@ -129,6 +137,6 @@
       ctx.restore();
     }
   }
-  const api={ORB_DEFAULTS,normalizeOrbColors,orbState,orbDynamics,OrbRenderer};
+  const api={ORB_DEFAULTS,normalizeOrbColors,normalizeOrbIntensity,backgroundOrbState,orbState,orbDynamics,OrbRenderer};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.HermesOrb=api;
 })(typeof window==='object'?window:globalThis);

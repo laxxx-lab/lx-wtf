@@ -349,3 +349,4 @@ test('the correction trace keeps only the latest bounded text and privacy clears
   r.event({type:'speech-correction',sessionId:'selected',turnId:'current',original:'late',text:'late'});assert.equal(r.run("$('speech-correction-text').textContent"),'');
   assert.equal(r.calls.some(call=>call.method==='submit'),false);
 });
+test('the small orb labels a background thinker accurately without blocking new speech',()=>{const r=renderer();r.run("orbRenderer.draw=()=>{};orbPreviewRenderer.draw=()=>{};");r.event({type:'state',status:'ready',busy:false,connected:true,session:{id:'selected'}});r.event({type:'background-update',background:{jobs:[{status:'running',children:[{status:'running',phase:'thinking'}]}]}});r.run('draw(2000)');assert.match(r.run("document.getElementById('phase').textContent"),/DENKT/);assert.equal(r.run('busy'),false);r.run('capturing=true;draw(2030)');assert.match(r.run("document.getElementById('phase').textContent"),/HÖRT ZU/);});
