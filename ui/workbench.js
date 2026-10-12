@@ -2,7 +2,7 @@
   'use strict';
   const bridge=window.workbench,$=id=>document.getElementById(id),tabs=['system','console','browser','context','graph','intel','artcraft'];
   let current={},activeTab='system',pending=false,lastEvents='',noticeTimer,animation=null;
-  let gestureHelpChosen=false;
+  let gestureHelpChosen=false,lastBackground='';
   function showGestureHelp(enabled){$('gesture-guide').hidden=!enabled;document.body.classList.toggle('gesture-help-open',enabled);$('gesture-help').setAttribute('aria-expanded',String(enabled));void invoke('gesture-help',{enabled});}
   let editingRoutine=null,routineDirty=false,projectDirty=false,lastContextRows='',lastTaskRows='',lastRoutineRows='',lastLogs='',lastOperationRows='',lastSource='';
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -114,10 +114,10 @@
     $('job-queue-state').textContent=locked?'DATENSCHUTZ AKTIV':queue.blocked?'ERGEBNIS ZUERST PRÜFEN':queue.held?'WARTESCHLANGE ANGEHALTEN':'WARTESCHLANGE BEREIT';$('job-resume').hidden=!queue.held;$('job-resume').disabled=locked||queue.blocked;$('job-queue-count').textContent=jobs.length+' AUFTRÄGE';
     $('awareness-project').textContent=awareness.project?.name||'Kein Projekt zugeordnet';$('awareness-confidence').textContent=({manual:'VON DIR GESETZT',registered:'AUS REGISTRIERTEM PROJEKT',unknown:'ZUORDNUNG OFFEN'})[awareness.project?.confidence]||'ZUORDNUNG OFFEN';
     const fingerprint=JSON.stringify({jobs,cards,locked});if(fingerprint===lastOperationRows)return;lastOperationRows=fingerprint;
-    const actionButton=(label,method,id)=>{const button=node('button',label);button.type='button';button.disabled=locked;button.addEventListener('click',()=>invoke(method,{id}));return button;};
+
     $('job-queue-list').replaceChildren();if(!jobs.length)$('job-queue-list').append(node('p','Noch keine Aufträge in der Warteschlange.','context-empty'));
     for(const job of jobs.slice().reverse()){
-      const row=node('article',undefined,'queue-row '+job.status),heading=node('div',undefined,'queue-row-heading'),actions=node('div',undefined,'queue-actions');heading.append(node('strong',job.title||'Auftrag'),node('span',({queued:'Wartet',running:'Läuft','agent-finished':'Agent beendet',completed:'Ergebnis bestätigt',error:'Fehler',paused:'Angehalten',cancelled:'Abgebrochen','outcome-unknown':'Ergebnis unbekannt'})[job.status]||'Status unbekannt'));row.append(heading);
+      const row=node('article',undefined,'queue-row '+job.status),heading=node('div',undefined,'queue-row-heading'),actions=node('div',undefined,'queue-actions');heading.append(node('strong',job.title||'Auftrag'),node('span',({delegated:'Im Hintergrund',queued:'Wartet',running:'Läuft','agent-finished':'Agent beendet',completed:'Ergebnis bestätigt',error:'Fehler',paused:'Angehalten',cancelled:'Abgebrochen','outcome-unknown':'Ergebnis unbekannt'})[job.status]||'Status unbekannt'));row.append(heading);
       if(job.reason)row.append(node('p',job.reason));if(job.summary)row.append(node('p',job.summary));row.append(node('small',(job.attempts||0)+' gestartete Versuche'));
       if(job.status==='outcome-unknown')actions.append(actionButton('Remote-Status prüfen','job-reconcile',job.id));
       if(['paused','error'].includes(job.status))actions.append(actionButton('Erneut versuchen','job-retry',job.id));
@@ -126,6 +126,20 @@
     }
     $('awareness-cards').replaceChildren();if(!cards.length)$('awareness-cards').append(node('p',locked?'Hinweise pausieren im Datenschutzmodus.':'Aktuell keine Hinweise mit Handlungsbedarf.','context-empty'));
     for(const card of cards){const row=node('article',undefined,'awareness-card '+card.kind),actions=node('div',undefined,'queue-actions');row.append(node('strong',card.title),node('p',card.detail));if(card.source)row.append(node('small',card.source));if(card.actionLabel)actions.append(actionButton(card.actionLabel,'awareness-action',card.id));actions.append(actionButton('Ausblenden','awareness-dismiss',card.id));row.append(actions);$('awareness-cards').append(row);}
+  }
+  function actionButton(label,method,id){const button=node('button',label);button.type='button';button.disabled=current.privacyLocked===true;button.addEventListener('click',()=>invoke(method,{id}));return button;}
+  function renderBackground(snapshot){
+    const value=snapshot.background||{},locked=snapshot.privacyLocked===true,jobs=locked?[]:value.jobs||[],active=jobs.filter(j=>['preparing','running','stopping','outcome-unknown'].includes(j.status)),count=active.reduce((n,j)=>n+Math.max(1,j.children.filter(c=>['running','stopping','outcome-unknown'].includes(c.status)).length),0);
+    $('background-count').hidden=!count;$('background-count').textContent=count+' IM HINTERGRUND';$('background-slots').textContent=count+' / 2 AGENTEN';
+    const signature=JSON.stringify([jobs,locked,value.error]);if(signature===lastBackground)return;lastBackground=signature;const box=$('background-jobs');box.replaceChildren();
+    if(value.error)box.append(node('p',value.error,'context-empty'));if(!jobs.length)box.append(node('p',locked?'Datenschutz aktiv.':'Noch keine Hintergrundaufträge.','context-empty'));
+    const labels={preparing:'ÜBERGABE',running:'ARBEITET',stopping:'STOPP ANGEFORDERT','outcome-unknown':'STATUS PRÜFEN','agent-finished':'AGENT BEENDET',error:'PRÜFUNG NÖTIG',cancelled:'AGENT GESTOPPT'};
+    for(const j of [...active.slice().reverse(),...jobs.filter(j=>!active.includes(j)).slice(-3).reverse()]){
+      const row=node('article',undefined,'background-job'),head=node('div',undefined,'background-job-heading'),actions=node('div',undefined,'queue-actions');row.dataset.state=j.status;row.dataset.jobId=j.id;head.append(node('strong',j.title),node('span',labels[j.status]||j.status));row.append(head);
+      const tools=j.children.map(c=>c.lastTool).filter(Boolean);row.append(node('p',j.reason||(['preparing','running'].includes(j.status)?tools.length?'Aktuell: '+tools.join(' · '):'Der Agent bearbeitet deinen Auftrag.':j.summary||'Keine weitere Rückmeldung.')),node('small',(j.resource==='desktop'?'DESKTOP · EIN ZUSTÄNDIGER AUFTRAG':'RECHERCHE · PARALLEL')+' · '+j.children.reduce((n,c)=>n+c.toolCount,0)+' Werkzeugschritte'));
+      if(j.children.length&&['running','stopping','outcome-unknown'].includes(j.status)){const stop=actionButton('Diesen Auftrag stoppen','background-stop',j.id);stop.disabled=locked||j.status==='stopping';actions.append(stop);}
+      if(j.status==='outcome-unknown')actions.append(actionButton('Status prüfen','background-reconcile',j.id));row.append(actions);box.append(row);
+    }
   }
   function renderVoiceTiming(value){
     const summary=value?.summary||{},stages=[['firstAudioMs','Sprechende → erstes hörbares Audio'],['transcribeMs','Transkription'],['hermesFirstTokenMs','Hermes → erstes Textstück'],['ttsFirstPcmMs','Sprachsynthese → erster Audioblock'],['endToEndMs','Aufnahmeende → Wiedergabeende']],rows=[];
@@ -160,7 +174,7 @@
     $('screen-state').textContent=snapshot.screen?.looking?'Blick läuft':snapshot.screen?.enabled?'Aktiviert':'Aus';$('mode-state').textContent=snapshot.mode?.name||'Keiner';
     const report=snapshot.systemReport;$('report-text').textContent=report?.text||'Noch kein Systembericht. „Status prüfen“ ruft den aktuellen Bericht ab.';$('report-age').textContent=!report?'KEIN BERICHT':report.fresh?'AKTUELL':Number.isFinite(report.ageSeconds)?report.ageSeconds+' S ALT':'ZEIT UNBEKANNT';
     const modeButtons=(snapshot.modes||[]).map(mode=>{const button=document.createElement('button');button.type='button';button.textContent=mode.name;button.classList.toggle('active',mode.id===snapshot.mode?.id);button.addEventListener('click',()=>invoke('action',{name:'mode',id:mode.id}));return button;});$('mode-actions').replaceChildren(...modeButtons);
-    privacy(snapshot);renderContext(snapshot);renderOperations(snapshot);renderVoiceTiming(snapshot.voiceTiming);renderEvents(snapshot.events);renderGesture(snapshot.gesture);renderActivity();renderSource();updateCommand();
+    privacy(snapshot);renderContext(snapshot);renderOperations(snapshot);renderBackground(snapshot);renderVoiceTiming(snapshot.voiceTiming);renderEvents(snapshot.events);renderGesture(snapshot.gesture);renderActivity();renderSource();updateCommand();
   }
   function updateCommand(){$('send-command').disabled=pending||current.privacyLocked===true||!current.connected;$('send-command').textContent=current.busy?'Vormerken':'Auftrag senden';$('command').disabled=pending||current.privacyLocked===true;}
   for(const button of document.querySelectorAll('[data-tab]'))button.addEventListener('click',()=>invoke('tab',button.dataset.tab));

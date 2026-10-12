@@ -50,6 +50,9 @@ API-Aktionen oder direkte Änderung der laufenden `.local/settings.json`.
 [Bluetooth](bluetooth-control.md), [Steuerungs-API](control-api.md).
 Die Rechentiefe wird pro Windows-Auftrag automatisch gesetzt und anschließend
 zurückgestellt; Ablauf und Prüfgrenzen: [Thinking](automatic-thinking.md).
+Hintergrundaufträge: [Parallelität](background-orchestration.md). Vor Neustarts
+`status.busy`, aktive Hintergrundaufträge und Bildauswertung prüfen;
+`conversationBusy=false` allein bedeutet lediglich, dass Lilith weiterreden kann.
 
 ## Reparatur oder Erweiterung
 

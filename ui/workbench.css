@@ -312,3 +312,15 @@ body.gesture-help-open { --gesture-help-height: 140px; }
 #gesture-help[aria-expanded='true'] { color: #9bf2d9; background: #284943; }
 
 #gesture-help { width: auto; padding: 0 12px; font: 11px var(--mono); white-space: nowrap; }
+
+.background-board { margin: 14px 0; border: 1px solid #34515b; background: #0c202bd9; }
+.background-hint { margin: 10px 14px; color: #a8c5ce; font-size: 11px; line-height: 1.5; }
+.background-jobs { display: grid; gap: 8px; padding: 0 12px 12px; max-height: 52vh; overflow-y: auto; }
+.background-job { padding: 12px; border: 1px solid #294957; border-left: 2px solid #68dec4; background: #081925d9; }
+.background-job[data-state='outcome-unknown'], .background-job[data-state='error'] { border-left-color: #eabb76; }
+.background-job-heading { display: flex; justify-content: space-between; gap: 14px; }
+.background-job-heading strong { font-size: 12px; color: #deeff3; }
+.background-job-heading span { font: 9px var(--mono); color: #a5e8d6; white-space: nowrap; }
+.background-job p { font-size: 11px; color: #c0d5de; line-height: 1.5; white-space: pre-wrap; }
+.background-job small { font: 9px var(--mono); color: #89aeba; }
+#background-count { color: #99e4d0; font: 9px var(--mono); }

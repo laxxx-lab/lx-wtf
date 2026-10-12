@@ -4,6 +4,7 @@ let expanded=false,settings={},sessionInfo=null,busy=false,phase='offline',level
 const microphone=new Microphone(()=>navigator.mediaDevices.getUserMedia(microphoneConstraints(settings.microphoneDeviceId||'')));
 let microphoneBound='',microphoneSwitch=Promise.resolve(true),micSilent=null;
 let queueReview=null;
+function renderBackgroundSummary(value){const node=$('background-summary');if(!node)return;const count=privacyLocked?0:(value?.jobs||[]).filter(j=>['preparing','running','stopping','outcome-unknown'].includes(j.status)).length;node.hidden=!count;node.textContent=count+' Auftrag'+(count===1?'':'e')+' im Hintergrund · Du kannst weiter mit Lilith sprechen.';}
 function renderQueueWarning(queue){
   queueReview=queue?.blocked&&queue.activeJobId?{method:'job-reconcile',id:queue.activeJobId}:queue?.held?{method:'job-resume'}:null;
   $('queue-warning').hidden=!queueReview;
@@ -177,7 +178,7 @@ async function reconnectMicrophone(){
 function quiesceLocal(){
   cancelPushToTalk();clearSpeechCorrection();
   sensorControlGeneration++;
-  privacyLocked=true;settings={...settings,privacyLocked:true,wakeWord:false,cameraEnabled:false,screenEnabled:false,gesturesEnabled:false};
+  privacyLocked=true;renderBackgroundSummary({jobs:[]});settings={...settings,privacyLocked:true,wakeWord:false,cameraEnabled:false,screenEnabled:false,gesturesEnabled:false};
   liveRequest++;captureGeneration++;live=false;capturing=false;speechStarted=false;transcribing=false;awaitingResume=false;frames=[];captureSessionId=null;clearTimeout(autoResumeTimer);
   bargeListening=false;bargeAwaitingTurn=false;bargePreRoll=[];captureInterrupt=null;captureTurnId=null;capturePushToTalk=null;voiceDispatch=null;rejectedAudioGeneration=Math.max(rejectedAudioGeneration,audioGeneration);audioTurnId=null;
   audioGeneration=-1;ttsPending=0;stopAudio();releaseMic();micMuted=true;wakeFrames=[];wakeSamples=0;bargeFrames=0;
@@ -260,6 +261,7 @@ async function toggleMic(force){
 }
 api.on(event=>{
   if(event.type==='job-update')renderQueueWarning(event.jobQueue);
+  if(event.type==='background-update')renderBackgroundSummary(event.background);
   if(event.type==='ptt-control')void handlePushToTalk(event).catch(error=>{notice(error.message);cancelPushToTalk();});
   if(event.type==='speech-correction')renderSpeechCorrection(event);
   if(event.type==='system-report')renderSystemReport(event.report);
@@ -407,7 +409,7 @@ async function syncGestures(){
 $('gesturesEnabled').onchange=()=>{gestureRetryAt=0;void invoke('settings',{gesturesEnabled:$('gesturesEnabled').checked}).then(data=>{acceptSettings(data.settings);void syncGestures();});};
 setInterval(()=>void syncGestures(),500);
 $('save').onclick=async()=>{try{const values={url:$('url').value,voice:$('voice').value,delivery:$('delivery').value,cameraDeviceId:$('cameraDeviceId').value,orbColors,orbIntensity,...workstationControls.values()};for(const id of ['monitoring','proactive','speakAlerts','autoStart','wakeWord','bareNames','cameraEnabled','cameraRecognize','cameraGreetings'])values[id]=$(id).checked;if($('pushToTalkEnabled'))values.pushToTalkEnabled=$('pushToTalkEnabled').checked;if($('pushToTalkKey'))values.pushToTalkKey=$('pushToTalkKey').value;if($('directCommandsEnabled'))values.directCommandsEnabled=$('directCommandsEnabled').checked;values.audioPreferences=audioOutputsReady?{headphones:$('audio-headphones').value,speakers:$('audio-speakers').value}:settings.audioPreferences||{};if(speechDictionaryEditor)values.speechDictionary=speechDictionaryEditor.value();const data=await invoke('settings',values);acceptSettings(data.settings);syncOrbSettings(settings);workstationControls.sync(settings);void syncCameraSettings(settings);void armWake();notice('Einstellungen gespeichert.');}catch(error){notice(error.message);}};
-invoke('snapshot').then(data=>{renderQueueWarning(data.jobQueue);acceptSettings(data.settings);sessionInfo=data.session;wakeReady=data.wakeReady;vadReady=data.vadReady===true;orbCameraLooking=data.camera?.looking===true;orbScreenLooking=data.screen?.looking===true;renderState(data);renderMetrics(data.sample);renderSessions(data.sessions);syncOrbSettings(settings);workstationControls.sync(settings);$('url').value=settings.url;$('reference-voice-option').hidden=!data.referenceVoiceReady;$('voice').value=settings.voice;$('delivery').value=settings.delivery||'normal';syncVoiceDelivery();for(const id of ['monitoring','proactive','speakAlerts','autoStart','wakeWord','bareNames'])$(id).checked=settings[id];cameraControls.profiles(data.camera?.profiles||[]);void syncCameraSettings(settings);void armWake();}).catch(()=>{});
+invoke('snapshot').then(data=>{renderQueueWarning(data.jobQueue);renderBackgroundSummary(data.background);acceptSettings(data.settings);sessionInfo=data.session;wakeReady=data.wakeReady;vadReady=data.vadReady===true;orbCameraLooking=data.camera?.looking===true;orbScreenLooking=data.screen?.looking===true;renderState(data);renderMetrics(data.sample);renderSessions(data.sessions);syncOrbSettings(settings);workstationControls.sync(settings);$('url').value=settings.url;$('reference-voice-option').hidden=!data.referenceVoiceReady;$('voice').value=settings.voice;$('delivery').value=settings.delivery||'normal';syncVoiceDelivery();for(const id of ['monitoring','proactive','speakAlerts','autoStart','wakeWord','bareNames'])$(id).checked=settings[id];cameraControls.profiles(data.camera?.profiles||[]);void syncCameraSettings(settings);void armWake();}).catch(()=>{});
 setInterval(()=>{
   renderMicrophoneStatus();
   observePlayback();

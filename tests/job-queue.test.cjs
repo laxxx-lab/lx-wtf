@@ -3,6 +3,16 @@ const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const modulePath = path.join(__dirname, '../job-queue.cjs');
 
+test('delegated jobs free the lane and finish only from their own child result',()=>{
+ const {JobQueue}=require(modulePath),q=new JobQueue(),owner={sessionId:'s',profile:'default'},a=q.enqueue({...owner,text:'Analyse'}),b=q.enqueue({...owner,text:'Hallo'});q.claim(owner);q.accepted(a.id,{runtimeId:'r'});q.delegate(a.id);assert.equal(q.active(),null);assert.equal(q.list()[0].status,'delegated');assert.equal(q.claim(owner).id,b.id);q.finish(a.id,{status:'agent-finished',summary:'Analyse gemeldet'});assert.equal(q.list()[0].status,'agent-finished');assert.equal(q.active().id,b.id);
+});
+test('a waiting resource conflict does not block a later conversation',()=>{
+ const {JobQueue}=require(modulePath),q=new JobQueue(),owner={sessionId:'s',profile:'default'},a=q.enqueue({...owner,text:'Desktop wartet'}),b=q.enqueue({...owner,text:'Hallo'});assert.equal(q.claim({...owner,canRun:job=>job.id!==a.id}).id,b.id);
+});
+test('a fresh user turn takes priority over queued background summaries',()=>{
+ const {JobQueue}=require(modulePath),q=new JobQueue(),owner={sessionId:'s',profile:'default'};q.enqueue({...owner,text:'Summary',kind:'background-result',sourceJobId:'00000000-0000-4000-8000-000000000001'});const spoken=q.enqueue({...owner,text:'Neue Nutzerfrage'});assert.equal(q.claim(owner).id,spoken.id);
+});
+
 function fixture(t, initial) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lilith-queue-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -261,3 +271,5 @@ test('disconnect and timeout finishes require reconciliation even when caller pa
   assert.equal(queue.finish(first.id, { status: 'timeout', verified: true }).status, 'outcome-unknown');
   assert.equal(queue.snapshot().blocked, true);
 });
+test('desktop resource survives a queue restart without dispatching a stored routine',t=>{const f=fixture(t),q=f.create(),a=enqueue(q,{resource:'desktop'});const restored=f.create();assert.equal(restored.list().find(j=>j.id===a.id).resource,'desktop');assert.equal(restored.claim({sessionId:'session-a',canRun:j=>j.resource!=='desktop'}),null);assert.throws(()=>enqueue(restored,{resource:'camera'}));});
+test('an interrupted pure background report pauses without an unknown-action gate',t=>{const f=fixture(t),q=f.create(),a=enqueue(q,{kind:'background-result',sourceJobId:'00000000-0000-4000-8000-000000000001'});q.claim({sessionId:'session-a'});q.accepted(a.id,{runtimeId:'r'});const restored=f.create();assert.equal(restored.list()[0].status,'paused');assert.equal(restored.snapshot().blocked,false);const question=enqueue(restored);assert.equal(restored.claim({sessionId:'session-a'}).id,question.id);});

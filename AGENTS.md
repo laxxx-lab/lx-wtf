@@ -22,6 +22,7 @@ GUI-Starts und echte Audio-/Sensorprüfung brauchen die interaktive Anbindung.
 | Lokale Steuerungs-API und Agentenhelfer | `control-api.cjs`, `control.ps1`, `docs/control-api.md` |
 | Direkte Befehle, Audio, Bluetooth | `direct-commands.cjs`, `audio-output.cjs`, `bluetooth.cjs`, passende Helfer in `scripts/` |
 | Auftragslebenszyklus und Beobachtungen | `job-queue.cjs`, `job-reconciliation.cjs`, `task-ledger.cjs`, `voice-timing.cjs` |
+| Hintergrundagenten und freie Gesprächsspur | `background-jobs.cjs`, `main.cjs`, `docs/background-orchestration.md` |
 | Kamera / Bildschirm / Einkreisen | `camera-service.cjs`, `screen-service.cjs`, `circle-interest.cjs`, `ui/camera.js`, `ui/screen-capture.js` |
 | Werkstatt / Artcraft / Projektgraph / Lagekarte | `workbench.cjs`, `artcraft.cjs`, `project-graph.cjs`, `osiris-client.cjs`, passende `ui/`-Dateien |
 | Datenschutz, Standby, Autostart | `local-safety.cjs`, Standby in `main.cjs`/`ui/app.js`, `startup.cjs`, `launch.ps1` |

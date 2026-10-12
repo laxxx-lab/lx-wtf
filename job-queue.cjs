@@ -3,7 +3,7 @@ const fs = require('node:fs'), path = require('node:path'), { randomUUID } = req
 const { redactContext } = require('./context-journal.cjs');
 const { validDirectCommand } = require('./direct-commands.cjs');
 const MAX_JOBS = 50, MAX_TEXT = 20000, MAX_FILE = 8 * 1024 * 1024;
-const STATUSES = new Set(['queued', 'running', 'outcome-unknown', 'paused', 'agent-finished', 'completed', 'error', 'cancelled']);
+const STATUSES = new Set(['queued', 'running', 'delegated', 'outcome-unknown', 'paused', 'agent-finished', 'completed', 'error', 'cancelled']);
 const SETTLED = new Set(['agent-finished', 'completed', 'error', 'cancelled']);
 const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const copy = value => value === null ? null : structuredClone(value);
@@ -34,6 +34,9 @@ function storedJob(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.id !== 'string' || !UUID.test(value.id)) throw new TypeError('Invalid stored job.');
   instructions(value.text); ownership(value.sessionId, value.profile); app(value.appId); voiceTurn(value.turnId ?? null);
   const executor=value.executor??'hermes',localCommand=value.localCommand??null;
+  const kind=value.kind??'user',sourceJobId=value.sourceJobId??null,resource=value.resource??null;
+  if(resource!==null&&resource!=='desktop')throw new TypeError('Invalid job resource.');
+  if(!['user','background-result'].includes(kind)||sourceJobId!==null&&!UUID.test(sourceJobId)||kind==='background-result'&&sourceJobId===null)throw new TypeError('Invalid stored origin.');
   if(!['hermes','local'].includes(executor)||executor==='local'&&(!validDirectCommand(localCommand)||value.runtimeId!=='local-windows')||executor==='hermes'&&localCommand!==null||value.status==='queued'&&executor!=='hermes')throw new TypeError('Invalid stored executor.');
   if (!STATUSES.has(value.status) || typeof value.speak !== 'boolean' || typeof value.verified !== 'boolean' || !Number.isSafeInteger(value.attempts) || value.attempts < 0) throw new TypeError('Invalid stored job state.');
   if (value.runtimeId !== null) identity(value.runtimeId, 'runtimeId');
@@ -46,7 +49,7 @@ function storedJob(value) {
   if (['running', 'outcome-unknown'].includes(value.status) && (value.startedAt === null || value.attempts < 1 || value.finishedAt !== null)) throw new TypeError('Invalid active job.');
   if ((SETTLED.has(value.status) || value.status === 'paused') && value.finishedAt === null) throw new TypeError('Invalid settled job.');
   return {
-    id: value.id, text: value.text, sessionId: value.sessionId, profile: value.profile, appId: value.appId, speak: value.speak, turnId: value.turnId ?? null,executor,localCommand:copy(localCommand),
+    id: value.id, text: value.text, sessionId: value.sessionId, profile: value.profile, appId: value.appId, speak: value.speak, turnId: value.turnId ?? null,kind,sourceJobId,resource,executor,localCommand:copy(localCommand),
     status: value.status, verified: value.verified, runtimeId: value.runtimeId, attempts: value.attempts,
     createdAt: value.createdAt, updatedAt: value.updatedAt, startedAt: value.startedAt, acceptedAt: value.acceptedAt, finishedAt: value.finishedAt,
     title: redactContext(value.title, 200) || 'Auftrag bearbeiten', summary: redactContext(value.summary, 1200), reason: redactContext(value.reason, 450),
@@ -70,7 +73,8 @@ class JobQueue {
       const jobs = stored.jobs.map(storedJob);
       if (new Set(jobs.map(job => job.id)).size !== jobs.length || jobs.filter(job => ['running', 'outcome-unknown'].includes(job.status)).length > 1) throw new TypeError('Invalid queue ownership.');
       for (const job of jobs) if (job.status === 'running') {
-        job.status = 'outcome-unknown'; job.reason = 'App neu gestartet; Ergebnis vor erneutem Senden prüfen.'; job.updatedAt = this.#timestamp(); recovered = true;
+        if(job.kind==='background-result'){job.status='paused';job.reason='Unterbrochene Rückmeldung; nicht automatisch erneut gesprochen.';job.finishedAt=this.#timestamp();}
+        else{job.status='outcome-unknown';job.reason='App neu gestartet; Ergebnis vor erneutem Senden prüfen.';}job.updatedAt=this.#timestamp();recovered=true;
       }
       this.#jobs = jobs; this.#held = stored.held; this.#holdReason = redactContext(stored.holdReason, 450);
     } catch (error) {
@@ -115,9 +119,11 @@ class JobQueue {
     return copy(job);
   }
 
-  enqueue({ text, title = 'Auftrag bearbeiten', sessionId, profile = 'default', appId = null, speak = true, turnId = null } = {}) {
+  enqueue({ text, title = 'Auftrag bearbeiten', sessionId, profile = 'default', appId = null, speak = true, turnId = null,kind='user',sourceJobId=null,resource=null } = {}) {
     instructions(text); ownership(sessionId, profile); app(appId); voiceTurn(turnId);
+    if(resource!==null&&resource!=='desktop')throw new TypeError('Invalid job resource.');
     if (typeof speak !== 'boolean') throw new TypeError('Invalid speak.');
+    if(!['user','background-result'].includes(kind)||sourceJobId!==null&&!UUID.test(sourceJobId))throw new TypeError('Invalid job origin.');
     if (typeof title !== 'string') throw new TypeError('Invalid title.');
     const jobs = this.#jobs.slice();
     if (jobs.length === MAX_JOBS) {
@@ -127,7 +133,7 @@ class JobQueue {
     }
     const timestamp = this.#timestamp();
     const job = {
-      id: randomUUID(), text, sessionId, profile, appId, speak, turnId, executor:'hermes',localCommand:null,status: 'queued', verified: false, runtimeId: null, attempts: 0,
+      id: randomUUID(), text, sessionId, profile, appId, speak, turnId,kind,sourceJobId,resource,executor:'hermes',localCommand:null,status: 'queued', verified: false, runtimeId: null, attempts: 0,
       createdAt: timestamp, updatedAt: timestamp, startedAt: null, acceptedAt: null, finishedAt: null,
       title: redactContext(title, 200) || 'Auftrag bearbeiten', summary: '', reason: '',
     };
@@ -135,16 +141,17 @@ class JobQueue {
     return copy(job);
   }
 
-  claim({ sessionId, profile = 'default' } = {}) {
+  claim({ sessionId, profile = 'default',canRun=()=>true } = {}) {
     ownership(sessionId, profile);
     if (this.#held || this.active()) return null;
-    const job = this.#jobs.find(item => item.status === 'queued' && item.sessionId === sessionId && item.profile === profile);
+    const eligible=item=>item.status==='queued'&&item.sessionId===sessionId&&item.profile===profile&&canRun(copy(item));
+    const job = this.#jobs.find(item=>item.kind!=='background-result'&&eligible(item))||this.#jobs.find(eligible);
     if (!job) return null;
     return this.#update(job.id, ['queued'], { status: 'running', startedAt: this.#timestamp(), attempts: job.attempts + 1 });
   }
 
   accepted(id, { runtimeId } = {}) {
-    if (!this.#jobs.some(job => job.id === id && job.status === 'running')) return null;
+    if (!this.#jobs.some(job => job.id === id && ['running','delegated'].includes(job.status))) return null;
     identity(runtimeId, 'runtimeId');
     return this.#update(id, ['running'], { runtimeId, acceptedAt: this.#timestamp() });
   }
@@ -157,16 +164,19 @@ class JobQueue {
   }
 
   finish(id, { status = 'agent-finished', summary = '', verified = false } = {}) {
-    if (!this.#jobs.some(job => job.id === id && job.status === 'running')) return null;
+    if (!this.#jobs.some(job => job.id === id && ['running','delegated'].includes(job.status))) return null;
     if (['disconnect', 'disconnected', 'timeout', 'outcome-unknown'].includes(status)) return this.unknown(id, summary || status);
     if (typeof verified !== 'boolean') throw new TypeError('Invalid verified.');
     let outcome;
     if (['agent-finished', 'complete', 'completed', 'success', 'ok'].includes(status)) outcome = verified ? 'completed' : 'agent-finished';
     else if (status === 'error') outcome = 'error';
-    else if (['cancelled', 'canceled', 'interrupted', 'aborted'].includes(status)) return this.unknown(id, summary || 'Abbruch angefordert; Remote-Ergebnis prüfen.');
+    else if (['cancelled', 'canceled', 'interrupted', 'aborted'].includes(status)){if(this.#jobs.find(job=>job.id===id)?.status==='delegated')return this.#update(id,['delegated'],{status:'cancelled',summary:redactContext(summary,1200),verified:false,finishedAt:this.#timestamp()});return this.unknown(id, summary || 'Abbruch angefordert; Remote-Ergebnis prüfen.');}
     else throw new TypeError('Invalid finish status.');
-    return this.#update(id, ['running'], { status: outcome, verified: outcome === 'completed', summary: redactContext(summary, 1200), reason: '', finishedAt: this.#timestamp() });
+    return this.#update(id, ['running','delegated'], { status: outcome, verified: outcome === 'completed', summary: redactContext(summary, 1200), reason: '', finishedAt: this.#timestamp() });
   }
+
+  delegate(id,{runtimeId}={}){const job=this.#jobs.find(j=>j.id===id);if(!job)return null;if(runtimeId!==undefined)identity(runtimeId,'runtimeId');return this.#update(id,['running','outcome-unknown','paused'],{status:'delegated',finishedAt:null,summary:'Im Hintergrund übergeben; Ergebnis steht noch aus.',reason:'',...(job.runtimeId===null&&runtimeId?{runtimeId,acceptedAt:this.#timestamp()}: {})});}
+  delegated({sessionId,profile='default'}){ownership(sessionId,profile);return this.#jobs.filter(j=>j.sessionId===sessionId&&j.profile===profile&&j.status==='delegated').map(copy);}
 
   unknown(id, reason = 'Remote-Ergebnis unbekannt.') {
     return this.#update(id, ['running', 'outcome-unknown'], { status: 'outcome-unknown', verified: false, reason: redactContext(reason, 450) || 'Remote-Ergebnis unbekannt.', finishedAt: null });
