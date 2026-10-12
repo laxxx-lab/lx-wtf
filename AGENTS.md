@@ -20,6 +20,7 @@ GUI-Starts und echte Audio-/Sensorprüfung brauchen die interaktive Anbindung.
 | Automatische Rechentiefe pro Auftrag | `automatic-thinking.cjs`, `conversation.cjs`, `docs/automatic-thinking.md` |
 | Orb, Mikrofon, Live, Wakeword, Wiedergabe | `ui/app.js`, `ui/microphone.js`, `ui/speech-activity.js`, `ui/voice-interaction.js`, `ui/orb.js` |
 | Lokale Steuerungs-API und Agentenhelfer | `control-api.cjs`, `control.ps1`, `docs/control-api.md` |
+| Timer, Wecker, Power, Fenster | `everyday-intent.cjs`, `reminders.cjs`, `power-control.cjs`, `windows-control.cjs`, `docs/power-and-reminders.md` |
 | Direkte Befehle, Audio, Bluetooth | `direct-commands.cjs`, `audio-output.cjs`, `bluetooth.cjs`, passende Helfer in `scripts/` |
 | Auftragslebenszyklus und Beobachtungen | `job-queue.cjs`, `job-reconciliation.cjs`, `task-ledger.cjs`, `voice-timing.cjs` |
 | Hintergrundagenten und freie Gesprächsspur | `background-jobs.cjs`, `main.cjs`, `docs/background-orchestration.md` |

@@ -43,9 +43,9 @@ Modelle, Einstellungen oder die aktive Windows-Gerätesitzung.
    die Start- und Warteansagen übernimmt bereits die App.
 
 Mikrofonwahl ist lokal unter **Audio / Mikrofon** gespeichert und gilt für
-Live, Wakeword und Sprechtaste. Zurzeit gibt es keinen Mikrofonwechsel-Endpunkt
-in `control.ps1`: Bedienung über die App-Einstellungen, nicht über erfundene
-API-Aktionen oder direkte Änderung der laufenden `.local/settings.json`.
+Live, Wakeword und Sprechtaste. Hermes kann Eingänge über `microphones` lesen
+und mit `microphone -DeviceId` gezielt wechseln. Der Renderer bestätigt den
+tatsächlich geöffneten Eingang; die App bewahrt Live/Standby und Gerätewahl.
 [Mikrofon](microphone.md), [Audio/Wartrückmeldung](audio-and-wait-feedback.md),
 [Bluetooth](bluetooth-control.md), [Steuerungs-API](control-api.md).
 Die Rechentiefe wird pro Windows-Auftrag automatisch gesetzt und anschließend

@@ -15,11 +15,11 @@ Windows-MCP-Shell `AGENTS.md` sowie `docs/agent-maintenance.md` im Projekt lesen
 Die Quellen und Tests sind dort tatsächlich bearbeitbar; Linux-`terminal` auf
 dem VPS ist kein Windows-Dateizugriff. Aktuelle Verträge statt alter Erinnerungen
 verwenden und neue Funktionen nach geprüfter Änderung auch hier dokumentieren.
-Mikrofonwahl ist unter **Einstellungen → Audio / Mikrofon** gespeichert; es gibt
-noch keinen Mikrofonwechsel-Endpunkt in `control.ps1`. Sennheiser/Corsair lassen
-sich dort für Live, Wakeword und Sprechtaste umschalten, ohne Windows-Standards
-zu verändern. Keine nicht vorhandenen API-Aktionen behaupten.
-
+Mikrofonwahl ist unter **Einstellungen → Audio / Mikrofon** gespeichert. Über
+`control.ps1 -Action microphones` frische Gerätekennungen lesen und
+`-Action microphone -DeviceId '<devices[].deviceId>'` verwenden. Genau dieses
+Gerät wählen, Ergebnis `verified=true` prüfen; `-DeviceId ''` bedeutet bewusst
+Windows-Standard. Live/Wake/Standby bleiben erhalten, Windows-Standards unverändert.
 Bei USB-Umstecken kann Windows neue Eingabe- und Ausgabekennungen vergeben.
 Audioausgabe beweist keine Mikrofonwahl. Die App speichert zusätzlich den
 gewählten Mikrofonnamen und ordnet nur einen eindeutigen passenden Eingang neu
@@ -372,3 +372,52 @@ Desktop-Arbeit dieses Clients läuft mit einem zuständigen Auftrag, Recherche d
 Die Werkstatt zeigt jeden Hintergrundauftrag und dessen gezielten Stopp. „Stoppe die Fotoanalyse“ stoppt bei eindeutiger Zuordnung nur diesen Agenten. Für eigene Kinder ist der reale `subagent.interrupt`-Weg bzw. `delegate_task(action='stop',subagent_id=...)` maßgeblich; keine neuen PowerShell-Aktionen erfinden. Eine Stoppanforderung ist erst nach terminalem Agentenereignis bestätigt. Kein Zurücksetzen des Hauptdialogs. Bei Background-Abschlüssen knapp berichten und unbestätigte PC-Erfolge nicht als ausgeführt ausgeben. Ein `[Hintergrundresultat]`-Prompt ist eine reine Zusammenfassung: keine Tools, keine Folgeaktionen, keine Delegation. Verbindungsabbrüche werden geprüft, nicht automatisch wiederholt. Details und Quellvertrag stehen in `docs/background-orchestration.md` im Windows-Projekt.
 
 Der Orb hält bei laufender Hintergrundarbeit seine aktive Größe. Echte Denkereignisse zeigen „DENKT IM HINTERGRUND“, Werkzeugarbeit „ARBEITET IM HINTERGRUND“; Zuhören und Sprechen haben Vorrang. Eine freie Parent-Gesprächsspur ist kein fertiger Auftrag. Ungeklärte Zustände werden als Hinweis dargestellt. Farben und Bewegungsstärke stellt Patrik lokal unter ORB / REACTOR ein; keine Session- oder Sensoränderung dafür nötig. Details: `docs/orb.md`.
+
+## Direkte Alltagssteuerung, Zeitaufträge und Sprach-Orb
+
+Diese Wege ersetzen langsame UI-Suche für konkrete Standardaufträge. Immer die
+aktuelle Windows-MCP-Shell und `C:\Users\patri\Documents\ChatGPT\Voice\control.ps1`
+verwenden. Keine Linux-Pfade, keine erfundenen Parameter. Kurz bestätigen nach
+geprüfter Wirkung. Bei mehrdeutigen Geräten/Fenstern gezielt auswählen.
+
+- Lautstärke lesen: `-Action volume`; setzen `-Action volume -Operation set -Value 25`.
+  `up`, `down`, `mute`, `unmute` sind feste Operationen; `verified=true` bestätigt
+  den tatsächlichen Zustand am unveränderten Ausgabe-Endpunkt.
+- Apps: `-Action apps`, dann `-Action app-open -AppId '<apps[].id>'`. Auch Store-Apps
+  haben eine `app:<AUMID>`-Identität. Keine Exe-Suche oder freie Startargumente.
+  Angenommener Start ohne Fensterbeleg ist kein verifizierter Erfolg.
+- Fenster: `-Action windows`, dann `-Action window-focus -WindowId '<id>'
+  -ProcessId <pid> -ProcessStartedAt '<processStartedAt>'`. Alle drei Werte aus
+  frischer Liste unverändert übernehmen, keine Zeitzahl neu formatieren.
+  Bei `verified=false` frischen Zustand lesen, nicht blind wiederholen. Windows
+  kann den Vordergrundwechsel blockieren; dann vorhandenen Windows-MCP-Fokusweg
+  anhand des aktuellen Fensters verwenden, keinen API-Erfolg behaupten.
+- Unteragenten mit Desktop-Auftrag geben bei `app-open`/`window-focus` zusätzlich
+  `-JobId '<Lilith-Auftrag UUID>'` an. Nur der tatsächlich laufende passende
+  Desktop-Auftrag darf seinen reservierten Desktop über diese Wege bedienen.
+- Power lesen: `-Action power`; gezielt planen `-Action power -Operation shutdown`
+  oder `restart` mit `-DelaySeconds 600`; abbrechen `-Operation cancel`.
+  Nur auf ausdrücklichen Shutdown-/Neustartauftrag planen, keine spontanen
+  Systemoptimierungen. 30–86400 Sekunden; Timer braucht laufende App, ohne Zwang
+  zum Schließen ungesicherter Programme. `scheduled` bedeutet geplant, nicht
+  ausgeschaltet. Datenschutz/Not-Aus/„Stopp“ bricht den eigenen Timer ab.
+- Erinnerungen/Wecker lesen: `-Action reminders`; anlegen mit `-Operation create`
+  `-Kind reminder` oder `alarm`, `-Text '<kurzer Wortlaut>'`, `-At '<ISO mit Offset>'`.
+  Zeit aus der Nutzerangabe mit Europe/Berlin auflösen, UTC/Offset ausdrücklich
+  angeben; z.B. `2026-10-12T18:30:00+02:00`. Abbruch `-Operation cancel`
+  `-ReminderId '<id>'`. Einmalige lokale Termine, keine regelmäßigen VPS-Jobs.
+  Fällige Erinnerungen dürfen im Standby kurz melden; Datenschutz hält Ausgabe
+  zurück. App muss laufen; nach Neustart wird ein ausstehender Termin nachgeholt.
+
+Mikrofon-/relative Timer-Standardbefehle verarbeitet die App lokal ohne Modell.
+Unklare komplexere Formulierungen über die beschriebenen APIs erledigen. Nicht
+zusätzlich Start-/Warteansagen sprechen, die App übernimmt sie. Der Sprach-Orb
+folgt der echten Audioausgabe: schnelle Silben-Expansion und sanftes Abklingen,
+keine geschätzten Wort-Timer. Details: `docs/control-api.md`, `docs/orb.md`,
+`docs/power-and-reminders.md` und `docs/windows-control.md`.
+
+Zeitaufträge erscheinen als kleiner Countdown im Orb; bei mehreren Terminen
+der nächstfällige. Nur echte gespeicherte Fälligkeiten werden angezeigt, keine
+geschätzte Dauer einer Analyse. Abbruch entfernt den Countdown, Datenschutz
+blendet ihn aus. `status.timers.items` liefert ID, Art, Start und Fälligkeit,
+ohne Erinnerungswortlaut. Keine zusätzliche Orb-Steuerung erforderlich.

@@ -39,3 +39,13 @@ Datenschutz ab.
 Nach dem Umstecken des Sennheiser wurde am echten PC die alte gespeicherte
 Kennung gegen die neu gemeldete Kennung aufgelöst; Aufnahme und gespeicherte
 Auswahl stimmten überein. Wake-Bereitschaft und Live wurden danach geprüft.
+
+## Direkte Agentensteuerung
+
+`control.ps1 -Action microphones` liefert frische `devices[].deviceId` und Labels.
+`-Action microphone -DeviceId <id>` wählt genau diesen Eingang; `-DeviceId ''`
+wählt bewusst Windows-Standard. Rendererbestätigung und `result.verified=true`
+erfordern das passende aktive Gerät, sofern Live/Wake aktiv sind. Bei fehlendem
+Gerät wird die vorherige Wahl wiederhergestellt; nie ungefragt Standard öffnen.
+„Wechsle zum Tischmikrofon“ bzw. „Wechsle zum Headset“ wird bei eindeutigem
+Sennheiser-/Headset-Treffer lokal verarbeitet, ohne Modellaufruf.

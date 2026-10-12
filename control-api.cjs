@@ -2,6 +2,8 @@ const http = require('node:http');
 const { timingSafeEqual } = require('node:crypto');
 const {validAudioTarget}=require('./audio-output.cjs');
 const {validBluetoothCommand}=require('./bluetooth.cjs');
+const {validMicrophoneDeviceId}=require('./ui/microphone.js');
+const {validateAppReference}=require('./modes.cjs');
 
 const MAX_BODY_BYTES = 1024;
 const ACTIONS = new Set(['camera', 'live', 'wakewords']);
@@ -18,7 +20,18 @@ function validCraftLinkRequest(value){
   const local=file=>typeof file==='string'&&file.length<=500&&!/[\x00-\x1f]/.test(file)&&/^[A-Za-z]:[\\/]/.test(file);
   return !!value&&typeof value==='object'&&!Array.isArray(value)&&CRAFT_IDS.includes(value.appId)&&Object.keys(value).every(k=>['appId','port','tokenFile','endpointFile'].includes(k))&&(value.port===undefined||Number.isInteger(value.port)&&value.port>0&&value.port<=65535)&&['tokenFile','endpointFile'].every(k=>value[k]===undefined||local(value[k]))&&(value.appId==='pdf'?!!value.endpointFile:value.port!==undefined);
 }
-async function createControlApi({ port = 8872, token, readStatus, onCommand, onLook, onScreen, onContent, onHighlight, onMode, readModes, onWorkbench,readContext,readTasks,readRoutines,onRoutine,onStop,onStopTask,readGraph,onGraphSearch,onGraphSource,readIntelCatalog,onIntel,onGuide,clearGuide,readArtcraft,onArtcraft,readAudioOutputs,onAudioOutput,readBluetooth,onBluetooth }) {
+function validEverydayRequest(action,v){
+ const exact=keys=>!!v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k));
+ const optionalJob=keys=>exact(keys)||exact([...keys,'jobId'])&&typeof v.jobId==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(v.jobId);
+ if(action==='microphone')return exact(['deviceId'])&&validMicrophoneDeviceId(v.deviceId);
+ if(action==='volume')return exact(['action'])&&['up','down','mute','unmute'].includes(v.action)||exact(['action','value'])&&v.action==='set'&&Number.isInteger(v.value)&&v.value>=0&&v.value<=100;
+ if(action==='app-open'){if(!optionalJob(['appId']))return false;try{return validateAppReference(v.appId)===v.appId;}catch{return false;}}
+ if(action==='window-focus')return optionalJob(['id','pid','processStartedAt'])&&typeof v.id==='string'&&/^[1-9][0-9]{0,19}$/.test(v.id)&&Number.isSafeInteger(v.pid)&&v.pid>0&&typeof v.processStartedAt==='string'&&v.processStartedAt.length<=64&&Number.isFinite(Date.parse(v.processStartedAt));
+ if(action==='power')return exact(['action'])&&v.action==='cancel'||exact(['action','delaySeconds'])&&['shutdown','restart'].includes(v.action)&&Number.isInteger(v.delaySeconds)&&v.delaySeconds>=30&&v.delaySeconds<=86400;
+ if(action==='reminders')return exact(['action','id'])&&v.action==='cancel'&&typeof v.id==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(v.id)||exact(['action','kind','text','at'])&&v.action==='create'&&['reminder','alarm'].includes(v.kind)&&typeof v.text==='string'&&v.text.trim().length>0&&v.text.length<=500&&typeof v.at==='string'&&v.at.length<=64&&/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(v.at)&&Number.isFinite(Date.parse(v.at));
+ return false;
+}
+async function createControlApi({ port = 8872, token, readStatus, onCommand, onLook, onScreen, onContent, onHighlight, onMode, readModes, onWorkbench,readContext,readTasks,readRoutines,onRoutine,onStop,onStopTask,readGraph,onGraphSearch,onGraphSource,readIntelCatalog,onIntel,onGuide,clearGuide,readArtcraft,onArtcraft,readAudioOutputs,onAudioOutput,readBluetooth,onBluetooth,readMicrophones,onMicrophone,readVolume,onVolume,readApps,onAppOpen,readWindows,onWindowFocus,readPower,onPower,readReminders,onReminder }) {
   if (typeof token !== 'string' || !token || typeof readStatus !== 'function' || typeof onCommand !== 'function') {
     throw new Error('Invalid control API configuration');
   }
@@ -45,8 +58,9 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
         return reply(401, { error: 'Unauthorized' });
       }
       const action = req.url.slice('/v1/'.length);
-      if (!['status','look','standby','screen','current-content','highlight','mode','modes','workbench','context','tasks','routines','routine','privacy','stop','emergency-stop','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth'].includes(action) && !ACTIONS.has(action)) return reply(404, { error: 'Not found' });
-      if (req.method !== (['status','modes','context','tasks','routines','graph','intel-catalog','artcraft','audio-outputs','bluetooth-devices'].includes(action) ? 'GET' : 'POST')) return reply(405, { error: 'Method not allowed' });
+      if (!['status','look','standby','screen','current-content','highlight','mode','modes','workbench','context','tasks','routines','routine','privacy','stop','emergency-stop','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','power','reminders'].includes(action) && !ACTIONS.has(action)) return reply(404, { error: 'Not found' });
+      const dual=['volume','power','reminders'].includes(action);
+      if (!dual&&req.method !== (['status','modes','context','tasks','routines','graph','intel-catalog','artcraft','audio-outputs','bluetooth-devices','microphones','apps','windows'].includes(action) ? 'GET' : 'POST')||dual&&!['GET','POST'].includes(req.method)) return reply(405, { error: 'Method not allowed' });
       if (Number(req.headers['content-length'] || 0) > MAX_BODY_BYTES) {
         req.resume();
         return reply(413, { error: 'Payload too large' });
@@ -65,6 +79,8 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
         req.on('error', () => reject(Object.assign(new Error('Invalid request'), { status: 400 })));
         req.on('aborted', () => reject(Object.assign(new Error('Invalid request'), { status: 400 })));
       });
+      const everydayRead={microphones:readMicrophones,volume:readVolume,apps:readApps,windows:readWindows,power:readPower,reminders:readReminders}[action];
+      if(req.method==='GET'&&['microphones','volume','apps','windows','power','reminders'].includes(action))return typeof everydayRead==='function'?reply(200,await everydayRead()):reply(503,{error:'Control unavailable'});
       if(action==='bluetooth-devices')return typeof readBluetooth==='function'?reply(200,await readBluetooth()):reply(503,{error:'Bluetooth unavailable'});
       if(action==='audio-outputs')return typeof readAudioOutputs==='function'?reply(200,await readAudioOutputs()):reply(503,{error:'Audio unavailable'});
       if (action === 'status') return reply(200, await readStatus());
@@ -73,6 +89,13 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
       if(['context','tasks','routines','graph','intel-catalog','artcraft'].includes(action))return typeof reader==='function'?reply(200,await reader()):reply(503,{error:'Resource unavailable'});
       let payload;
       try { payload = JSON.parse(body); } catch { return reply(400, { error: 'Invalid JSON' }); }
+      if(['microphone','volume','app-open','window-focus','power','reminders'].includes(action)){
+        if(!validEverydayRequest(action,payload))return reply(400,{error:'Invalid typed control request'});
+        const callback={microphone:onMicrophone,volume:onVolume,'app-open':onAppOpen,'window-focus':onWindowFocus,power:onPower,reminders:onReminder}[action];
+        if(typeof callback!=='function')return reply(503,{error:'Control unavailable'});
+        req.socket.setTimeout(35000);const epoch=controlEpoch,command=commandChain.then(()=>{if(epoch!==controlEpoch)throw Object.assign(new Error('Stopped'),{status:423});return callback(payload);});commandChain=command.catch(()=>{});
+        const result=await command;return reply(200,{ok:['power','reminders'].includes(action)?result.ok===true:result.verified===true,action,result});
+      }
       if(action==='bluetooth'){
         if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.hasOwn(payload,'type')||!validBluetoothCommand({...payload,type:'bluetooth'}))return reply(400,{error:'Expected a typed Bluetooth operation and exact device ID'});
         if(typeof onBluetooth!=='function')return reply(503,{error:'Bluetooth unavailable'});
@@ -180,8 +203,8 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
       commandChain = command.catch(() => {});
       return reply(200, { ok: true, action, ...(action==='standby'?{}:{enabled:payload.enabled}), status: await command });
     } catch (error) {
-      const status = [400,413,423].includes(error?.status)?error.status:500;
-      reply(status, { error: status === 413 ? 'Payload too large' : status === 400 ? 'Invalid request' : status===423?'Local privacy lock is active':'Action failed' });
+      const status = [400,409,413,423].includes(error?.status)?error.status:500;
+      reply(status, { error: status === 413 ? 'Payload too large' : status === 400 ? 'Invalid request' : status===423?'Local privacy lock is active':status===409?'Control conflicts with active work':'Action failed' });
     }
   });
   server.maxHeadersCount = 32;

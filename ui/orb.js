@@ -8,6 +8,12 @@
     if(jobs.some(j=>j.status==='preparing'||j.status==='running'&&j.children?.some(c=>c.status==='running'&&c.phase==='thinking')))return 'thinking';
     return jobs.length?'working':null;
   }
+  function orbCountdown(value,now=Date.now()){
+    if(value?.hidden||!Array.isArray(value?.items))return null;
+    const item=value.items.filter(i=>i&&typeof i.id==='string'&&['reminder','alarm','shutdown','restart'].includes(i.kind)&&Number.isFinite(i.dueAt)&&Number.isFinite(i.startedAt)).sort((a,b)=>a.dueAt-b.dueAt)[0];if(!item)return null;
+    const seconds=Math.max(0,Math.ceil((item.dueAt-now)/1000)),h=Math.floor(seconds/3600),m=Math.floor(seconds%3600/60),ss=String(seconds%60).padStart(2,'0');
+    return {id:item.id,text:h?h+':'+String(m).padStart(2,'0')+':'+ss:String(m).padStart(2,'0')+':'+ss,label:{alarm:'TIMER',reminder:'ERINNERUNG',shutdown:'HERUNTERFAHREN',restart:'NEUSTART'}[item.kind],progress:Math.max(0,Math.min(1,(now-item.startedAt)/Math.max(1000,item.dueAt-item.startedAt)))};
+  }
   function normalizeOrbIntensity(value){return Number.isFinite(value)?Math.max(.4,Math.min(2.4,value)):1;}
   function orbState({phase='ready',speaking=false,capturing=false,looking=false,background=null,now=0,successUntil=0,alertUntil=0}={}){
     if(phase==='offline')return 'offline';if(phase==='error')return 'error';
@@ -23,7 +29,8 @@
   function orbDynamics(state,amplitude=0){
     const energy=clamp(Number.isFinite(amplitude)?amplitude:0,0,1),rest=state==='idle'||state==='offline';
     const speed={idle:.9,listening:1.35,speaking:1.9,thinking:3.4,working:2.5,looking:1.2,success:.8,alert:1.3,error:.8,offline:.45}[state]||.65;
-    return {scale:rest?.62:Math.min(1,(state==='thinking'?.95:state==='working'?.92:.87)+(state==='speaking'?energy*.13:state==='listening'?energy*.08:0)),spread:rest?.7:1,speed};
+    if(state==='speaking')return {scale:.76+energy*.24,spread:.78+energy*.22,speed};
+    return {scale:rest?.62:Math.min(1,(state==='thinking'?.95:state==='working'?.92:.87)+(state==='listening'?energy*.08:0)),spread:rest?.7:1,speed};
   }
   const rgb=hex=>[1,3,5].map(at=>parseInt(hex.slice(at,at+2),16));
   class OrbRenderer{
@@ -40,21 +47,24 @@
     draw(now,{state='idle',amplitude=0,intensity=1}={}){
       const ctx=this.ctx;if(!ctx)return;
       const dt=this.lastTime===null?0:clamp((now-this.lastTime)/1000,0,.05);this.lastTime=now;
-      const smooth=1-Math.exp(-dt*9),target=rgb(this.colors[state]||this.colors.idle);
-      this.color=this.color.map((n,i)=>n+(target[i]-n)*smooth);this.level+=(clamp(amplitude,0,1)-this.level)*smooth;
+      const speaking=state==='speaking',smooth=1-Math.exp(-dt*9),target=rgb(this.colors[state]||this.colors.idle);
+      const measured=clamp(Number.isFinite(amplitude)?amplitude:0,0,1),levelSmooth=speaking?1-Math.exp(-dt*(measured>this.level?32:12)):smooth;
+      this.color=this.color.map((n,i)=>n+(target[i]-n)*smooth);this.level+=(measured-this.level)*levelSmooth;
       this.tilt.x+=(this.pointer.x-this.tilt.x)*smooth;this.tilt.y+=(this.pointer.y-this.tilt.y)*smooth;
       const dynamics=orbDynamics(state,this.level);
-      const sizeSmooth=this.reducedMotion?1:1-Math.exp(-dt*4.5);
+      if(this.reducedMotion&&speaking){dynamics.scale=.87;dynamics.spread=1;}
+      // Short attack and gentle release follow actual syllables, including quiet gaps.
+      const sizeSmooth=this.reducedMotion?1:1-Math.exp(-dt*(speaking?(dynamics.scale>this.size?28:14):4.5));
       this.size+=(dynamics.scale-this.size)*sizeSmooth;this.spread+=(dynamics.spread-this.spread)*sizeSmooth;
       this.speed+=(dynamics.speed-this.speed)*smooth;
       const motion=normalizeOrbIntensity(intensity);
       if(!this.reducedMotion)this.rotation+=dt*this.speed*motion;
-      const t=this.rotation,rest=state==='idle'||state==='offline',breathe=this.reducedMotion?0:Math.sin(now*(rest?.0023:.0038))*(rest?.035:.06)*motion,energy=this.level,excitation=this.reducedMotion?0:['thinking','working'].includes(state)?(.5+.5*Math.sin(t*2.8))*motion:0;
+      const t=this.rotation,rest=state==='idle'||state==='offline',breathe=this.reducedMotion||speaking?0:Math.sin(now*(rest?.0023:.0038))*(rest?.035:.06)*motion,energy=this.reducedMotion&&speaking?0:this.level,excitation=this.reducedMotion?0:['thinking','working'].includes(state)?(.5+.5*Math.sin(t*2.8))*motion:0;
       const color=this.color.map(Math.round).join(','),ink=(alpha=1)=>`rgba(${color},${clamp(alpha,0,1)})`;
       ctx.clearRect(0,0,this.canvas.width,this.canvas.height);ctx.save();ctx.scale(this.canvas.width/400,this.canvas.height/400);ctx.translate(200,200);ctx.scale(this.size,this.size);
       // Transparent atmospheric corona, leaving the desktop visible behind it.
       const corona=ctx.createRadialGradient(0,0,12,0,0,193);
-      corona.addColorStop(0,ink(.17+energy*.12));corona.addColorStop(.45,ink(.055+energy*.05));corona.addColorStop(1,ink(0));ctx.fillStyle=corona;ctx.fillRect(-200,-200,400,400);
+      corona.addColorStop(0,ink(.17+this.level*.12));corona.addColorStop(.45,ink(.055+this.level*.05));corona.addColorStop(1,ink(0));ctx.fillStyle=corona;ctx.fillRect(-200,-200,400,400);
       const arc=(radius,start,end,width=1,alpha=.6)=>{ctx.strokeStyle=ink(alpha);ctx.lineWidth=width;ctx.beginPath();ctx.arc(0,0,radius,start,end);ctx.stroke();};
       const line=(a,b,width,alpha)=>{ctx.strokeStyle=ink(alpha);ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();};
       const project=(x,y,z)=>{
@@ -103,7 +113,7 @@
         const bend=this.reducedMotion?18:18+Math.sin(t*1.1+i)*24*motion+energy*35+excitation*9;
         ctx.beginPath();ctx.moveTo(-106,0);ctx.bezierCurveTo(-46,-bend,39,bend,106,0);ctx.stroke();ctx.restore();
       }
-      const core=28+breathe*95+energy*24+excitation*9;
+      const core=28+breathe*95+energy*(speaking?34:24)+excitation*9;
       const bloom=ctx.createRadialGradient(0,0,2,0,0,core*2.7);bloom.addColorStop(0,'rgba(229,251,255,.9)');bloom.addColorStop(.15,ink(.75));bloom.addColorStop(.42,ink(.16));bloom.addColorStop(1,ink(0));ctx.fillStyle=bloom;ctx.beginPath();ctx.arc(0,0,core*2.7,0,TAU);ctx.fill();
       for(let i=0;i<6;i++)arc(core+7,i*TAU/6-t*.65,i*TAU/6-t*.65+.65,3.2,.67);
       arc(core-2,0,TAU,.8,.62);arc(58+energy*7,t, t+1.8,1.2,.72);arc(64,-t*.7,-t*.7+.8,.8,.4);
@@ -115,7 +125,7 @@
         for(let i=0;i<6;i++){const a=t*(i%2?-.8:1.1)+i;arc(89+i*4+excitation*3,a,a+.45,1.5,.65+excitation*.12);}
       }
       if(['speaking','listening'].includes(state)){
-        for(let i=0;i<40;i++){const a=i*TAU/40,band=this.reducedMotion?0:Math.sin(t*2+i*.65)*4;
+        for(let i=0;i<40;i++){const a=i*TAU/40,band=this.reducedMotion||speaking?0:Math.sin(t*2+i*.65)*4;
           const r=79,end=r+4+energy*(8+Math.sin(i*1.3)**2*23)+band;
           line({x:Math.cos(a)*r,y:Math.sin(a)*r},{x:Math.cos(a)*end,y:Math.sin(a)*end},1.6,.35+energy*.5);
         }
@@ -137,6 +147,6 @@
       ctx.restore();
     }
   }
-  const api={ORB_DEFAULTS,normalizeOrbColors,normalizeOrbIntensity,backgroundOrbState,orbState,orbDynamics,OrbRenderer};
+  const api={ORB_DEFAULTS,normalizeOrbColors,normalizeOrbIntensity,orbCountdown,backgroundOrbState,orbState,orbDynamics,OrbRenderer};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.HermesOrb=api;
 })(typeof window==='object'?window:globalThis);

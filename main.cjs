@@ -27,6 +27,10 @@ const {systemReportIntent,desktopConnection,buildSystemReport}=require('./system
 const {createArtcraft,ARTCRAFT_APPS}=require('./artcraft.cjs');
 const {createWorkbench}=require('./workbench.cjs');
 const {readAppCatalog,launchCatalogApp}=require('./app-catalog.cjs');
+const {createWindowsControl}=require('./windows-control.cjs');
+const {createPowerControl}=require('./power-control.cjs');
+const {createReminders}=require('./reminders.cjs');
+const {everydayIntent}=require('./everyday-intent.cjs');
 const {createContextJournal,redactContext}=require('./context-journal.cjs');
 const {readForegroundContext,createLogWatcher}=require('./context-observer.cjs');
 const {TaskLedger}=require('./task-ledger.cjs');
@@ -126,6 +130,63 @@ function syncPushToTalk(){
   if(!app.isReady()||process.argv.includes('--smoke'))return;
   pttHotkey||=new PushToTalkHotkey({allowed:()=>!config.privacyLocked&&config.pushToTalkEnabled&&connected&&!!conversation?.session&&!conversation.selecting,onEvent:event=>emit('ptt-control',event),onState:value=>{emit('ptt-state',value);if(value.error)emit('notice',{message:value.error});}});
   pttHotkey.set({enabled:config.pushToTalkEnabled&&!config.privacyLocked&&connected&&!!conversation?.session&&!conversation.selecting,key:config.pushToTalkKey});
+}
+let windowsControl,powerControl,remindersControl,everydayInterval,everydayTickRunning=false,microphoneApiRunning=false;
+const reminderAnnouncements=[];
+function getWindowsControl(){return windowsControl||=createWindowsControl();}
+function getPowerControl(){return powerControl||=createPowerControl({file:app.isReady()?path.join(LOCAL,'power-control.json'):null});}
+function getReminders(){return remindersControl||=createReminders({file:app.isReady()?path.join(LOCAL,'reminders.json'):null,onDue:async item=>{
+ if(config.privacyLocked||shuttingDown)throw Error('Erinnerungsausgabe gesperrt');
+ const text=(item.kind==='alarm'?'Wecker: ':'Erinnerung: ')+item.text;
+ emit('reminder',{text,id:item.id,at:item.at});if(Notification.isSupported())new Notification({title:item.kind==='alarm'?'Lilith · Wecker':'Lilith · Erinnerung',body:item.text,silent:false}).show();
+ reminderAnnouncements.push(text);
+}});}
+async function everydayTick(){
+ if(everydayTickRunning||shuttingDown)return;everydayTickRunning=true;
+ try{if(!config.privacyLocked){await getPowerControl().tick();if(config.privacyLocked||shuttingDown)return;await getReminders().tick({allowed:()=>!config.privacyLocked&&!shuttingDown});if(config.privacyLocked||shuttingDown)return;if(reminderAnnouncements.length&&!speechLaneBusy()&&!clientSpeaking&&!clientListening&&!ttsPending){const text=reminderAnnouncements.shift();emit('local-reply',{text});speak(text);}}}catch{emit('notice',{message:'Eine geplante lokale Aktion konnte nicht geprüft werden.'});}finally{everydayTickRunning=false;publishTimers();}
+}
+function desktopApiAccess(jobId){
+ requireLocalAccess();const active=getBackgroundJobs().jobs.filter(j=>['preparing','running','stopping','outcome-unknown'].includes(j.status)&&j.resource==='desktop');
+ if(active.length&&(active.length!==1||active[0].id!==jobId||active[0].status!=='running'))throw Object.assign(Error('Desktop belegt'),{status:409});
+}
+async function runApiDevice(action){
+ requireLocalAccess();if(localCommandRunning||apiDeviceRunning||conversation?.selecting)throw Object.assign(Error('Geräteaktion läuft'),{status:409});
+ const selected=conversation?.session,generation=safetyGeneration,controller=new AbortController();apiDeviceRunning=true;localCommandAbort=controller;
+ try{const result=await action({signal:controller.signal});controller.signal.throwIfAborted();requireLocalAccess();if(selected!==conversation?.session||generation!==safetyGeneration)throw Object.assign(Error('Auftrag geändert'),{status:409});return result;}finally{if(localCommandAbort===controller)localCommandAbort=null;apiDeviceRunning=false;scheduleJobs();}
+}
+async function readMicrophones(){requireLocalAccess();const result=await clientControl('microphones');requireLocalAccess();if(!Array.isArray(result?.devices)||result.devices.some(d=>!validMicrophoneDeviceId(d.deviceId)||!validMicrophoneLabel(d.label)))throw Error('Ungültige Mikrofonliste');return result;}
+async function apiMicrophone({deviceId}){
+ requireLocalAccess();if(microphoneApiRunning)throw Object.assign(Error('Mikrofonwechsel läuft'),{status:409});microphoneApiRunning=true;
+ const previous={microphoneDeviceId:config.microphoneDeviceId,microphoneDeviceLabel:config.microphoneDeviceLabel},generation=safetyGeneration;
+ try{
+  const list=await readMicrophones(),selected=deviceId?list.devices.find(d=>d.deviceId===deviceId):{deviceId:'',label:''};if(!selected)throw Object.assign(Error('Mikrofon nicht verfügbar'),{status:400});requireLocalAccess();if(generation!==safetyGeneration)throw Error('Wechsel gestoppt');
+  config.microphoneDeviceId=selected.deviceId;config.microphoneDeviceLabel=selected.label;saveConfig();
+  const result=await clientControl('microphone',deviceId,20000);requireLocalAccess();if(generation!==safetyGeneration||config.microphoneDeviceId!==deviceId||result?.deviceId!==deviceId)throw Error('Mikrofon nicht bestätigt');
+  emit('settings-config',{settings:config});return {verified:true,status:'completed',message:'Mikrofon gewählt: '+(selected.label||'Windows-Standard'),...result};
+ }catch(error){if(config.microphoneDeviceId===deviceId){Object.assign(config,previous);saveConfig();if(!config.privacyLocked&&!shuttingDown)try{await clientControl('microphone',previous.microphoneDeviceId,15000);}catch{}emit('settings-config',{settings:config});}throw error;}finally{microphoneApiRunning=false;}
+}
+async function readVolume(){requireLocalAccess();const r=await getDirectCommands().observe({type:'volume',action:'set',value:0}),e=r?.evidence,v=e?.after;requireLocalAccess();if(e?.accepted!==true||!v||!Number.isFinite(v.level)||v.level<0||v.level>100||typeof v.muted!=='boolean')throw Error('Lautstärke nicht lesbar');return {level:v.level,muted:v.muted,endpointId:v.endpointId,observedAt:e.observedAt};}
+async function apiVolume(value){return runApiDevice(o=>getDirectCommands().execute({type:'volume',...value},o));}
+async function apiAppOpen({appId,jobId}){desktopApiAccess(jobId);const generation=safetyGeneration,selected=conversation?.session;const row=(await readAppCatalog()).find(a=>a.id===appId);if(generation!==safetyGeneration||selected!==conversation?.session)throw Object.assign(Error('App-Auftrag wurde gestoppt oder geändert'),{status:409});if(!row)throw Object.assign(Error('App nicht im Katalog'),{status:400});return runApiDevice(o=>{desktopApiAccess(jobId);return getDirectCommands().execute({type:'app.open',app:{id:row.id,name:row.name}},o);});}
+async function apiWindowFocus({jobId,...target}){desktopApiAccess(jobId);return runApiDevice(o=>{desktopApiAccess(jobId);return getWindowsControl().focus(target,o);});}
+function timerSnapshot(){
+ if(config.privacyLocked)return {items:[],hidden:true};
+ const items=getReminders().list().filter(i=>i.status==='pending').map(i=>({id:i.id,kind:i.kind,dueAt:Date.parse(i.at),startedAt:i.createdAt})),p=getPowerControl().read();
+ if(p.cancellable&&['scheduled','due'].includes(p.status))items.push({id:'power-'+p.requestedAt,kind:p.action,dueAt:p.dueAt,startedAt:p.requestedAt});return {items};
+}
+function publishTimers(){emit('timers-update',{timers:timerSnapshot()});}
+function readReminders(){requireLocalAccess();return getReminders().read();}
+function apiReminder(value){requireLocalAccess();const result=getReminders().execute(value);publishTimers();return result;}
+async function apiPower(value){if(value.action!=='cancel')requireLocalAccess();const result=await getPowerControl().execute(value);publishTimers();return result;}
+async function executeEveryday(intent,options){
+ let result,text;
+ if(intent.type==='microphone'){
+  const list=await readMicrophones(),target=intent.target.toLocaleLowerCase('de-DE'),matches=list.devices.filter(d=>!['default','communications'].includes(d.deviceId)&&(target.includes('headset')?/corsair|headset/i.test(d.label):/tisch|sennheiser/i.test(target)?/sennheiser/i.test(d.label):d.label.toLocaleLowerCase('de-DE').includes(target)));
+  if(matches.length!==1)throw Error('Bitte das Mikrofon eindeutig benennen oder in Audio auswählen.');result=await apiMicrophone({deviceId:matches[0].deviceId});text=result.message;
+ }else if(intent.type==='power'){
+  result=await apiPower(intent.command);text=result.ok?intent.command.action==='cancel'?'Countdown abgebrochen, Boss.':(intent.command.action==='shutdown'?'Herunterfahren':'Neustart')+' in '+intent.command.delaySeconds+' Sekunden geplant, Boss.':result.error;
+ }else{result=apiReminder(intent.command);text=result.ok?'Alles klar, ich erinnere dich, Boss.':result.error;}
+ emit('local-reply',{text});if(options?.speak!==false)speak(text);return result;
 }
 function getJobs(){return jobQueue||=new JobQueue({file:app.isReady()?path.join(LOCAL,process.argv.includes('--smoke')?'smoke-jobs.json':'jobs.json'):null,onChange:value=>emit('job-update',{jobQueue:value})});}
 function backgroundOwner(){const selected=conversation?.session;return selected?{sessionId:selected.storedId||selected.id,runtimeId:selected.id,profile:selected.profile||'default'}:null;}
@@ -376,6 +437,7 @@ async function readAndSubmitContent(value){
 }
 async function stopCurrentTask(value={}){
   if(value.sessionId&&value.sessionId!==conversation?.session?.id)throw Error('Die Session hat sich geändert.');
+  if(powerControl?.read().cancellable)await powerControl.execute({action:'cancel'});
   taskWaitFeedback.finish();safetyGeneration++;controlApi?.invalidateControls?.();getJobs().pauseAll('Auf deinen Stopp angehalten.');
   for(const job of getJobs().list())if(job.status==='queued')getJobs().cancel(job.id);
   cancelCurrentContent();intelGeneration++;intelAbort?.abort();intelAbort=null;projectGraph.cancel();clearVisualGuide();
@@ -547,6 +609,7 @@ const safety=new LocalSafety({initialLocked:config.privacyLocked,onChange:value=
   if(config.privacyLocked!==value.locked){taskWaitFeedback.finish();safetyGeneration++;controlApi?.invalidateControls?.();}
   config.privacyLocked=value.locked;emit('privacy-state',{locked:value.locked,reason:value.reason});saveConfig();
 },quiesce:async()=>{
+  if(powerControl?.read().cancellable)await powerControl.execute({action:'cancel'});
   forgetStandby();
   cancelCurrentContent({clear:true});
   pttHotkey?.close();localCommandAbort?.abort();
@@ -587,7 +650,7 @@ function clientControl(action,enabled,timeoutMs=15000){
     pendingControls.set(id,{resolve,reject,timer,action,enabled});emit('control-request',{id,action,enabled,sessionId:conversation?.session?.id||null,settings:config});
   });
 }
-function controlStatus(){return {connected,status,background:backgroundSnapshot(),reasoning:conversation?.reasoningState||null,privacy:safety.snapshot(),context:{enabled:config.contextEnabled,project:config.projectName},task:tasks.view(),conversationBusy:speechLaneBusy(),busy:!!(speechLaneBusy()||cameraLooking||screenLooking||contentLooking||backgroundJobs?.jobs.some(j=>['preparing','running','stopping','outcome-unknown'].includes(j.status))),session:conversation?.session?.title||null,camera:{enabled:config.cameraEnabled,active:clientInfo.cameraActive,deviceId:clientInfo.cameraDeviceId||config.cameraDeviceId,label:clientInfo.cameraLabel||null,recognize:config.cameraRecognize,greetings:config.cameraGreetings},screen:{enabled:config.screenEnabled,looking:screenLooking,sourceId:config.screenSourceId},mode:activeMode?{id:activeMode.id,name:activeMode.name,ok:activeMode.ok}:null,live:{active:clientInfo.live,microphoneActive:clientInfo.microphoneActive,audioContextState:clientInfo.audioContextState},wakewords:{enabled:config.wakeWord,ready:wakeReady,armed:clientInfo.wakeArmed,inLive:clientInfo.live&&config.wakeWord},microphoneLevel:clientInfo.micLevel,standby:{active:config.standbyActive,cameraWillResume:config.standbyCameraEnabled},system:currentSystemReport(),workbench:{visible:workbench?.visible===true,presentation:workbench?.presentation||{owner:null,reason:'',requestId:null}},startup:startupSnapshot(app,ROOT)};}
+function controlStatus(){return {connected,status,timers:timerSnapshot(),background:backgroundSnapshot(),reasoning:conversation?.reasoningState||null,privacy:safety.snapshot(),context:{enabled:config.contextEnabled,project:config.projectName},task:tasks.view(),conversationBusy:speechLaneBusy(),busy:!!(speechLaneBusy()||cameraLooking||screenLooking||contentLooking||backgroundJobs?.jobs.some(j=>['preparing','running','stopping','outcome-unknown'].includes(j.status))),session:conversation?.session?.title||null,camera:{enabled:config.cameraEnabled,active:clientInfo.cameraActive,deviceId:clientInfo.cameraDeviceId||config.cameraDeviceId,label:clientInfo.cameraLabel||null,recognize:config.cameraRecognize,greetings:config.cameraGreetings},screen:{enabled:config.screenEnabled,looking:screenLooking,sourceId:config.screenSourceId},mode:activeMode?{id:activeMode.id,name:activeMode.name,ok:activeMode.ok}:null,live:{active:clientInfo.live,microphoneActive:clientInfo.microphoneActive,audioContextState:clientInfo.audioContextState},wakewords:{enabled:config.wakeWord,ready:wakeReady,armed:clientInfo.wakeArmed,inLive:clientInfo.live&&config.wakeWord},microphoneLevel:clientInfo.micLevel,standby:{active:config.standbyActive,cameraWillResume:config.standbyCameraEnabled},system:currentSystemReport(),workbench:{visible:workbench?.visible===true,presentation:workbench?.presentation||{owner:null,reason:'',requestId:null}},startup:startupSnapshot(app,ROOT)};}
 async function observeCamera(frame,question,generation,sessionId){
   validateFrame(frame?.image);
   if(!frame.source||typeof frame.source.deviceId!=='string'||(config.cameraDeviceId&&frame.source.deviceId!==config.cameraDeviceId))throw new Error('Kamera-Quelle stimmt nicht mit der ausgewählten Kamera überein.');
@@ -616,7 +679,7 @@ async function startControlApi(){
   try{const previous=JSON.parse(fs.readFileSync(file,'utf8'));if(/^[a-f0-9]{64}$/.test(previous.token))token=previous.token;}catch{}
   token||=crypto.randomBytes(32).toString('hex');
   const {createControlApi}=require('./control-api.cjs');
-  controlApi=await createControlApi({readBluetooth:()=>getBluetooth().read(),onBluetooth:apiBluetooth,readAudioOutputs,onAudioOutput:apiAudioOutput,readArtcraft:craftSummary,onArtcraft:async(action,value)=>{const result=await craftAction(action.replace('artcraft-','craft-'),value);const {preview,...summary}=result;return summary;},readGraph:graphSummary,onGraphSearch:query=>graphSearch(query,{forAgent:true}),onGraphSource:id=>{requireLocalAccess();return projectGraph.readSource(id);},readIntelCatalog:()=>osiris.catalog(),onIntel:value=>queryIntel(value,{forAgent:true}),onGuide:showGuidance,clearGuide:clearVisualGuide,token,readStatus:controlStatus,readContext:contextSnapshot,readTasks:()=>tasks.list(),readRoutines:()=>config.routines.map(({id,name,verification})=>({id,name,verification})),onRoutine:id=>runRoutine(id,{prepareOnly:!!conversation?.busy}),onStop:emergencyStop,onStopTask:()=>stopCurrentTask({speak:false}),onContent:value=>lookCurrentContent(value,{forAgent:true}),onLook:lookCurrentCamera,onScreen:lookCurrentScreen,onHighlight:showHighlight,readModes:()=>config.modes,onMode:id=>activateMode(id),onWorkbench:async value=>{if(value.enabled)requireLocalAccess();const w=ensureWorkbench();if(value.agent){if(!value.enabled)return w.release(value.requestId);return w.present({tab:value.url?'browser':value.tab||'system',...(value.url?{url:value.url}:{}),...(value.requestId?{requestId:value.requestId}:{}),reason:value.reason||'Lilith arbeitet hier'});}if(!value.enabled){w.hide();return {closed:true};}await w.show({tab:value.url?'browser':value.tab||'system',...(value.url?{url:value.url}:{})});return {shown:true,owner:'user'};},onCommand:async(action,enabled)=>{
+  controlApi=await createControlApi({readMicrophones,onMicrophone:apiMicrophone,readVolume,onVolume:apiVolume,readApps:async()=>{requireLocalAccess();const apps=await readAppCatalog();requireLocalAccess();return {apps};},onAppOpen:apiAppOpen,readWindows:async()=>{requireLocalAccess();const result=await getWindowsControl().read();requireLocalAccess();return result;},onWindowFocus:apiWindowFocus,readPower:()=>getPowerControl().read(),onPower:apiPower,readReminders,onReminder:apiReminder,readBluetooth:()=>getBluetooth().read(),onBluetooth:apiBluetooth,readAudioOutputs,onAudioOutput:apiAudioOutput,readArtcraft:craftSummary,onArtcraft:async(action,value)=>{const result=await craftAction(action.replace('artcraft-','craft-'),value);const {preview,...summary}=result;return summary;},readGraph:graphSummary,onGraphSearch:query=>graphSearch(query,{forAgent:true}),onGraphSource:id=>{requireLocalAccess();return projectGraph.readSource(id);},readIntelCatalog:()=>osiris.catalog(),onIntel:value=>queryIntel(value,{forAgent:true}),onGuide:showGuidance,clearGuide:clearVisualGuide,token,readStatus:controlStatus,readContext:contextSnapshot,readTasks:()=>tasks.list(),readRoutines:()=>config.routines.map(({id,name,verification})=>({id,name,verification})),onRoutine:id=>runRoutine(id,{prepareOnly:!!conversation?.busy}),onStop:emergencyStop,onStopTask:()=>stopCurrentTask({speak:false}),onContent:value=>lookCurrentContent(value,{forAgent:true}),onLook:lookCurrentCamera,onScreen:lookCurrentScreen,onHighlight:showHighlight,readModes:()=>config.modes,onMode:id=>activateMode(id),onWorkbench:async value=>{if(value.enabled)requireLocalAccess();const w=ensureWorkbench();if(value.agent){if(!value.enabled)return w.release(value.requestId);return w.present({tab:value.url?'browser':value.tab||'system',...(value.url?{url:value.url}:{}),...(value.requestId?{requestId:value.requestId}:{}),reason:value.reason||'Lilith arbeitet hier'});}if(!value.enabled){w.hide();return {closed:true};}await w.show({tab:value.url?'browser':value.tab||'system',...(value.url?{url:value.url}:{})});return {shown:true,owner:'user'};},onCommand:async(action,enabled)=>{
     if(action==='privacy')return setPrivacy(true);
     if(enabled)requireLocalAccess();
     if(action==='standby')return enterStandby({announce:false});
@@ -669,8 +732,8 @@ function validVoice(voice){return voiceNames.includes(voice)||(voice==='referenc
 if(config.voice==='reference'){if(!referenceVoiceReady())config.voice='dark';else config.delivery='normal';}
 const wakeGreetings=['Ja?','Ich bin hier. Was liegt an?','Lilith einsatzbereit. Was kann ich für dich tun, Boss?'];
 function emit(type,data={}) {workbench?.publish({type,...data});if(win&&!win.isDestroyed())win.webContents.send('companion:event',{type,...data});}
-function state(next,message) {status=next;detail=message || '';const data={status,detail,background:backgroundSnapshot(),busy:speechLaneBusy(),connected,session:conversation?.session||null,approval,privacyLocked:config.privacyLocked};emit('state',data);fs.writeFileSync(path.join(LOCAL,process.argv.includes('--smoke')?'smoke-status.json':'status.json'),JSON.stringify(data,null,2));}
-function snapshot(){return {status,detail,connected,background:backgroundSnapshot(),busy:speechLaneBusy(),session:conversation?.session||null,sessions:sessionRows,sample,settings:config,privacyLocked:config.privacyLocked,context:contextSnapshot(),tasks:tasks.list(),jobQueue:getJobs().snapshot(),awareness:awarenessSnapshot(),teach:teach.snapshot(),voiceTiming:voiceTiming.snapshot(),routines:config.routines,currentContent:config.privacyLocked?null:currentContent,startup:startupSnapshot(app,ROOT),camera:{profiles:cameraProfiles,scene:cameraScene,looking:cameraLooking,active:clientInfo.cameraActive},screen:{looking:screenLooking,scene:screenScene},mode:activeMode,hud:hudActivity.view(),approval,wakeReady,wakeArmed:clientInfo.wakeArmed,vadReady,systemReport:currentSystemReport(),workbenchVisible:workbench?.visible===true,referenceVoiceReady:referenceVoiceReady(),voiceReady:fs.existsSync(path.join(ROOT,'runtime/voice/build/tts-server.exe')),sttReady:fs.existsSync(path.join(ROOT,'runtime/stt/models/ggml-large-v3-turbo.bin'))};}
+function state(next,message) {status=next;detail=message || '';const data={status,detail,timers:timerSnapshot(),background:backgroundSnapshot(),busy:speechLaneBusy(),connected,session:conversation?.session||null,approval,privacyLocked:config.privacyLocked};emit('state',data);fs.writeFileSync(path.join(LOCAL,process.argv.includes('--smoke')?'smoke-status.json':'status.json'),JSON.stringify(data,null,2));}
+function snapshot(){return {status,detail,connected,timers:timerSnapshot(),background:backgroundSnapshot(),busy:speechLaneBusy(),session:conversation?.session||null,sessions:sessionRows,sample,settings:config,privacyLocked:config.privacyLocked,context:contextSnapshot(),tasks:tasks.list(),jobQueue:getJobs().snapshot(),awareness:awarenessSnapshot(),teach:teach.snapshot(),voiceTiming:voiceTiming.snapshot(),routines:config.routines,currentContent:config.privacyLocked?null:currentContent,startup:startupSnapshot(app,ROOT),camera:{profiles:cameraProfiles,scene:cameraScene,looking:cameraLooking,active:clientInfo.cameraActive},screen:{looking:screenLooking,scene:screenScene},mode:activeMode,hud:hudActivity.view(),approval,wakeReady,wakeArmed:clientInfo.wakeArmed,vadReady,systemReport:currentSystemReport(),workbenchVisible:workbench?.visible===true,referenceVoiceReady:referenceVoiceReady(),voiceReady:fs.existsSync(path.join(ROOT,'runtime/voice/build/tts-server.exe')),sttReady:fs.existsSync(path.join(ROOT,'runtime/stt/models/ggml-large-v3-turbo.bin'))};}
 function saveConfig(){fs.writeFileSync(path.join(LOCAL,process.argv.includes('--smoke')?'smoke-settings.json':'settings.json'),JSON.stringify(config,null,2));}
 function syncStartup(){return syncLoginStartup(app,{root:ROOT,enabled:config.autoStart,smoke:process.argv.includes('--smoke')});}
 function stopSpeech(){const stoppedGeneration=speechGeneration;speechGeneration++;taskStartAnnouncement=null;speechController?.abort();speechController=null;emit('audio-stop',{stoppedGeneration,turnId:currentTurnId});ttsPending=0;emit('speech-pending',{pending:0,generation:speechGeneration});buffer=new SentenceBuffer();speechChain=Promise.resolve();}
@@ -881,6 +944,7 @@ async function submit(text,options){
   if(/^(?:zeige|öffne)(?: das| die)? (?:lagebild|gedächtnis|aufgaben|zeitleiste)$/.test(command)){await ensureWorkbench().show('context');if(options?.speak!==false){beginLocalTurn(options?.turnId);const text='Lagebild geöffnet, Boss.';emit('local-reply',{text});speak(text);}return;}
   requireLocalAccess();
   if(options?.sessionId&&options.sessionId!==conversation?.session?.id)throw Error('Die Session hat sich seit der Aufnahme geändert.');
+  const everyday=!options?.queuedJob&&!options?.fromContent?everydayIntent(text):null;if(everyday)return executeEveryday(everyday,options);
   const stopTarget=/^(?:stoppe?|beende)\b/iu.test(command)&&backgroundOwner()?getBackgroundJobs().target(text,backgroundOwner()):null;if(stopTarget){const result=await stopBackgroundJob(stopTarget);const message=result.confirmed?'Stopp angefordert, Boss.':'Der Stopp ist noch nicht bestätigt.';emit('local-reply',{text:message});if(options?.speak!==false)speak(message);return result;}
   if(!options?.queuedJob&&!options?.fromContent&&!backgroundIntent(text)){const content=currentContentIntent(text);if(content)return readAndSubmitContent({...content,...options});const mode=modeIntent(text,config.modes);if(mode)return activateMode(mode,{submitInstructions:true,turnId:options?.turnId,speak:options?.speak!==false});}
   if(/^(?:zeige|öffne)(?: die| den)? (?:artcraft|kreativwerkstatt)$/.test(command)){await ensureWorkbench().show('artcraft');if(options?.speak!==false)speak('Artcraft geöffnet, Boss.');return;}
@@ -1109,7 +1173,7 @@ function registerHandlers(){
     'bluetooth':(_e,value)=>{if(conversation?.busy)throw Error('Ein Auftrag läuft noch.');return apiBluetooth(value);},
     'audio-outputs':()=>readAudioOutputs(),
     'audio-output':(_e,value)=>{if(!value||Object.keys(value).length!==1||!validAudioTarget(value.target))throw Error('Ungültige Audioausgabe.');if(conversation?.busy)throw Error('Ein Auftrag läuft noch.');return apiAudioOutput(value.target);},
-    'control-ack':(_e,value)=>{const pending=pendingControls.get(value?.id);if(!pending)return;clearTimeout(pending.timer);pendingControls.delete(value.id);const actual=pending.action==='privacy'?value.state?.privacyLocked:pending.action==='camera'?value.state?.cameraActive:pending.action==='live'?value.state?.live:config.wakeWord;const mismatch=pending.action==='privacy'&&pending.enabled?actual!==true||['live','microphoneActive','cameraActive','wakeArmed'].some(key=>value.state?.[key]!==false):pending.action==='standby'?value.state?.live!==false||value.state?.cameraActive!==false||!value.state?.microphoneActive||!config.wakeWord:pending.action==='wake-resume'?value.state?.live!==true||value.state?.cameraActive!==config.cameraEnabled:!['look','screen','audio-output'].includes(pending.action)&&actual!==pending.enabled;if(value.error||mismatch)pending.reject(new Error(value.error||'Oberfläche konnte die Änderung nicht anwenden.'));else{clientInfo={...clientInfo,...value.state};pending.resolve(value.result);}},
+    'control-ack':(_e,value)=>{const pending=pendingControls.get(value?.id);if(!pending)return;clearTimeout(pending.timer);pendingControls.delete(value.id);const actual=pending.action==='privacy'?value.state?.privacyLocked:pending.action==='camera'?value.state?.cameraActive:pending.action==='live'?value.state?.live:config.wakeWord;const mismatch=pending.action==='privacy'&&pending.enabled?actual!==true||['live','microphoneActive','cameraActive','wakeArmed'].some(key=>value.state?.[key]!==false):pending.action==='standby'?value.state?.live!==false||value.state?.cameraActive!==false||!value.state?.microphoneActive||!config.wakeWord:pending.action==='wake-resume'?value.state?.live!==true||value.state?.cameraActive!==config.cameraEnabled:!['look','screen','audio-output','microphones','microphone'].includes(pending.action)&&actual!==pending.enabled;if(value.error||mismatch)pending.reject(new Error(value.error||'Oberfläche konnte die Änderung nicht anwenden.'));else{clientInfo={...clientInfo,...value.state};pending.resolve(value.result);}},
     standby:(_e,value)=>enterStandby({sessionId:value?.sessionId,turnId:value?.turnId}),
     'wake-resume':(_e,value)=>resumeStandby({sessionId:value?.sessionId}),
     'voice-timing':(_e,value)=>{if(!value||typeof value!=='object')return false;const accepted=voiceTiming.mark(value.turnId,value.stage,value.at);if(accepted){if(value.stage==='playback-end')voiceTiming.finish(value.turnId,'complete');emit('voice-timing',{summary:voiceTiming.snapshot().summary});}return accepted;},
@@ -1281,7 +1345,7 @@ function registerHandlers(){
   });
   return actions;
 }
-app.on('before-quit',()=>{shuttingDown=true;taskWaitFeedback.finish();pttHotkey?.close();localCommandAbort?.abort();clearTimeout(jobPumpTimer);cancelCurrentContent({clear:true});circleController?.dispose();artcraftController?.dispose();guideController?.dispose();projectGraph.dispose();intelAbort?.abort();resetContextObserver();workbench?.destroy();clearInterval(interval);clearInterval(contextInterval);clearInterval(hudInterval);clearTimeout(markerTimer);screenAbort?.abort();hudWindow?.destroy();markerWindow?.destroy();controlApi?.close();for(const pending of pendingControls.values()){clearTimeout(pending.timer);pending.reject(new Error('Voice-App wurde beendet.'));}pendingControls.clear();cameraService?.close();stopSpeech();gateway?.close();if(app.isReady())globalShortcut.unregisterAll();for(const child of children)child.kill();});
+app.on('before-quit',()=>{shuttingDown=true;taskWaitFeedback.finish();pttHotkey?.close();localCommandAbort?.abort();clearTimeout(jobPumpTimer);cancelCurrentContent({clear:true});circleController?.dispose();artcraftController?.dispose();guideController?.dispose();projectGraph.dispose();intelAbort?.abort();resetContextObserver();workbench?.destroy();clearInterval(interval);clearInterval(everydayInterval);clearInterval(contextInterval);clearInterval(hudInterval);clearTimeout(markerTimer);screenAbort?.abort();hudWindow?.destroy();markerWindow?.destroy();controlApi?.close();for(const pending of pendingControls.values()){clearTimeout(pending.timer);pending.reject(new Error('Voice-App wurde beendet.'));}pendingControls.clear();cameraService?.close();stopSpeech();gateway?.close();if(app.isReady())globalShortcut.unregisterAll();for(const child of children)child.kill();});
 if(!app.requestSingleInstanceLock()){app.quit();}else{
   app.on('second-instance',(_event,argv)=>{win?.show();expand(true);if(argv?.includes('--login'))void login().catch(error=>emit('notice',{message:error.message}));});
   app.whenReady().then(async()=>{
@@ -1313,7 +1377,7 @@ if(!app.requestSingleInstanceLock()){app.quit();}else{
     globalShortcut.register('Control+Alt+Escape',()=>void emergencyStop().catch(error=>emit('notice',{message:error.message})));
     globalShortcut.register('Control+Alt+P',()=>void setPrivacy(!config.privacyLocked).catch(error=>emit('notice',{message:error.message})));
     if(process.argv.includes('--expanded'))expand(true);
-    void startControlApi().catch(error=>emit('notice',{message:'Steuerungs-API: '+error.message}));void startEngines();void warmCameraVision();void connect().then(()=>{if(process.argv.includes('--login')&&!connected)void login();});void tick();interval=setInterval(()=>void tick(),15000);
+    void startControlApi().catch(error=>emit('notice',{message:'Steuerungs-API: '+error.message}));void startEngines();void warmCameraVision();void connect().then(()=>{if(process.argv.includes('--login')&&!connected)void login();});void tick();interval=setInterval(()=>void tick(),15000);everydayInterval=setInterval(()=>void everydayTick(),1000);everydayInterval.unref?.();
     contextInterval=setInterval(()=>void observeContext(),5000);void observeContext();
     if(process.argv.includes('--smoke')&&!process.argv.includes('--smoke-manual'))setTimeout(async()=>{expand(true);await new Promise(resolve=>setTimeout(resolve,1000));const image=await win.webContents.capturePage();fs.writeFileSync(path.join(LOCAL,'app-smoke.png'),image.toPNG());fs.writeFileSync(path.join(LOCAL,'smoke.json'),JSON.stringify(snapshot(),null,2));app.quit();},6500);
   });

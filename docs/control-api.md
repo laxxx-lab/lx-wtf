@@ -240,3 +240,56 @@ gedacht.
 
 
 Artcraft: `GET /v1/artcraft`, `POST /v1/artcraft-select`, `/v1/artcraft-open` mit `{appId}`; `/v1/artcraft-link` mit `{appId,port,tokenFile?}` bzw. Pdf `{appId:"pdf",endpointFile}`. Siehe [Artcraft](artcraft.md). Workbench-Tab `artcraft` ist verfügbar. Keine Vorschau-Bytes in HTTP-Antworten.
+
+## Mikrofon, Lautstärke und Apps/Fenster
+
+Authentifizierung, Loopback und Origin-Sperre gelten unverändert.
+
+| Endpunkt | Methode / exakt erlaubter Body |
+|---|---|
+| `/v1/microphones` | GET; frische Browser-Input-IDs/Labels, Auswahl und aktiv |
+| `/v1/microphone` | POST `{deviceId:"<ID>"}`; leere ID bewusst Windows-Standard |
+| `/v1/volume` | GET; oder POST `{action:"set",value:25}` / `{action:"up"}` / down/mute/unmute |
+| `/v1/apps` | GET; vorhandener Windows-App-Katalog |
+| `/v1/app-open` | POST `{appId:"<apps[].id>"}` |
+| `/v1/windows` | GET; frische Fenster-ID, PID, Prozessstart, Titel/App |
+| `/v1/window-focus` | POST `{id:"<HWND>",pid:123,processStartedAt:"<unverändertes ISO>"}` |
+
+POST meldet `ok=true` nur mit `result.verified=true`; angenommene App-Starts
+oder Fokusversuche ohne tatsächlichen Fenster-/Vordergrundbeleg bleiben
+unverifiziert. Keine freien Exe-Argumente oder Shellbefehle. Für reservierte
+Desktop-Aufträge ist zusätzlich `jobId` bei app-open/window-focus nötig;
+Fremdaufträge ergeben HTTP409. Mikrofonwechsel wartet auf Rendererbestätigung,
+behält Live/Wake und stellt bei Fehler die vorherige Auswahl zurück. Bei
+Privacy werden diese Aktionen gesperrt. Details: [Mikrofon](microphone.md),
+[Fenster](windows-control.md).
+
+## Zeitaufträge
+
+GET `/v1/power` und `/v1/reminders` liefern eigene Timer bzw. Erinnerungen.
+POST `/v1/power`: exakt `{action:"shutdown"|"restart",delaySeconds:30..86400}`
+oder `{action:"cancel"}`. POST `/v1/reminders`: exakt
+`{action:"create",kind:"reminder"|"alarm",text:"...",at:"ISO mit Zeitzone"}`
+oder `{action:"cancel",id:"UUID"}`. Bei Planung bedeutet `ok=true` nur, dass
+lokal gespeichert/geplant wurde. Power benötigt bis zur Fälligkeit laufende
+App und wird nach deren Neustart nicht wiederholt; fällige Erinnerungen werden
+nachgeholt. Datenschutz hält Erinnerungen zurück und bricht Power ab.
+Not-Aus/gewöhnlicher Stopp brechen einen eigenen Power-Timer ab. Keine globale
+Windows-Timeränderung und kein erzwungenes Schließen. Details:
+[Power/Erinnerungen](power-and-reminders.md).
+
+```powershell
+.\control.ps1 -Action microphones
+.\control.ps1 -Action microphone -DeviceId '<aktuelle Eingangs-ID>'
+.\control.ps1 -Action volume -Operation set -Value 25
+.\control.ps1 -Action apps
+.\control.ps1 -Action app-open -AppId '<aktuelle Katalog-ID>'
+.\control.ps1 -Action windows
+.\control.ps1 -Action power -Operation restart -DelaySeconds 600
+.\control.ps1 -Action power -Operation cancel
+.\control.ps1 -Action reminders -Operation create -Kind reminder -Text 'Pause' -At '2026-10-12T18:00:00+02:00'
+```
+
+Direkte Sprache wie „Wechsle zum Tischmikrofon“, „Erinnere mich in 10 Minuten
+an eine Pause“, „Stelle einen Timer auf 5 Minuten“ und „Fahre den PC in
+10 Minuten herunter“ wird bei eindeutigem Wortlaut lokal ausgeführt.

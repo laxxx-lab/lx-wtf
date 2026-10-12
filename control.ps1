@@ -1,10 +1,20 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('status', 'camera', 'live', 'wakewords', 'look', 'standby', 'screen', 'current-content', 'modes', 'mode', 'highlight', 'workbench','privacy','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth')]
+    [ValidateSet('status', 'camera', 'live', 'wakewords', 'look', 'standby', 'screen', 'current-content', 'modes', 'mode', 'highlight', 'workbench','privacy','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','power','reminders')]
     [string]$Action = 'status',
     [ValidateLength(1,100)][string]$Target,
-    [ValidateSet('radio','scan','connect','disconnect','pair','audio')][string]$Operation,
-    [ValidateLength(1,200)][string]$DeviceId,
+    [ValidateSet('radio','scan','connect','disconnect','pair','audio','set','up','down','mute','unmute','shutdown','restart','cancel','create')][string]$Operation,
+    [ValidateLength(0,256)][string]$DeviceId,
+    [ValidateRange(0,100)][int]$Value,
+    [ValidateLength(1,500)][string]$AppId,
+    [ValidatePattern('^[1-9][0-9]{0,19}$')][string]$WindowId,
+    [ValidateRange(1,2147483647)][int]$ProcessId,
+    [ValidateLength(1,64)][string]$ProcessStartedAt,
+    [ValidatePattern('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$')][string]$JobId,
+    [ValidateRange(30,86400)][int]$DelaySeconds,
+    [ValidateLength(1,64)][string]$At,
+    [ValidateLength(1,500)][string]$Text,
+    [ValidatePattern('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$')][string]$ReminderId,
     [ValidateSet('photo','vector','design','deck','grid','word','cad','light','sound','effect','film','pdf')][string]$App,
     [ValidateRange(1,65535)][int]$Port,
     [string]$TokenFile,
@@ -17,7 +27,7 @@ param(
     [switch]$Agent,
     [ValidateLength(1,80)][ValidatePattern('^[A-Za-z0-9_-]{1,80}$')][string]$RequestId,
     [ValidateLength(0,160)][ValidatePattern('^[^\x00-\x1f\x7f]*$')][string]$Reason,
-    [ValidateSet('earthquakes','cameras','ukraine','news','weather','flights','ships','stats','feed','clipboard','window')][string]$Kind,
+    [ValidateSet('earthquakes','cameras','ukraine','news','weather','flights','ships','stats','feed','clipboard','window','reminder','alarm')][string]$Kind,
     [ValidatePattern('^[a-z][a-z0-9/-]{0,60}$')][string]$Feed,
     [ValidateLength(0,200)][string]$Query,
     [ValidateLength(0,200)][string]$Region,
@@ -44,7 +54,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Action = $Action.ToLowerInvariant()
-if ($Action -notin @('status','look','standby','screen','current-content','modes','mode','highlight','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth') -and -not $PSBoundParameters.ContainsKey('State')) {
+if ($Action -notin @('status','look','standby','screen','current-content','modes','mode','highlight','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','power','reminders') -and -not $PSBoundParameters.ContainsKey('State')) {
     throw 'Camera, live, and wakewords controls require -State on or off.'
 }
 if ($Action -in @('look','screen') -and [string]::IsNullOrWhiteSpace($Question)) { throw 'Look requires -Question with the current visual question.' }
@@ -82,7 +92,16 @@ $request = @{
     MaximumRedirection = 0
     ErrorAction = 'Stop'
 }
-if ($Action -eq 'bluetooth') {
+if ($Action -in @('microphone','app-open','window-focus') -or $Action -in @('volume','power','reminders') -and $Operation) {
+    $data=@{}
+    if($Action -eq 'microphone'){if(-not $PSBoundParameters.ContainsKey('DeviceId')){throw 'Microphone requires an exact -DeviceId from microphones.'};$data.deviceId=$DeviceId}
+    elseif($Action -eq 'volume'){if($Operation -notin @('set','up','down','mute','unmute')){throw 'Volume requires set/up/down/mute/unmute.'};$data.action=$Operation;if($Operation -eq 'set'){if(-not $PSBoundParameters.ContainsKey('Value')){throw 'Volume set requires -Value.'};$data.value=$Value}}
+    elseif($Action -eq 'app-open'){if(-not $AppId){throw 'App open requires -AppId from apps.'};$data.appId=$AppId;if($JobId){$data.jobId=$JobId}}
+    elseif($Action -eq 'window-focus'){if(-not $WindowId -or -not $ProcessId -or -not $ProcessStartedAt){throw 'Window focus requires exact WindowId, ProcessId, ProcessStartedAt from windows.'};$data.id=$WindowId;$data.pid=$ProcessId;$data.processStartedAt=$ProcessStartedAt;if($JobId){$data.jobId=$JobId}}
+    elseif($Action -eq 'power'){if($Operation -notin @('shutdown','restart','cancel')){throw 'Power requires shutdown/restart/cancel.'};$data.action=$Operation;if($Operation -ne 'cancel'){if(-not $PSBoundParameters.ContainsKey('DelaySeconds')){throw 'Power requires -DelaySeconds.'};$data.delaySeconds=$DelaySeconds}}
+    elseif($Action -eq 'reminders'){if($Operation -notin @('create','cancel')){throw 'Reminders require create/cancel.'};$data.action=$Operation;if($Operation -eq 'cancel'){if(-not $ReminderId){throw 'Reminder cancellation requires -ReminderId.'};$data.id=$ReminderId}else{if($Kind -notin @('reminder','alarm') -or -not $At -or -not $Text){throw 'Reminder create requires Kind, Text, At including timezone.'};$data.kind=$Kind;$data.text=$Text;$data.at=$At}}
+    $request.Method='Post';$request.TimeoutSec=35;$request.ContentType='application/json; charset=utf-8';$request.Body=[System.Text.Encoding]::UTF8.GetBytes(($data|ConvertTo-Json -Compress))
+} elseif ($Action -eq 'bluetooth') {
     if(-not $Operation){throw 'Bluetooth requires -Operation.'}
     $btPayload=@{action=$Operation}
     if($Operation -eq 'radio'){if(-not $State){throw 'Bluetooth radio requires -State on or off.'};$btPayload.enabled=($State -eq 'on')}
@@ -140,7 +159,7 @@ if ($Action -eq 'bluetooth') {
     $request.Method = 'Post'
     $request.ContentType = 'application/json'
     $request.Body = '{}'
-} elseif ($Action -notin @('status','modes','context','tasks','routines','graph','intel-catalog','artcraft','audio-outputs','bluetooth-devices')) {
+} elseif ($Action -notin @('status','modes','context','tasks','routines','graph','intel-catalog','artcraft','audio-outputs','bluetooth-devices','microphones','volume','apps','windows','power','reminders')) {
     $request.Method = 'Post'
     $request.ContentType = 'application/json'
     $request.Body = @{ enabled = ($State -eq 'on') } | ConvertTo-Json -Compress

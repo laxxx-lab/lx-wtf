@@ -22,7 +22,12 @@ let voiceSequence=0,captureTurnId=null,voiceDispatch=null,audioTurnId=null,audio
 const voiceStageMarks=new Map();
 let privacyLocked=false,wakeResuming=false,sensorControlGeneration=0;
 let autoResumeTimer=null,interruptAt=0,ttsPending=0,awaitingResume=false,wakeReady=false,wakeFrames=[],wakeSamples=0,bargeFrames=0,lastClientState='',wakeSpeech=[],wakeSpeechStart=0,wakeLastSpeech=0,wakePauseUntil=0;
-let orbBackground={jobs:[]};
+let orbBackground={jobs:[]},orbTimers={items:[]},lastCountdown='';
+function renderOrbCountdown(now=Date.now()){
+ const value=privacyLocked?null:HermesOrb.orbCountdown(orbTimers,now),signature=JSON.stringify(value&&[value.id,value.text,value.label,Math.floor(value.progress*100)]);if(signature===lastCountdown)return;lastCountdown=signature;
+ const node=$('orb-countdown');if(!node)return;node.hidden=!value;if(!value)return;
+ $('orb-countdown-label').textContent=value.label;$('orb-countdown-time').textContent=value.text;$('orb-countdown-progress').style.width=(value.progress*100)+'%';node.setAttribute?.('aria-label',value.label+' in '+value.text);
+}
 let orbColors=HermesOrb.normalizeOrbColors(),orbIntensity=1,orbSuccessUntil=0,orbAlertUntil=0,orbPreviewState=null,orbPreviewUntil=0,lastOrbAccent='',orbCameraLooking=false,orbScreenLooking=false;
 const orbLabels={idle:'BEREIT',listening:'HÖRT ZU',speaking:'SPRICHT',thinking:'DENKT',working:'ARBEITET',looking:'SCHAUT',success:'ERLEDIGT',alert:'HINWEIS',error:'FEHLER',offline:'OFFLINE'};
 const phases={offline:'OFFLINE',connecting:'VERBINDE',ready:'BEREIT',thinking:'DENKT',working:'ARBEITET',looking:'SCHAUT',transcribing:'ERKENNT SPRACHE',listening:'HÖRT ZU',speaking:'SPRICHT',approval:'FREIGABE',question:'RÜCKFRAGE',error:'HINWEIS'};
@@ -62,7 +67,7 @@ function sendVoiceCommand(text,sessionId,dispatch){
   controls.invoke=camera.invoke=scopedInvoke;controls.sendCamera=(text,id)=>camera.send(text,id);
   return controls.send(text,sessionId);
 }
-function renderState(data){if(data.background)renderBackgroundSummary(data.background);if(data.privacyLocked===true||data.settings?.privacyLocked===true)quiesceLocal();phase=data.status;busy=!!data.busy;sessionInfo=data.session||null;gatewayConnected=!!data.connected;const held=pushToTalk.held||pushToTalk.finishing;if(held&&(!gatewayConnected||held.sessionId!==sessionInfo?.id||(pushToTalk.held&&busy)))cancelPushToTalk();$('phase').textContent=privacyLocked?'PRIVAT':phases[phase]||phase.toUpperCase();$('detail').textContent=privacyLocked?'Sensoren gesperrt':data.detail||'';$('connection').textContent=data.connected?'VERBUNDEN':'OFFLINE';$('connection').classList.toggle('online',!!data.connected);$('auth').hidden=!!data.connected;$('sessions').disabled=busy||transcribing;if(!gatewayConnected&&live)void toggleMic(false);void armWake();}
+function renderState(data){if(data.timers)orbTimers=data.timers;if(data.background)renderBackgroundSummary(data.background);if(data.privacyLocked===true||data.settings?.privacyLocked===true)quiesceLocal();phase=data.status;busy=!!data.busy;sessionInfo=data.session||null;gatewayConnected=!!data.connected;const held=pushToTalk.held||pushToTalk.finishing;if(held&&(!gatewayConnected||held.sessionId!==sessionInfo?.id||(pushToTalk.held&&busy)))cancelPushToTalk();$('phase').textContent=privacyLocked?'PRIVAT':phases[phase]||phase.toUpperCase();$('detail').textContent=privacyLocked?'Sensoren gesperrt':data.detail||'';$('connection').textContent=data.connected?'VERBUNDEN':'OFFLINE';$('connection').classList.toggle('online',!!data.connected);$('auth').hidden=!!data.connected;$('sessions').disabled=busy||transcribing;if(!gatewayConnected&&live)void toggleMic(false);void armWake();}
 function renderMetrics(sample){
   for(const [id,key] of [['cpu','cpuPercent'],['memory','memoryPercent'],['gpu','gpuPercent']]){const n=sample[key];$(id).textContent=Number.isFinite(n)?Math.round(n)+'%':'—';$(id+'-bar').style.width=Number.isFinite(n)?n+'%':'0%';}
   $('disk').textContent=Number.isFinite(sample.diskFreeGiB)?Math.round(sample.diskFreeGiB)+' GiB':'—';$('disk-total').textContent=Number.isFinite(sample.diskTotalGiB)?'von '+Math.round(sample.diskTotalGiB)+' GiB':'Nicht verfügbar';
@@ -84,7 +89,7 @@ function appendPcm(encoded,turnId=audioTurnId){
   markVoice(turnId,audioPurpose==='acknowledgement'?'ack-renderer-first-pcm':'renderer-first-pcm');
   const ctx=context(),audio=ctx.createBuffer(1,data.length/2,24000),floats=audio.getChannelData(0),view=new DataView(data.buffer,data.byteOffset,data.byteLength);
   for(let i=0;i<floats.length;i++)floats[i]=view.getInt16(i*2,true)/32768;
-  const source=ctx.createBufferSource(),analyser=ctx.createAnalyser();analyser.fftSize=256;source.buffer=audio;source.connect(analyser);analyser.connect(ctx.destination);
+  const source=ctx.createBufferSource(),analyser=ctx.createAnalyser();analyser.fftSize=1024;source.buffer=audio;source.connect(analyser);analyser.connect(ctx.destination);
   const when=Math.max(ctx.currentTime+.045,audioTime),node={source,analyser,start:when,end:when+audio.duration,turnId,purpose:audioPurpose,cancelled:false,played:false};audioTime=node.end;speakingUntil=node.end;audioNodes.push(node);source.onended=()=>{if(!node.cancelled){observePlayback();markVoice(node.turnId,node.purpose==='acknowledgement'?'ack-playback-end':'playback-end');}audioNodes=audioNodes.filter(x=>x!==node);source.disconnect();analyser.disconnect();};source.start(when);
 }
 function downsample(input,rate){const ratio=rate/16000,out=new Float32Array(Math.floor(input.length/ratio));for(let i=0;i<out.length;i++){const start=Math.floor(i*ratio),end=Math.min(input.length,Math.floor((i+1)*ratio));let sum=0;for(let j=start;j<end;j++)sum+=input[j];out[i]=sum/Math.max(1,end-start);}return out;}
@@ -262,6 +267,7 @@ async function toggleMic(force){
 }
 api.on(event=>{
   if(event.type==='job-update')renderQueueWarning(event.jobQueue);
+  if(event.type==='timers-update'){orbTimers=event.timers||{items:[]};renderOrbCountdown();}
   if(event.type==='background-update')renderBackgroundSummary(event.background);
   if(event.type==='ptt-control')void handlePushToTalk(event).catch(error=>{notice(error.message);cancelPushToTalk();});
   if(event.type==='speech-correction')renderSpeechCorrection(event);
@@ -332,14 +338,18 @@ api.on(event=>{
 });
 function clientState(){const speaking=!!audioContext&&speakingUntil>0&&audioContext.currentTime<speakingUntil+.4,source=cameraControls.source();return {privacyLocked,speaking,listening:(capturing&&speechStarted)||transcribing,live,microphoneActive:!!micStream,audioContextState:audioContext?.state||'none',wakeArmed:!!(!privacyLocked&&settings.wakeWord&&wakeReady&&!live&&!busy&&!pushToTalk.held&&!pushToTalk.finishing&&micStream&&audioContext?.state==='running'),cameraActive:cameraControls.controller.active,cameraDeviceId:source.deviceId,cameraLabel:source.label,micLevel:lastMicLevel};}
 async function applyControl(event){
-  const sensorAction=['privacy','stop','camera','live','standby','wake-resume'].includes(event.action),ticket=sensorAction?++sensorControlGeneration:sensorControlGeneration;
+  const sensorAction=['privacy','stop','camera','live','standby','wake-resume','microphone'].includes(event.action),ticket=sensorAction?++sensorControlGeneration:sensorControlGeneration;
   try{
     if(event.action==='privacy'||event.action==='stop'){
       if(event.action==='stop'||event.enabled)quiesceLocal();else{privacyLocked=false;settings={...settings,privacyLocked:false};syncSpeechSettings();$('phase').textContent=phases[phase]||phase.toUpperCase();$('detail').textContent='Entsperrt · Sensoren bleiben aus';}
       await api.invoke('control-ack',{id:event.id,state:clientState()});return;
     }
+    if(privacyLocked&&['microphones','microphone'].includes(event.action))throw Error('Datenschutzmodus aktiv.');
+    if(event.action==='microphones'){const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='audioinput'&&validMicrophoneDeviceId(d.deviceId)&&validMicrophoneLabel(d.label)).map(d=>({deviceId:d.deviceId,label:d.label}));await api.invoke('control-ack',{id:event.id,state:clientState(),result:{devices,selected:{deviceId:settings.microphoneDeviceId||'',label:settings.microphoneDeviceLabel||''},active:!!micStream}});return;}
     if(privacyLocked&&(['look','screen','standby','wakewords','wake-resume'].includes(event.action)||(['camera','live'].includes(event.action)&&event.enabled)))throw new Error('Datenschutzmodus aktiv. Bitte zuerst lokal entsperren.');
     if(event.settings){acceptSettings(event.settings);for(const id of ['wakeWord','bareNames','cameraEnabled','cameraRecognize','cameraGreetings'])$(id).checked=!!settings[id];}
+    let microphoneResult;
+    if(event.action==='microphone'){await microphoneSwitch;const needed=live||settings.wakeWord&&wakeReady;if(needed&&!micStream)await reconnectMicrophone();if(needed&&!micStream)throw Error('Mikrofon konnte nicht verbunden werden.');if(ticket!==sensorControlGeneration||privacyLocked||settings.microphoneDeviceId!==event.enabled)throw Error('Mikrofonwechsel wurde gestoppt.');const track=micStream?.getAudioTracks?.()[0]||micStream?.getTracks?.()[0],actual=track?.getSettings?.().deviceId||null;if(micStream&&event.enabled&&!['default','communications'].includes(event.enabled)&&actual!==event.enabled)throw Error('Das gewünschte Mikrofon ist nicht aktiv.');microphoneResult={deviceId:settings.microphoneDeviceId||'',actualDeviceId:actual,label:track?.label||settings.microphoneDeviceLabel||'',active:!!micStream};}
     if(event.action==='camera')await syncCameraSettings(settings);
     if(event.action==='live')await toggleMic(event.enabled);
     if(event.action==='standby'){
@@ -371,7 +381,7 @@ async function applyControl(event){
         audioRoute={systemDefault:audioContext.sinkId===''};
       }else audioRoute={systemDefault:true};
     }
-    const result=event.action==='audio-output'?audioRoute:event.action==='look'?cameraControls.capture():event.action==='screen'?await workstationControls.capture.capture(event.enabled):undefined;
+    const result=event.action==='microphone'?microphoneResult:event.action==='audio-output'?audioRoute:event.action==='look'?cameraControls.capture():event.action==='screen'?await workstationControls.capture.capture(event.enabled):undefined;
     await api.invoke('control-ack',{id:event.id,state:clientState(),result});
   }catch(error){if(event.action==='wake-resume'&&ticket===sensorControlGeneration){cameraControls.controller.disable();gestureController.disable();await toggleMic(false);}await api.invoke('control-ack',{id:event.id,error:String(error.message)});}
 }
@@ -434,9 +444,9 @@ $('orb-reset').onclick=()=>{syncOrbSettings({orbColors:HermesOrb.ORB_DEFAULTS,or
 $('orb-intensity').addEventListener('input',event=>{orbIntensity=HermesOrb.normalizeOrbIntensity(Number(event.target.value));});
 let lastDraw=0;
 function draw(now){requestAnimationFrame(draw);if(now-lastDraw<16)return;lastDraw=now;
-  observePlayback();
+  observePlayback();renderOrbCountdown();
   let amplitude=0;const audio=contextWithoutCreating();
-  if(audio){const active=audioNodes.find(node=>audio.currentTime>=node.start&&audio.currentTime<node.end);if(active){const values=new Uint8Array(128);active.analyser.getByteTimeDomainData(values);const rms=Math.sqrt(values.reduce((sum,n)=>sum+((n-128)/128)**2,0)/128);amplitude=Math.sqrt(rms)*1.8;}else if(live&&micAnalyser){const values=new Uint8Array(micAnalyser.fftSize);micAnalyser.getByteTimeDomainData(values);amplitude=Math.sqrt(values.reduce((sum,n)=>sum+((n-128)/128)**2,0)/values.length)*4;}}
+  if(audio){const active=audioNodes.find(node=>audio.currentTime>=node.start&&audio.currentTime<node.end);if(active){const values=new Uint8Array(active.analyser.fftSize);active.analyser.getByteTimeDomainData(values);const rms=Math.sqrt(values.reduce((sum,n)=>sum+((n-128)/128)**2,0)/values.length);amplitude=Math.sqrt(rms)*1.8;}else if(live&&micAnalyser){const values=new Uint8Array(micAnalyser.fftSize);micAnalyser.getByteTimeDomainData(values);amplitude=Math.sqrt(values.reduce((sum,n)=>sum+((n-128)/128)**2,0)/values.length)*4;}}
   if(capturing)amplitude=Math.max(amplitude,Math.sqrt(lastMicLevel)*3.2);
   level=.78*level+.22*Math.min(1,amplitude);const talking=!!audio&&audio.currentTime<speakingUntil;
   const actual=HermesOrb.orbState({phase:!live&&!busy&&phase==='listening'?'ready':phase,speaking:talking,capturing,looking:orbCameraLooking||orbScreenLooking,background:privacyLocked?null:orbBackground,now,successUntil:orbSuccessUntil,alertUntil:orbAlertUntil});
