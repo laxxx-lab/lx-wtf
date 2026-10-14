@@ -10,6 +10,8 @@
     $('outline').setAttribute('viewBox',`0 0 ${event.width} ${event.height}`);
     const frame=cutFrame(event.windowRect);$('frame-path').setAttribute('d',frame);$('halo-path').setAttribute('d',frame);
     const activity=event.purpose==='activity';$('purpose').textContent=activity?'WERKZEUG AKTIV':'GEFÜHRTER HINWEIS';
+    document.body.setAttribute('data-color',!activity&&['cyan','violet','amber','green'].includes(event.color)?event.color:'cyan');
+    $('target').setAttribute('data-shape',!activity&&event.shape==='ellipse'?'ellipse':'frame');
     $('label').textContent=event.label||'';$('text').textContent=event.text||'';$('text').hidden=!event.text;
     $('interaction').textContent=activity?'Beobachteter Werkzeugaufruf · keine Erfolgsbestätigung':'Du klickst selbst · Lilith zeigt nur die Stelle';
     $('card').hidden=!event.primary;

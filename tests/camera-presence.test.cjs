@@ -24,16 +24,37 @@ test('unknown faces never greet and a gap breaks an unconfirmed streak', () => {
   assert.deepEqual(presence.observe([known('Pat')], 14000), ['Pat']);
 });
 
-test('short gaps preserve attendance, confirmed elapsed absence allows a later arrival', () => {
+test('a return before five minutes of observed absence preserves attendance', () => {
   const presence = new CameraPresence();
   for (const now of [0, 2000, 4000]) presence.observe([known('Pat')], now);
   presence.observe([], 6000);
-  assert.deepEqual(presence.observe([known('Pat')], 22000), []);
-  presence.observe([], 24000);
-  presence.observe([], 44000);
-  assert.deepEqual(presence.observe([known('Pat')], 130000), []);
-  assert.deepEqual(presence.observe([known('Pat')], 132000), []);
-  assert.deepEqual(presence.observe([known('Pat')], 134000), ['Pat']);
+  presence.observe([], 200000);
+  for (const now of [305999, 306000, 306001]) assert.deepEqual(presence.observe([known('Pat')], now), []);
+});
+
+test('a return after five minutes of observed absence needs three fresh frames', () => {
+  const presence = new CameraPresence();
+  for (const now of [0, 2000, 4000]) presence.observe([known('Pat')], now);
+  presence.observe([], 6000);
+  assert.deepEqual(presence.observe([known('Pat')], 306000), []);
+  assert.deepEqual(presence.observe([known('Pat')], 308000), []);
+  assert.deepEqual(presence.observe([known('Pat')], 310000), ['Pat']);
+});
+
+test('absence starts with a missing observation even after a long camera outage', () => {
+  const presence = new CameraPresence({ confirmHits: 1 });
+  assert.deepEqual(presence.observe([known('Pat')], 0), ['Pat']);
+  assert.deepEqual(presence.observe([known('Pat')], 900000), []);
+  presence.observe([], 1800000);
+  assert.deepEqual(presence.observe([known('Pat')], 1800001), []);
+});
+
+test('missing frames throughout five minutes allow a confirmed new arrival', () => {
+  const presence = new CameraPresence({ confirmHits: 1 });
+  assert.deepEqual(presence.observe([known('Pat')], 0), ['Pat']);
+  presence.observe([], 2000);
+  presence.observe([], 301999);
+  assert.deepEqual(presence.observe([known('Pat')], 302000), ['Pat']);
 });
 
 test('a brief absence cannot bypass cooldown or trigger a delayed greeting during attendance', () => {
@@ -46,8 +67,15 @@ test('a brief absence cannot bypass cooldown or trigger a delayed greeting durin
   assert.deepEqual(presence.observe([known('Pat')], 140), ['Pat']);
 });
 
-test('reset clears confirmation and attendance but retains anti-spam cooldown', () => {
-  const presence = new CameraPresence({ cooldownMs: 100 });
+test('confirmed absence is sufficient without an additional default greeting cooldown', () => {
+  const presence = new CameraPresence({ confirmHits: 1, absenceMs: 10 });
+  assert.deepEqual(presence.observe([known('Pat')], 0), ['Pat']);
+  presence.observe([], 2);
+  assert.deepEqual(presence.observe([known('Pat')], 12), ['Pat']);
+});
+
+test('reset clears incomplete confirmation without re-greeting a present person', () => {
+  const presence = new CameraPresence();
   presence.observe([known('Pat')], 0);
   presence.observe([known('Pat')], 1);
   presence.reset();
@@ -57,9 +85,17 @@ test('reset clears confirmation and attendance but retains anti-spam cooldown', 
   presence.reset();
   for (const now of [5, 6, 7]) assert.deepEqual(presence.observe([known('Pat')], now), []);
   presence.reset();
-  presence.observe([known('Pat')], 105);
-  presence.observe([known('Pat')], 106);
-  assert.deepEqual(presence.observe([known('Pat')], 107), ['Pat']);
+  for (const now of [900000, 900001, 900002]) assert.deepEqual(presence.observe([known('Pat')], now), []);
+});
+
+test('reset discards absence evidence when camera observations were stopped', () => {
+  const presence = new CameraPresence({ confirmHits: 1 });
+  assert.deepEqual(presence.observe([known('Pat')], 0), ['Pat']);
+  presence.observe([], 2000);
+  presence.reset();
+  assert.deepEqual(presence.observe([known('Pat')], 900000), []);
+  presence.observe([], 902000);
+  assert.deepEqual(presence.observe([known('Pat')], 1202000), ['Pat']);
 });
 
 test('each known profile is confirmed independently', () => {

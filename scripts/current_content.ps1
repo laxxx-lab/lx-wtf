@@ -5,7 +5,10 @@
  [string]$ExpectedApp='',
  [string]$ExpectedTitle='',
  [string]$ExpectedProcessStart='',
- [string]$OwnProcessIds=''
+ [string]$OwnProcessIds='',
+ [ValidateSet('foreground','pointer')][string]$Selection='foreground',
+ [int]$PointX=0,
+ [int]$PointY=0
 )
 $ErrorActionPreference='Stop'
 [Console]::OutputEncoding=New-Object System.Text.UTF8Encoding($false)
@@ -25,7 +28,12 @@ using System.Windows.Automation;
 public sealed class LilithContentWindow {
  public string kind="window",label,app,windowTitle,hwnd,processStartedAt;
  public int pid;
+ public string selection;
+ public LilithPoint point;
+ public LilithRect windowRect;
 }
+public sealed class LilithPoint {public int x,y;}
+public sealed class LilithRect {public int x,y,width,height;}
 public sealed class LilithContentObservation {
  public bool ok=true,truncated=false;
  public string kind,observedAt,text="";
@@ -39,6 +47,13 @@ public static class LilithCurrentContent {
  static readonly Regex OwnApp=new Regex(@"^(?:hermes|lilith)[ ._-]voice$",RegexOptions.IgnoreCase|RegexOptions.CultureInvariant);
  static readonly Regex OwnTitle=new Regex(@"^(?:hermes|lilith)\s+(?:voice|workbench|craft|overlay)(?:[ .:–—-]|$)",RegexOptions.IgnoreCase|RegexOptions.CultureInvariant);
  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+ [StructLayout(LayoutKind.Sequential)] public struct Point {public int X,Y;}
+ [StructLayout(LayoutKind.Sequential)] public struct Rect {public int Left,Top,Right,Bottom;}
+ [DllImport("user32.dll")] static extern bool GetCursorPos(out Point point);
+ [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point point);
+ [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr handle,uint flags);
+ [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr handle,out Rect rect);
+ [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr handle,StringBuilder value,int maximum);
  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr handle,out uint pid);
  [DllImport("user32.dll")] static extern bool IsWindow(IntPtr handle);
@@ -100,10 +115,36 @@ public static class LilithCurrentContent {
   }
  }
  static void RequireForeground(LilithContentWindow selected,int[] ownPids){
+  if(selected.selection=="pointer"){RequirePointer(selected);return;}
   IntPtr foreground=GetForegroundWindow();
   if(foreground.ToInt64().ToString(CultureInfo.InvariantCulture)==selected.hwnd)return;
   uint pid;GetWindowThreadProcessId(foreground,out pid);
   if(pid==0||pid>Int32.MaxValue||Array.IndexOf(ownPids,(int)pid)<0)throw Rejected("WINDOW_CHANGED");
+ }
+ static void RequirePointer(LilithContentWindow selected){
+  if(selected.point==null||selected.windowRect==null)throw Rejected("WINDOW_CHANGED");
+  Point point=new Point{X=selected.point.x,Y=selected.point.y};
+  IntPtr handle=GetAncestor(WindowFromPoint(point),2);Rect rect;
+  if(handle.ToInt64().ToString(CultureInfo.InvariantCulture)!=selected.hwnd||!GetWindowRect(handle,out rect)||rect.Left!=selected.windowRect.x||rect.Top!=selected.windowRect.y||rect.Right-rect.Left!=selected.windowRect.width||rect.Bottom-rect.Top!=selected.windowRect.height)throw Rejected("WINDOW_CHANGED");
+ }
+ static LilithContentObservation PointerText(LilithContentWindow selected,int[] ownPids){
+  RequirePointer(selected);IntPtr handle=new IntPtr(Int64.Parse(selected.hwnd,CultureInfo.InvariantCulture));
+  AutomationElement root=AutomationElement.FromHandle(handle);if(root==null||root.Current.ProcessId!=selected.pid)throw Rejected("WINDOW_CHANGED");
+  VisibleControls(root); // Check the same exclusions before reading any provider text.
+  AutomationElement element=AutomationElement.FromPoint(new System.Windows.Point(selected.point.x,selected.point.y));
+  string text="";bool truncated=false;TreeWalker walker=TreeWalker.ControlViewWalker;
+  for(int depth=0;element!=null&&depth<12;depth++){
+   var current=element.Current;if(current.ProcessId!=selected.pid||current.IsOffscreen)throw Rejected("WINDOW_CHANGED");
+   RequireReadableControl(current.IsPassword,current.ControlType,current.Name);object pattern;
+   if(element.TryGetCurrentPattern(TextPattern.Pattern,out pattern)){
+    TextPattern textPattern=(TextPattern)pattern;var range=textPattern.RangeFromPoint(new System.Windows.Point(selected.point.x,selected.point.y));range.ExpandToEnclosingUnit(System.Windows.Automation.Text.TextUnit.Paragraph);text=range.GetText(MaxText+1);break;
+   }
+   if((current.ControlType==ControlType.Text||current.ControlType==ControlType.Button||current.ControlType==ControlType.Hyperlink)&&!String.IsNullOrWhiteSpace(current.Name)){text=current.Name;break;}
+   if(element==root)break;element=walker.GetParent(element);
+  }
+  VisibleControls(root);RequireSameIdentity(selected,Identity(handle));RequirePointer(selected);RequireDesktop();
+  if(String.IsNullOrWhiteSpace(text))throw Rejected("CURRENT_CONTENT_EMPTY");truncated=text.Length>MaxText;
+  return new LilithContentObservation{kind="window",source=selected,text=Bounded(text),truncated=truncated,limitations=new[]{"Textabsatz oder Beschriftung am ausdrücklich ausgewählten Mauspunkt; keine vollständige Ansicht, keine Bildanalyse."}};
  }
  static LilithContentObservation Clipboard(){
   if(!OpenClipboard(IntPtr.Zero))throw Rejected("UNAVAILABLE");
@@ -188,18 +229,22 @@ public static class LilithCurrentContent {
   if(String.IsNullOrWhiteSpace(content.ToString()))throw Rejected("CURRENT_CONTENT_EMPTY");
   return new LilithContentObservation{kind="window",source=selected,text=Bounded(content.ToString()),truncated=truncated,limitations=documentText?new string[0]:new[]{"Die Anwendung hat nur UI-Beschriftungen bereitgestellt; ein Dokumentinhalt konnte nicht vollständig gelesen werden."}};
  }
- public static LilithContentObservation Observe(string kind,long expectedPid,long expectedHandle,string expectedApp,string expectedTitle,string expectedProcessStart,int[] ownPids){
+ public static LilithContentObservation Observe(string kind,long expectedPid,long expectedHandle,string expectedApp,string expectedTitle,string expectedProcessStart,int[] ownPids){return Observe(kind,expectedPid,expectedHandle,expectedApp,expectedTitle,expectedProcessStart,ownPids,"foreground",0,0);}
+ public static LilithContentObservation Observe(string kind,long expectedPid,long expectedHandle,string expectedApp,string expectedTitle,string expectedProcessStart,int[] ownPids,string selection,int pointX,int pointY){
+  try{SetThreadDpiAwarenessContext(new IntPtr(-4));}catch{}
   RequireDesktop();LilithContentObservation result;
   if(kind=="clipboard")result=Clipboard();
   else {
-   IntPtr handle=expectedHandle>0?new IntPtr(expectedHandle):GetForegroundWindow();
+   Point point=new Point{X=pointX,Y=pointY};if(selection=="pointer"&&expectedHandle==0&&!GetCursorPos(out point))throw Rejected("UNAVAILABLE");
+   IntPtr handle=expectedHandle>0?new IntPtr(expectedHandle):selection=="pointer"?GetAncestor(WindowFromPoint(point),2):GetForegroundWindow();
    LilithContentWindow selected=Identity(handle);RequireAllowed(selected,ownPids);
+   if(selection=="pointer"){Rect rect;if(!GetWindowRect(handle,out rect))throw Rejected("WINDOW_CHANGED");selected.selection="pointer";selected.point=new LilithPoint{x=point.X,y=point.Y};selected.windowRect=new LilithRect{x=rect.Left,y=rect.Top,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top};}
    if(expectedHandle>0&&(selected.pid!=expectedPid||selected.app!=expectedApp||selected.windowTitle!=expectedTitle||(expectedProcessStart!=""&&selected.processStartedAt!=expectedProcessStart)))throw Rejected("WINDOW_CHANGED");
    RequireForeground(selected,ownPids);
    if(kind=="target"){
     RequireSameIdentity(selected,Identity(handle));RequireForeground(selected,ownPids);
     result=new LilithContentObservation{kind="target",source=selected};
-   } else if(kind=="window")result=Window(selected,ownPids);
+   } else if(kind=="window")result=selection=="pointer"?PointerText(selected,ownPids):Window(selected,ownPids);
    else throw Rejected("UNAVAILABLE");
   }
   RequireDesktop();result.observedAt=DateTime.UtcNow.ToString("o",CultureInfo.InvariantCulture);return result;
@@ -213,7 +258,7 @@ public static class LilithCurrentContent {
   foreach ($entry in $entries) { if ($entry -notmatch '^[1-9]\d{0,9}$') { throw 'UNAVAILABLE' }; $localPids+= [int]::Parse($entry) }
  }
  if (($ExpectedHandle -gt 0) -ne ($ExpectedPid -gt 0)) { throw 'UNAVAILABLE' }
- $observation=[LilithCurrentContent]::Observe($Kind,$ExpectedPid,$ExpectedHandle,$ExpectedApp,$ExpectedTitle,$ExpectedProcessStart,$localPids)
+ $observation=[LilithCurrentContent]::Observe($Kind,$ExpectedPid,$ExpectedHandle,$ExpectedApp,$ExpectedTitle,$ExpectedProcessStart,$localPids,$Selection,$PointX,$PointY)
  if ($Kind -eq 'clipboard') {
   [PSCustomObject]@{ok=$true;kind='clipboard';source=[PSCustomObject]@{kind='clipboard';label='Zwischenablage (Text)'};observedAt=$observation.observedAt;text=$observation.text;truncated=$observation.truncated;limitations=@($observation.limitations)} | ConvertTo-Json -Depth 5 -Compress
  } else { $observation | ConvertTo-Json -Depth 5 -Compress }

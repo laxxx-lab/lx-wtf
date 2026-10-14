@@ -1,6 +1,6 @@
 # Guided visual explanations
 
-The guide is a transparent visual overlay. It never sends mouse or keyboard input, moves the physical cursor, activates a target window or reports a click. The cyan dotted arrow is a simulated pointer; the user clicks manually. The whole-window glow can also indicate a running tool explicitly associated with that window. A glow does not verify the tool's result.
+The guide is a transparent visual overlay. It never sends mouse or keyboard input, moves the physical cursor, activates a target window or reports a click. The dotted arrow is a simulated pointer; the user clicks manually. The whole-window glow can also indicate a running tool explicitly associated with that window. A glow does not verify the tool's result.
 
 `createGuideOverlay({electron,root,readWindow,onChange})` supplies `show`, `clear`, `snapshot` and `dispose`. `show` accepts:
 
@@ -10,6 +10,7 @@ await guide.show({
   pid:123,windowId:456,
   windowRect:{x:100,y:100,width:900,height:600},
   targetRect:{x:300,y:250,width:100,height:40}, // optional; guide only
+  color:'violet',shape:'ellipse', // optional; guide only; defaults cyan/frame
   observedAt:'2026-10-10T12:00:00.000Z', // original UIA observation time
   label:'Einstellungen',text:'Hier das Menü öffnen.',
   snapshotId:'source-snapshot' // optional; retained only during validation
@@ -18,7 +19,9 @@ await guide.show({
 
 Coordinates are physical desktop pixels, including negative monitor origins. These example numbers must be replaced by a fresh UIA observation. The observation cannot be older than 15 seconds or more than one second in the future. Do not replace its timestamp with the time of the guide request. The target rectangle must lie wholly inside the observed window.
 
-An activity request requires `taskId` and `toolCallId`. The parent validates that they belong to the currently running task/tool before calling `show`; the overlay does not infer an association from the foreground app or a tool name. It rejects target rectangles for activity glows.
+Guide appearance accepts only `color: 'cyan' | 'violet' | 'amber' | 'green'` and `shape: 'frame' | 'ellipse'`. Arbitrary CSS, colors and shapes are rejected before a native read. The default is cyan with a rectangular target frame. The ellipse outlines the full observed target rectangle, including its inner outline; it is not merely the center reticle. The window perimeter keeps its existing frame. Without a target rectangle there is no target shape. One fixed CSS palette colors the perimeter, instruction card, target and simulated pointer together; renderer attributes also fall back to cyan/frame for unsupported values.
+
+An activity request requires `taskId` and `toolCallId`. The parent validates that they belong to the currently running task/tool before calling `show`; the overlay does not infer an association from the foreground app or a tool name. It rejects target rectangles and appearance fields for activity glows. Activity keeps its existing cyan window frame and has no simulated pointer.
 
 The native reader uses the decimal `windowId` as a Windows HWND. It verifies the exact HWND/PID, current title/process, visibility, minimized state and physical `GetWindowRect`. A changed identity or geometry difference over two pixels rejects the guide. Password managers, sign-in/payment/banking/private browsing windows are excluded. Opaque non-HWND identifiers are unsupported and must not be guessed or converted from unrelated identifiers.
 
@@ -30,6 +33,6 @@ The guide expires at the original observation's 15-second deadline. Activity als
 
 The parent calls `clear()` on privacy, interruption, emergency stop, session changes and guidance cancellation, and `dispose()` on app exit. Clearing increments a generation before asynchronous work completes, preventing a late window read or renderer load from reopening the overlay. Local privacy does not revoke permissions of the independent Cua daemon; the parent must enforce its own access gate before requesting a guide.
 
-`snapshot()` and `onChange` expose only visibility, purpose, redacted label/text, click-through status, simulated-pointer status and original observation/expiry times. They omit PID, HWND, snapshot tokens and task/tool identifiers. Renderer text uses `textContent`; the preload can receive display messages only. Reduced-motion settings disable the reticle pulse.
+`snapshot()` and `onChange` expose only visibility, purpose, redacted label/text, click-through status, simulated-pointer status and original observation/expiry times, plus the validated color/shape for a visible guide. They omit PID, HWND, snapshot tokens and task/tool identifiers. Renderer text uses `textContent`; the preload can receive display messages only. Reduced-motion settings disable the reticle pulse.
 
 Focused validation: `node --test tests/guide-overlay.test.cjs`. Electron and native-window doubles test the boundary and cancellation behavior; a real Electron smoke check remains necessary for visual alignment, mixed-DPI monitors and click-through behavior.

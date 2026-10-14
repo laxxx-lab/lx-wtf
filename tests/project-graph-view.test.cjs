@@ -27,7 +27,8 @@ test('native isolated graph renderer keeps activity separate and cancels trusted
           const svg=container.querySelector('svg'),selected=container.querySelector('.pg-node.selected'),activity=container.querySelector('.pg-node.activity');
           check(selected&&activity&&selected!==activity,'activity overwrote search selection');
           check(getComputedStyle(selected.querySelector('.pg-node-core')).fill!==getComputedStyle(activity.querySelector('.pg-node-core')).fill,'activity lacks a separate color');
-          check(container.querySelector('[data-pg="motion"]').getAttribute('aria-pressed')==='true','unexpected motion fixture');container.querySelector('[data-pg="motion"]').click();
+          const motion=container.querySelector('[data-pg="motion"]');if(motion.getAttribute('aria-pressed')==='true')motion.click();
+          check(motion.getAttribute('aria-pressed')==='false','gesture fixture must keep rotation paused');
           const event=(generation,sequence,x=.4,y=.5,pinching=false)=>({kind:'pointer',generation,sequence,at:Date.now(),x,y,pinching});
           const coords=selected.getAttribute('transform').match(/translate\(([-\d.]+) ([-\d.]+)\)/),box=svg.viewBox.baseVal;
           check(view.gesture(event(9,1,(Number(coords[1])-box.x)/box.width,(Number(coords[2])-box.y)/box.height)),'visible graph rejected pointing');
@@ -42,7 +43,18 @@ test('native isolated graph renderer keeps activity separate and cancels trusted
           for(let attempt=0;attempt<20&&!accepted;attempt++){await new Promise(resolve=>setTimeout(resolve,25));accepted=view.gesture(event(1,1));}
           check(accepted,'cancelled view could not accept a new renderer '+JSON.stringify({visibility:document.visibilityState,rects:svg.getClientRects().length,hidden:container.hidden,rect:svg.getBoundingClientRect().toJSON(),viewport:[document.documentElement.clientWidth,document.documentElement.clientHeight]}));
           view.dispose();check(!view.gesture(event(1,2)),'disposed graph accepted manipulation');
-          return {sourceCalls:calls.filter(method=>method==='graph-source').length,activitySeparate:true,localReset:true};
+          const NativeObserver=window.IntersectionObserver,freshContainer=document.createElement('div');let freshView,observedFalse=false;
+          freshContainer.style.cssText='position:fixed;inset:24px';document.body.append(freshContainer);
+          try{
+            window.IntersectionObserver=class{constructor(callback){this.callback=callback;}observe(){observedFalse=true;this.callback([{isIntersecting:false}]);}disconnect(){}};
+            freshView=ProjectGraphView.mount({container:freshContainer,invoke:async()=>snapshot});await new Promise(resolve=>setTimeout(resolve,30));
+            check(observedFalse,'stale observer fixture did not deliver false');
+            check(freshView.gesture(event(2,1)),'on-screen graph rejected a fresh gesture after a stale false intersection');
+            freshContainer.hidden=true;check(!freshView.gesture(event(2,2)),'fresh geometry accepted a hidden graph');freshContainer.hidden=false;
+            freshContainer.style.transform='translateX(-10000px)';check(!freshView.gesture(event(2,3)),'fresh geometry accepted an offscreen graph');
+            freshContainer.style.transform='';check(freshView.gesture(event(2,4)),'fresh geometry did not accept the returned graph');
+          }finally{window.IntersectionObserver=NativeObserver;freshView?.dispose();freshContainer.remove();}
+          return {sourceCalls:calls.filter(method=>method==='graph-source').length,activitySeparate:true,localReset:true,freshVisibility:true};
         }.toString())}+')()');
         fs.writeFileSync(${JSON.stringify(output)},JSON.stringify({result,errors}));win.destroy();app.exit(0);
       }catch(error){fs.writeFileSync(${JSON.stringify(output)},JSON.stringify({error:error.stack,errors}));app.exit(1);}
@@ -53,5 +65,5 @@ test('native isolated graph renderer keeps activity separate and cancels trusted
   t.after(()=>{if(child.exitCode===null)child.kill();});
   const code=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',resolve);});
   const result=fs.existsSync(output)?JSON.parse(fs.readFileSync(output,'utf8')):{};
-  assert.equal(code,0,result.error||stderr);assert.deepEqual(result.errors,[]);assert.equal(result.result.localReset,true);assert.equal(result.result.sourceCalls,0);
+  assert.equal(code,0,result.error||stderr);assert.deepEqual(result.errors,[]);assert.equal(result.result.localReset,true);assert.equal(result.result.sourceCalls,0);assert.equal(result.result.freshVisibility,true);
 });

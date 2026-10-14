@@ -61,3 +61,11 @@ test('replacing a socket does not mark its new connection disconnected',async t=
   assert.equal(disconnected,0);
   assert.deepEqual(await gateway.request('session.list'),{ok:true});
 });
+
+test('explicit socket DNS mapping reaches the gateway without replacing its Host or ticket',async t=>{
+  const server=new WebSocketServer({port:0});await new Promise(resolve=>server.once('listening',resolve));let observed;
+  server.on('connection',(socket,request)=>{observed={host:request.headers.host,protocol:request.headers['sec-websocket-protocol']};socket.on('message',raw=>{const frame=JSON.parse(raw);socket.send(JSON.stringify({jsonrpc:'2.0',id:frame.id,result:{ok:true}}));});});
+  const gateway=new Gateway({url:`http://notebook-gateway.invalid:${server.address().port}`,socketOptions:{lookup:(_host,opts,callback)=>opts.all?callback(null,[{address:'127.0.0.1',family:4}]):callback(null,'127.0.0.1',4)}});
+  t.after(()=>{gateway.close();server.close();});await gateway.connect({ticket:'mapped-fixture'});
+  assert.deepEqual(await gateway.request('gateway.ping'),{ok:true});assert.equal(observed.host,`notebook-gateway.invalid:${server.address().port}`);assert.match(observed.protocol,/hermes-gateway-ticket\.mapped-fixture/);
+});

@@ -1,5 +1,34 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');
 const {createControlApi}=require('../control-api.cjs');
+test('clipboard is authenticated, explicit, bounded and blocked by privacy',async t=>{
+ let locked=false;const calls=[],token='c'.repeat(64),api=await createControlApi({port:0,token,readStatus:()=>({privacy:{locked}}),onCommand:()=>{},onClipboard:value=>{calls.push(value);return {ok:true,verified:value.action==='write'};}});t.after(()=>api.close());const url=`http://127.0.0.1:${api.address().port}/v1/clipboard`,headers={Authorization:'Bearer '+token};
+ assert.equal((await fetch(url,{method:'POST',body:'{"action":"read"}'})).status,401);
+ for(const value of [{action:'read',maxChars:20000},{action:'write',text:'x'.repeat(20000)}])assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify(value)})).status,200);
+ for(const value of [{action:'watch'},{action:'read',text:'x'},{action:'write',text:'x'.repeat(20001)},{action:'read',maxChars:0},{action:'write',text:'bad\u0000text'}])assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify(value)})).status,400);
+ locked=true;assert.equal((await fetch(url,{method:'POST',headers,body:'{"action":"read"}'})).status,423);assert.equal(calls.length,2);
+});
+test('browser API uses bounded authenticated operations and respects per-client capability limits',async t=>{
+ let locked=false;const calls=[],token='c'.repeat(64),api=await createControlApi({port:0,token,enabledActions:['status','browser'],onCommand:()=>{},readStatus:()=>({privacyLocked:locked}),onBrowser:async value=>{calls.push(value);return {ready:true,url:'https://example.com/',title:'Example',visible:true,tab:'browser'};}});t.after(()=>api.close());
+ const base=`http://127.0.0.1:${api.address().port}`,headers={Authorization:'Bearer '+token};
+ assert.equal((await fetch(base+'/v1/browser')).status,401);assert.equal((await fetch(base+'/v1/browser',{headers:{...headers,Origin:'https://example.com'}})).status,403);
+ assert.equal((await fetch(base+'/v1/browser',{headers})).status,200);assert.deepEqual(calls[0],{action:'state'});
+ const opened=await fetch(base+'/v1/browser',{method:'POST',headers,body:JSON.stringify({action:'navigate',url:'https://example.com'})});assert.equal(opened.status,200);assert.equal((await opened.json()).browser.url,'https://example.com/');
+ for(const payload of [{action:'eval',script:'whoami'},{action:'state',url:'https://example.com'},{action:'navigate',url:'file:///secret'},{action:'navigate',url:'https://name:secret@example.com'}])assert.equal((await fetch(base+'/v1/browser',{method:'POST',headers,body:JSON.stringify(payload)})).status,400);
+ assert.equal((await fetch(base+'/v1/camera',{method:'POST',headers,body:'{"enabled":true}'})).status,404);
+ locked=true;assert.equal((await fetch(base+'/v1/browser',{headers})).status,423);assert.equal(calls.length,2);
+});
+test('observed desktop hints accept only fixed guide colors and shapes',()=>{
+ const {validGuideRequest}=require('../control-api.cjs'),value={purpose:'guide',pid:123,windowId:'456',windowRect:{x:10,y:10,width:900,height:600},targetRect:{x:40,y:40,width:100,height:60},observedAt:new Date().toISOString()};
+ assert.equal(validGuideRequest({...value,color:'violet',shape:'ellipse'}),true);
+ for(const appearance of [{color:'red'},{shape:'circle'},{color:'url(evil)'},{shape:'ellipse',purpose:'activity'}])assert.equal(validGuideRequest({...value,...appearance}),false);
+});
+
+test('explicit content API preserves pointer choice and remembered observations without widening other sources',async t=>{
+ const calls=[],token='p'.repeat(64),api=await createControlApi({port:0,token,readStatus:()=>({}),onCommand:()=>{},onContent:value=>{calls.push(value);return {untrusted:true};}});t.after(()=>api.close());const url=`http://127.0.0.1:${api.address().port}/v1/current-content`,headers={Authorization:'Bearer '+token};
+ for(const payload of [{kind:'window',selection:'pointer',question:'Erkläre den Text hier'},{kind:'remembered',question:'Erkläre die alte Quelle'}])assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify(payload)})).status,200);
+ for(const payload of [{kind:'clipboard',selection:'pointer',question:'Test'},{kind:'window',selection:'other',question:'Test'},{kind:'remembered',selection:'pointer',question:'Test'},{kind:'window',question:'Test',url:'http://evil'}])assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify(payload)})).status,400);
+ assert.equal(calls[0].selection,'pointer');assert.equal(calls[1].kind,'remembered');
+});
 
 test('Bluetooth API exposes authenticated discovery and only typed radio or exact endpoint operations',async t=>{
  const calls=[],token='b'.repeat(64),api=await createControlApi({port:0,token,readStatus:()=>({}),onCommand:()=>{},readBluetooth:()=>({devices:[]}),onBluetooth:value=>{calls.push(value);return {verified:true};}});t.after(()=>api.close());

@@ -1,8 +1,35 @@
 # Mit aktuellem Inhalt arbeiten
 
+Beide Clients bieten zusätzlich ausdrücklichen Zwischenablagezugriff über
+`POST /v1/clipboard`: `{action:'read',maxChars:20000}` oder
+`{action:'write',text:'…'}`. Windows-Agenten verwenden
+`control.ps1 -Action clipboard -Operation read` beziehungsweise
+`-Operation write -ClipboardText '<ausdrücklich gewünschter Text>'`.
+Lesen liefert eine begrenzte, redigierte Textbeobachtung mit `untrusted:true`;
+Schreiben bestätigt den nativen Text durch Nachlesen und gibt ausschließlich
+Zeichenanzahl und `verified` zurück. Standby, Datenschutz und ein fremdes
+Gesprächsgerät sperren den Zugriff. Es gibt keine Überwachung, automatische
+Synchronisierung, Bildübertragung oder Texte in Status/Logs. Schreiben ersetzt
+die aktuelle Zwischenablage und verlangt einen entsprechenden Nutzerauftrag.
+
+Seit 13.10.2026 binden auch ausdrückliche Textaufträge wie „Schreib aus dem hier eine Antwort“, „Überarbeite das hier“ und „Kürze den Text unter meinem Mauszeiger“ eine frische Quelle. `currentContentIntent` ergänzt dafür `action:true`; reine Erklär-/Leseanfragen bleiben unverändert lesend. Mehrdeutiges „Mach das hier“ ist keine automatisch erratene Bearbeitung. Der Host leitet nur die aus dem Nutzerwortlaut erkannte Absicht an `currentContentPrompt(question, observation, {action})` weiter; ein Feld im Quellinhalt autorisiert nichts. Eine erkannte Bearbeitung wird vor der allgemeinen Hintergrundklassifikation erfasst. Textentwurf, tatsächliche Änderung und versandte Nachricht sind unterschiedliche Ergebnisse; vor einer beauftragten Änderung braucht Hermes ein frisches Ziel und danach einen Wirkungsnachweis.
+
 Hermes Voice kann auf ausdrückliche Anfrage einen aktuellen lokalen Text lesen und ihn als Daten an die bestehende Gesprächswarteschlange geben. Beispiele: „Fasse das Kopierte zusammen“, „Was steht in der Zwischenablage?“, „Erklär mir dieses Fenster“ oder „Erkläre mir diese Anwendung“. Indirekte Erwähnungen und allgemeine Fragen wie „Was ist eine Zwischenablage?“ lösen keinen Zugriff aus. Die Workbench zeigt Quelle und Zeitpunkt der Momentaufnahme.
 
 Die Quellen werden einzeln ausgewählt:
+
+- **Mauszeiger:** „Erklär mir das hier“, „Was steht hier unter meinem Mauszeiger?“
+  oder „Lies mir den Text unter dem Mauszeiger vor“ wählt den Fensterinhalt am
+  tatsächlichen Mauspunkt. Die Auswahl bindet PID, HWND, Prozessstart, Punkt und
+  Fenstergeometrie. UIA liest den Textabsatz oder die Beschriftung an genau diesem
+  Punkt. Es gibt keinen automatischen Screenshot, keinen Klick und keinen
+  Maus-/Fokuswechsel. Eine überdeckte, bewegte oder geänderte Quelle wird verworfen.
+  Die frische Fensterumrandung zeigt die Quelle, keine geratenen Elementkoordinaten.
+  Bildinhalte ohne lesbaren Text weiter ausdrücklich mit Einkreisen auswählen.
+- **Vorherige Quelle:** „Erklär mir die zuletzt gelesene Quelle nochmal“ nutzt
+  die flüchtige letzte Momentaufnahme mit ursprünglichem Zeitpunkt. Es erfolgt
+  kein neues Lesen. Die Werkstatt markiert sie als alte Beobachtung; Sessionwechsel,
+  Datenschutz und Beenden verwerfen sie.
 
 - **Zwischenablage:** ausschließlich das aktuelle Windows-Format `CF_UNICODETEXT`, höchstens 20.000 UTF-16-Zeichen ohne getrennte Surrogatpaare. Keine Bilder, Dateiliste oder Kopierhistorie. `OpenClipboard`/`GetClipboardData` lesen; `CloseClipboard` gibt die Sperre frei. Es gibt weder Kopiertastenkürzel noch `EmptyClipboard`/`SetClipboardData`, Listener oder Polling. Eine geänderte Sequenznummer verwirft das Ergebnis.
 - **Fenster:** ausschließlich das gerade ausgewählte Vordergrundfenster, als frische Identität aus HWND, PID, Prozessname, Fenstertitel und Prozessstartzeit. Die Auswahl gilt höchstens 15 Sekunden. UI Automation liest die als sichtbar gemeldeten Textbereiche und Beschriftungen innerhalb dieser Fensterwurzel. Keine Screenshots, Mausaktionen, Tasten, Fokusänderung, `ValuePattern` oder Änderungen an der Anwendung. Mehr als 600 UIA-Knoten, ein Quellenwechsel oder ein nicht beantwortender Provider brechen den Zugriff ab.

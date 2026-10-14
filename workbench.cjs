@@ -9,7 +9,8 @@ const {normalizeRoutines}=require('./routines.cjs');
 const {validIntelRequest,validCraftAppRequest}=require('./control-api.cjs');
 const {validCraftInput}=require('./window-input.cjs');
 const TABS=['system','console','browser','context','graph','intel','artcraft'];
-const USER_METHODS=new Set(['tab','browser','command','action','craft-input','craft-select','craft-open','craft-focus','craft-command','graph-pick','graph-index','graph-search','graph-source','guide-clear','circle-open','intel-query','intel-open','job-retry','job-cancel','job-reconcile','job-resume','awareness-action','awareness-dismiss','teach-start','teach-confirm','teach-save','teach-cancel']);
+const PROJECT_METHODS=new Set(['project-snapshot','project-pick','project-select','project-rename','project-remove','project-list','project-read','project-command']);
+const USER_METHODS=new Set(['tab','browser','command','action','craft-input','craft-select','craft-open','craft-focus','craft-command','graph-pick','graph-index','graph-search','graph-source','guide-clear','circle-open','intel-query','intel-open','job-retry','job-cancel','job-reconcile','job-amend','job-resume','awareness-action','awareness-dismiss','teach-start','teach-confirm','teach-save','teach-cancel']);
 const utfText=(value,limit)=>value.slice(0,limit).replace(/[\uD800-\uDBFF]$/,'').replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,'\uFFFD');
 const text=(value,limit=1200)=>typeof value==='string'?utfText(value.slice(0,32000).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,'').replace(/\bBearer\s+[^\s"',;]+/gi,'Bearer [redacted]').replace(/\b(token|access[_-]?token|refresh[_-]?token|password|passwd|api[_-]?key|cookie|authorization|secret)\b["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;}\]]+)/gi,'$1=[redacted]').replace(/https?:\/\/[^\s"'<>]+/gi,value=>{try{const url=new URL(value);url.username='';url.password='';url.hash='';for(const key of [...url.searchParams.keys()])if(/token|password|secret|key|auth|cookie|signature|credential|session/i.test(key))url.searchParams.set(key,'[redacted]');return url.href;}catch{return '[URL redacted]';}}),limit):'';
 const number=value=>Number.isFinite(value)?value:null;
@@ -41,8 +42,11 @@ function projectContent(value){
 }
 function safeSnapshot(value={}){
   const config=value.settings||{},sample=value.sample||{},report=value.systemReport,context=value.context||{},locked=value.privacyLocked===true||config.privacyLocked===true;
+  const health=value.voiceHealth,attention=value.attention,observed=typeof attention?.observedAt==='number'?attention.observedAt:typeof attention?.observedAt==='string'?Date.parse(attention.observedAt):NaN;
+  const voiceHealth=health&&typeof health==='object'?{state:text(health.state,40),summary:text(health.summary,240),checks:Array.isArray(health.checks)?health.checks.slice(0,8).map(check=>({key:text(check?.key,40),state:text(check?.state,40),summary:text(check?.summary,240)})):[],repair:['microphone','audio-output','engines','gateway'].includes(health.repair?.kind)?{kind:health.repair.kind,reason:text(health.repair.reason,240)}:null}:null;
+  const sourceAttention=!locked&&['window','clipboard'].includes(attention?.kind)&&['pointer','foreground','clipboard','remembered'].includes(attention?.selection)&&Number.isFinite(observed)&&Math.abs(observed)<=8640000000000000?{kind:attention.kind,label:text(attention.label,180),observedAt:new Date(observed).toISOString(),selection:attention.selection,stale:attention.stale===true,summary:text(attention.summary,300)}:null;
   const timing={};for(const key of ['firstAudioMs','transcribeMs','hermesFirstTokenMs','ttsFirstPcmMs','endToEndMs']){const measured=value.voiceTiming?.summary?.[key];if(measured&&Number.isSafeInteger(measured.count)&&measured.count>0&&measured.count<=200&&['p50','p95'].every(name=>Number.isFinite(measured[name])&&measured[name]>=0&&measured[name]<=86400000))timing[key]={count:measured.count,p50:measured.p50,p95:measured.p95};}
-  return {status:text(value.status,40),detail:text(value.detail,200),connected:value.connected===true,busy:value.busy===true,sessionTitle:text(value.session?.title,120),privacyLocked:locked,currentContent:locked?null:projectContent(value.currentContent),
+  return {status:text(value.status,40),detail:text(value.detail,200),connected:value.connected===true,busy:value.busy===true,sessionTitle:text(value.session?.title,120),privacyLocked:locked,currentContent:locked?null:projectContent(value.currentContent),voiceHealth,attention:sourceAttention,
     sample:Object.fromEntries(['cpuPercent','memoryPercent','gpuPercent','gpuTimestamp','diskFreeGiB','diskTotalGiB','timestamp'].map(key=>[key,number(sample[key])])),
     camera:{enabled:!locked&&config.cameraEnabled===true,active:!locked&&value.camera?.active===true,looking:!locked&&value.camera?.looking===true},screen:{enabled:!locked&&config.screenEnabled===true,looking:!locked&&value.screen?.looking===true},
     wake:{enabled:!locked&&config.wakeWord===true,ready:value.wakeReady===true,armed:!locked&&value.wakeArmed===true},voice:{ready:value.voiceReady===true,sttReady:value.sttReady===true},voiceTiming:{summary:timing},
@@ -50,7 +54,7 @@ function safeSnapshot(value={}){
     tasks:Array.isArray(value.tasks)?value.tasks.slice(0,50).map(task=>({id:text(task.id,80),...(validCraftAppRequest({appId:task.appId})?{appId:task.appId}:{}),title:text(task.title,200),status:['running','agent-finished','error','interrupted','disconnected'].includes(task.status)?task.status:'unknown',verification:task.verification==='verified'?'verified':'unknown',evidence:Array.isArray(task.evidence)?task.evidence.filter(item=>item.scope==='tool').slice(0,8).map(item=>({type:text(item.type,40),scope:'tool',tool:text(item.tool,96),detail:text(item.detail,200)})):[],startedAt:number(task.startedAt),finishedAt:number(task.finishedAt),toolCount:number(task.toolCount),completedTools:number(task.completedTools),tools:Array.isArray(task.tools)?task.tools.slice(-8).map(tool=>({name:text(tool.name,96),status:text(tool.status,40)})):[],summary:text(task.summary,1200)})):[],
     routines:Array.isArray(value.routines)?value.routines.slice(0,20).map(routine=>({id:text(routine.id,40),name:text(routine.name,80),instructions:text(routine.instructions,6000),verification:text(routine.verification,1500)})):[],
     background:{limit:2,error:text(value.background?.error,200),jobs:locked?[]:(value.background?.jobs||[]).slice(-50).map(j=>({id:text(j.id,80),title:text(j.title,200),status:text(j.status,40),resource:text(j.resource,40),summary:text(j.summary,1200),reason:text(j.reason,300),children:(j.children||[]).slice(0,10).map(c=>({id:text(c.id,128),status:text(c.status,40),phase:['thinking','working'].includes(c.phase)?c.phase:'working',lastTool:text(c.lastTool,96),toolCount:Number.isSafeInteger(c.toolCount)&&c.toolCount>=0?c.toolCount:0}))}))},
-    jobQueue:{held:value.jobQueue?.held===true,blocked:value.jobQueue?.blocked===true,activeJobId:text(value.jobQueue?.activeJobId,80),jobs:Array.isArray(value.jobQueue?.jobs)?value.jobQueue.jobs.slice(0,50).map(job=>({id:text(job.id,80),title:text(job.title,200),status:['queued','running','agent-finished','delegated','completed','error','paused','cancelled','outcome-unknown'].includes(job.status)?job.status:'unknown',summary:text(job.summary,1200),reason:text(job.reason,300),attempts:Number.isSafeInteger(job.attempts)&&job.attempts>=0?job.attempts:0})):[]},
+    jobQueue:{held:value.jobQueue?.held===true,blocked:value.jobQueue?.blocked===true,activeJobId:text(value.jobQueue?.activeJobId,80),jobs:Array.isArray(value.jobQueue?.jobs)?value.jobQueue.jobs.slice(0,50).map(job=>({id:text(job.id,80),title:text(job.title,200),status:['queued','running','agent-finished','delegated','completed','error','paused','cancelled','outcome-unknown'].includes(job.status)?job.status:'unknown',summary:text(job.summary,1200),reason:text(job.reason,300),...(Number.isSafeInteger(job.revision)&&job.revision>=0?{revision:job.revision}:{}),attempts:Number.isSafeInteger(job.attempts)&&job.attempts>=0?job.attempts:0})):[]},
     awareness:{project:{name:text(value.awareness?.project?.name,80),confidence:['manual','registered'].includes(value.awareness?.project?.confidence)?value.awareness.project.confidence:'unknown'},foreground:!locked&&value.awareness?.foreground?{app:text(value.awareness.foreground.app,80),windowTitle:text(value.awareness.foreground.windowTitle,180),timestamp:number(value.awareness.foreground.timestamp)}:null,cards:!locked&&Array.isArray(value.awareness?.cards)?value.awareness.cards.slice(0,8).map(card=>({id:text(card.id,80),kind:text(card.kind,40),title:text(card.title,120),detail:text(card.detail,450),source:text(card.source,180),timestamp:number(card.timestamp),actionLabel:text(card.actionLabel,80)})):[]},
     teach:{active:!locked&&value.teach?.active===true,name:!locked?text(value.teach?.name,80):'',steps:!locked&&Array.isArray(value.teach?.steps)?value.teach.steps.slice(0,20).map(step=>({appId:step.appId==='light'?'light':'',kind:['click','text','key','scroll'].includes(step.kind)?step.kind:'unknown',label:text(step.label,160),verified:step.verified===true,verification:text(step.verification,300)})):[]},
     mode:value.mode?{id:text(value.mode.id,80),name:text(value.mode.name,80),ok:value.mode.ok===true}:null,
@@ -93,7 +97,7 @@ function normalizeConsoleEvent(event){
 function createWorkbench({electron,root,stateFile=null,getSnapshot=()=>({}),onCommand=async()=>{},onAction=async()=>{},onVisual=async()=>{},onBrowserChange=()=>{},onVisibility=()=>{}}){
   const {BrowserWindow,WebContentsView,session,ipcMain}=electron;
   const localFile=path.join(root,'ui/workbench.html'),localUrl=pathToFileURL(localFile).href;
-  let win=null,browser=null,ready=null,tab='system',destroyed=false,attached=false,events=[],gesture={enabled:false,ready:false,label:'',navigation:null},sequence=0,gestureHelp=false;
+  let win=null,browser=null,ready=null,tab='console',destroyed=false,attached=false,events=[],gesture={enabled:false,ready:false,label:'',navigation:null},sequence=0,gestureHelp=false,sidebarOpen=false,browserError=null,browserSafety=0;
   let placement=null,placementTimer=null,restoringPlacement=false,placementReady=false,lastPlacementJson='';
   let inputFrameId=null,inputEpoch=0;
   let presentation={owner:null,reason:'',requestId:null},presentationEpoch=0,userShowPending=null;
@@ -153,7 +157,7 @@ function createWorkbench({electron,root,stateFile=null,getSnapshot=()=>({}),onCo
   function layout(){
     if(!browser||!win||win.isDestroyed())return;
     browser.setVisible(tab==='browser'&&browser.webContents.getURL()!=='about:blank');
-    const bounds=win.getContentBounds(),offset=gestureHelp?140:0;browser.setBounds({x:22,y:190+offset,width:Math.max(1,bounds.width-44),height:Math.max(1,bounds.height-230-offset)});
+    const bounds=win.getContentBounds(),offset=gestureHelp?140:0,side=sidebarOpen?232:0;browser.setBounds({x:22+side,y:190+offset,width:Math.max(1,bounds.width-44-side),height:Math.max(1,bounds.height-326-offset)});
   }
   function selectTab(next){if(!TABS.includes(next))throw new Error('Unbekannter Arbeitsbereich.');if(next!==tab)streamBroker.stop();tab=next;layout();send({type:'tab',tab});if(next==='browser')browserStatus();onVisibility(controller.visible,tab);}
   function retain(event){
@@ -192,12 +196,19 @@ function createWorkbench({electron,root,stateFile=null,getSnapshot=()=>({}),onCo
     contents.on('will-frame-navigate',(event,details)=>{try{validateBrowserUrl(details?.url||event.url);}catch{event.preventDefault();}});
     for(const name of ['did-navigate','did-navigate-in-page','did-start-loading','did-stop-loading','page-title-updated'])contents.on(name,browserStatus);
     for(const name of ['did-navigate','did-navigate-in-page','did-start-loading'])contents.on(name,()=>onBrowserChange());
-    contents.on('did-fail-load',(_event,code,description,_url,isMainFrame)=>{if(isMainFrame&&code!==-3)send({type:'browser-error',message:text(description,200)});});
+    contents.on('did-navigate',()=>{browserError=null;});
+    contents.on('did-fail-load',(_event,code,description,_url,isMainFrame)=>{if(isMainFrame&&code!==-3){browserError=text(description,200);send({type:'browser-error',message:browserError});}});
     contents.loadURL('about:blank').catch(()=>{});layout();ready=win.loadFile(localFile);return ready;
   }
-  async function browserAction(value){
+  function browserState(){
+    if(safeSnapshot(getSnapshot()).privacyLocked)return null;
+    const contents=browser?.webContents;if(!contents||contents.isDestroyed())return {ready:false,url:'',title:'',loading:false,visible:false,tab};
+    const current=contents.getURL();let url='';try{if(current!=='about:blank')url=validateBrowserUrl(current);}catch{}
+    return {ready:!!url&&!browserError,url,title:url?text(contents.getTitle(),200):'',loading:contents.isLoading(),visible:controller.visible&&tab==='browser'&&!!url,tab,error:browserError,back:contents.navigationHistory.canGoBack(),forward:contents.navigationHistory.canGoForward()};
+  }
+  async function browserAction(value,allowed=()=>true){
     if(!value||typeof value!=='object'||Object.keys(value).some(key=>!['action','url'].includes(key)))throw new Error('Ungültige Browseraktion.');
-    await ensure();const contents=browser.webContents,history=contents.navigationHistory;
+    await ensure();if(!allowed())throw Error('Browseraktion wurde gestoppt.');const contents=browser.webContents,history=contents.navigationHistory;
     if(value.action==='navigate'){const url=validateBrowserUrl(value.url);selectTab('browser');await contents.loadURL(url);}
     else if(value.action==='back'){if(history.canGoBack())history.goBack();}
     else if(value.action==='forward'){if(history.canGoForward())history.goForward();}
@@ -208,6 +219,26 @@ function createWorkbench({electron,root,stateFile=null,getSnapshot=()=>({}),onCo
   async function handle(event,method,payload){
     if(!trustedSender(event,win?.webContents,localUrl))throw new Error('Arbeitsbereich-Zugriff verweigert.');
     if(method==='snapshot')return snapshot();
+    if(method==='workspace-layout'){
+      if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.keys(payload).length!==1||typeof payload.sidebar!=='boolean')throw Error('Ungültige Arbeitsbereich-Geometrie.');
+      sidebarOpen=payload.sidebar;layout();return {ok:true};
+    }
+    if(PROJECT_METHODS.has(method)){
+      const locked=safeSnapshot(getSnapshot()).privacyLocked;
+      if(method==='project-snapshot'||method==='project-pick'){
+        if(payload!==undefined&&payload!==null)throw Error('Diese Aktion erwartet keine Argumente.');
+        if(locked){if(method==='project-snapshot')return {projects:[],activeId:null};throw Error('Datenschutz ist aktiv.');}
+      }else{
+        const keys=method==='project-rename'?['id','name']:['project-list','project-read'].includes(method)?['id','path']:method==='project-command'?['id','text','path']:['id'];
+        if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.keys(payload).some(key=>!keys.includes(key))||typeof payload.id!=='string'||!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(payload.id))throw Error('Ungültige Projektaktion.');
+        if(keys.includes('path')&&(payload.path!==undefined||method!=='project-command')&&(typeof payload.path!=='string'||payload.path.length>600||/[\u0000-\u001f\u007f:]/.test(payload.path)||payload.path.startsWith('/')||payload.path.startsWith('\\')||payload.path.replace(/\\/g,'/').split('/').some(part=>part==='..')))throw Error('Ungültiger relativer Projektpfad.');
+        if(method==='project-read'&&!payload.path)throw Error('Bitte eine Datei auswählen.');
+        if(method==='project-command'&&(typeof payload.text!=='string'||!payload.text.trim()||payload.text.length>4000||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(payload.text)))throw Error('Bitte einen kurzen Projektauftrag eingeben.');
+        if(method==='project-rename'&&(typeof payload.name!=='string'||!payload.name.trim()||payload.name.length>80||/[\u0000-\u001f\u007f]/.test(payload.name)))throw Error('Ungültiger Projektname.');
+        if(locked)throw Error('Datenschutz ist aktiv.');
+      }
+      if(!['project-snapshot','project-list'].includes(method))claimUser();return onVisual(method,payload);
+    }
     if(method==='gesture-help'){if(!payload||Object.keys(payload).length!==1||typeof payload.enabled!=='boolean')throw Error('Ungültige Gestenhilfe.');gestureHelp=payload.enabled;layout();return {ok:true};}
     if(USER_METHODS.has(method)||method==='craft-refresh'&&payload?.preview===true)claimUser();
     if(method==='craft-stream-start'){if(!validCraftAppRequest(payload))throw new Error('Ungültiger Fensterstream.');resetInput();return streamBroker.arm(payload.appId);}
@@ -221,6 +252,12 @@ function createWorkbench({electron,root,stateFile=null,getSnapshot=()=>({}),onCo
     }
     if(['background-stop','background-reconcile','job-retry','job-cancel','job-reconcile','awareness-action','awareness-dismiss'].includes(method)){
       if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.keys(payload).length!==1||typeof payload.id!=='string'||!payload.id||payload.id.length>80||/[\u0000-\u001f\u007f]/.test(payload.id))throw Error('Ungültige lokale Aktion.');return onVisual(method,payload);
+    }
+    if(method==='job-amend'){
+      if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.keys(payload).length!==2||Object.keys(payload).some(key=>!['id','instruction'].includes(key))||typeof payload.id!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload.id)||typeof payload.instruction!=='string'||!payload.instruction.trim()||payload.instruction.length>1200||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(payload.instruction))throw Error('Ungültige Auftragskorrektur.');
+      const state=safeSnapshot(getSnapshot()),job=state.jobQueue.jobs.find(value=>value.id===payload.id);
+      if(state.privacyLocked||state.jobQueue.blocked||!job||!['queued','running','delegated'].includes(job.status))throw Error('Auftrag zuerst prüfen. Eine Korrektur ist jetzt nicht möglich.');
+      return onVisual(method,payload);
     }
     if(['job-resume','teach-cancel'].includes(method)){if(payload!==undefined&&payload!==null)throw Error('Keine Argumente erwartet.');return onVisual(method);}
     if(method==='teach-start'){if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.keys(payload).length!==1||typeof payload.name!=='string'||!payload.name.trim()||payload.name.length>80||/[\u0000-\u001f\u007f]/.test(payload.name))throw Error('Ungültiger Name für die Lehre.');return onVisual(method,payload);}
@@ -270,12 +307,22 @@ function createWorkbench({electron,root,stateFile=null,getSnapshot=()=>({}),onCo
     return !destroyed&&presentationEpoch===epoch&&presentation.owner==='agent'&&presentation.requestId===requestId;
   }
   const controller={
-    async show(next='system'){
+    async controlBrowser(value){
+      validateWorkbenchBrowserRequest(value);
+      if(safeSnapshot(getSnapshot()).privacyLocked)throw Error('Datenschutz ist aktiv.');
+      const safety=browserSafety,allowed=()=>safety===browserSafety&&!safeSnapshot(getSnapshot()).privacyLocked;
+      if(value.action==='navigate'){const url=validateBrowserUrl(value.url);await controller.show({tab:'browser',url},allowed);}
+      else if(value.action!=='state')await browserAction(value,allowed);
+      if(safeSnapshot(getSnapshot()).privacyLocked)throw Error('Datenschutz ist aktiv.');
+      if(!allowed())throw Error('Browseraktion wurde gestoppt.');
+      return browserState();
+    },
+    async show(next='system',allowed=()=>true){
       const options=typeof next==='object'?next:{tab:next};
       if(options.url)validateBrowserUrl(options.url);
       const nextTab=options.url?'browser':options.tab||'system';if(!TABS.includes(nextTab))throw new Error('Unbekannter Arbeitsbereich.');
       const epoch=claimUser();userShowPending=epoch;
-      try{await ensure();if(destroyed||epoch!==presentationEpoch)return;if(win.isVisible())rememberPlacement();if(options.url){await browser.webContents.loadURL(validateBrowserUrl(options.url));if(destroyed||epoch!==presentationEpoch)return;}selectTab(nextTab);if(epoch===presentationEpoch)showWindow(true);}
+      try{await ensure();if(destroyed||epoch!==presentationEpoch||!allowed())return;if(win.isVisible())rememberPlacement();if(options.url){await browser.webContents.loadURL(validateBrowserUrl(options.url));if(destroyed||epoch!==presentationEpoch||!allowed())return;}selectTab(nextTab);if(epoch===presentationEpoch&&allowed())showWindow(true);}
       finally{if(userShowPending===epoch)userShowPending=null;}
     },
     async present(options={}){
@@ -304,9 +351,11 @@ function createWorkbench({electron,root,stateFile=null,getSnapshot=()=>({}),onCo
     cycleTab(direction=1){claimUser();selectTab(TABS[(TABS.indexOf(tab)+(direction<0?-1:1)+TABS.length)%TABS.length]);},
     publish(event){
       if(destroyed)return;
+      if(event?.type==='privacy-state'&&event.locked===true)browserSafety++;
       if(['audio-chunk','audio-start','audio-end','audio-stop','camera-frame','wake-feed','vad-feed','client-state'].includes(event?.type))return;
       if(event?.type==='privacy-state'&&event.locked===true||safeSnapshot(getSnapshot()).privacyLocked)cancelPrivatePresentation();
       if(event?.type==='graph-update'){send({type:'graph-update',graph:event.graph});return;}
+      if(event?.type==='project-update'){send({type:'project-update',projects:safeSnapshot(getSnapshot()).privacyLocked?{projects:[],activeId:null}:event.projects});return;}
       if(event?.type==='craft-update'){if(event.craft?.privacyLocked)streamBroker.stop();send({type:'craft-update',craft:event.craft});return;}
       if(event?.type==='intel-update'){send({type:'intel-update',intel:event.intel});return;}
       if(event?.type==='guide-update'){send({type:'guide-update',guide:event.guide});return;}
@@ -326,10 +375,15 @@ function createWorkbench({electron,root,stateFile=null,getSnapshot=()=>({}),onCo
     destroy(){setPresentation(null);rememberPlacement();clearTimeout(placementTimer);streamBroker.stop();clearInterval(streamMonitor);uiSession.setDisplayMediaRequestHandler?.(null);uiSession.setPermissionRequestHandler(null);uiSession.setPermissionCheckHandler(null);destroyed=true;onVisibility(false,tab);ipcMain.removeHandler('workbench:invoke');browserSession.removeListener('will-download',blockDownload);browserSession.webRequest.onBeforeRequest(null);if(browser&&!browser.webContents.isDestroyed()){if(attached&&win&&!win.isDestroyed())win.contentView.removeChildView(browser);browser.webContents.close();}if(win&&!win.isDestroyed())win.destroy();browser=null;win=null;},
     get presentation(){return {...presentation};},
     get activeTab(){return tab;},
+    get browserState(){return browserState();},
     get streamTarget(){return streamBroker.target;},
     get inputGeneration(){return inputEpoch;},
     get visible(){return !!win&&!win.isDestroyed()&&win.isVisible();}
   };
   return controller;
 }
-module.exports={createWorkbench,validateBrowserUrl,trustedSender,safeSnapshot,normalizeConsoleEvent,restoreWindowPlacement};
+function validateWorkbenchBrowserRequest(value){
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['action','url'].includes(key))||!['state','navigate','back','forward','reload'].includes(value.action)||value.action!=='navigate'&&value.url!==undefined)throw Error('Ungültige Browseraktion.');
+ if(value.action==='navigate')validateBrowserUrl(value.url);return value;
+}
+module.exports={createWorkbench,validateBrowserUrl,validateWorkbenchBrowserRequest,trustedSender,safeSnapshot,normalizeConsoleEvent,restoreWindowPlacement};

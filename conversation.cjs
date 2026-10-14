@@ -31,12 +31,13 @@ class Conversation {
     this.busy = this.remoteRunning = !!result.running; this.reasoningState={mode:'automatic',phase:'idle',requested:null,effective:null,error:null};this.error = ''; return result;
     }finally{this.selecting=false;}
   }
-  async submit(text,{speak=true,sessionId,reasoningEffort,isCurrent=()=>true}={}) {
+  async submit(text,{speak=true,sessionId,reasoningEffort,voiceContext,isCurrent=()=>true}={}) {
     if(this.selecting)throw new Error('Die Session wird gerade gewechselt.');
     if (!this.session) throw new Error('Bitte zuerst die gewünschte Hermes-Session auswählen.');
     if(sessionId&&sessionId!==this.session.id)throw new Error('Die Session hat sich seit der Aufnahme geändert. Bitte den Auftrag wiederholen.');
     if (this.busy) throw new Error('Ein Auftrag läuft. Zuerst unterbrechen oder abschließen.');
     if (typeof text !== 'string' || !text.trim() || text.length > 20000) throw new Error('Der Auftrag ist leer oder zu lang.');
+    if(voiceContext!==undefined&&(typeof voiceContext!=='string'||voiceContext.length>6000))throw Error('Ungültiger Sprachkontext.');
     if(reasoningEffort!==undefined&&!['none','medium','high'].includes(reasoningEffort))throw Error('Ungültige automatische Thinking-Stufe.');
     this.busy = true; this.error = '';this.speakReply=speak;
     const session=this.session,generation=++this.submissionGeneration;let dispatched=false;this.preparing=true;
@@ -51,7 +52,7 @@ class Conversation {
         this.reportReasoning({phase:'running',effective:reasoningEffort});
       }
       check();this.preparing=false;dispatched=true;this.remoteRunning=true;
-      return await this.request('prompt.submit', {session_id:session.id,profile:session.profile,text:text.trim(),...(speak?{surface:'voice-live'}:{})});
+      return await this.request('prompt.submit', {session_id:session.id,profile:session.profile,text:text.trim(),...(speak?{surface:'voice-live',...(voiceContext?.trim()?{voice_context:voiceContext}:{})}:{})});
     }catch(error){
       if(!dispatched){error.notSubmitted=true;await this.restoreReasoning();}
       this.busy=!!this.reasoningRestoring;this.remoteRunning=false;this.error=error.message;throw error;

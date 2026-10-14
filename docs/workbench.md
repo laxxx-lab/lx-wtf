@@ -1,5 +1,17 @@
 # Lilith Workbench
 
+Der gemeinsame Controller stellt `browserState` und
+`controlBrowser({action,url?})` bereit. `state` ist lesend, `navigate` öffnet
+die eigene Ansicht nach bestätigtem HTTP(S)-Laden; `back`, `forward`, `reload`
+verwenden den vorhandenen Navigationsverlauf. Unbekannte Felder/Aktionen,
+Credentials und privilegierte URLs werden abgewiesen, Datenschutz verbirgt
+Adresse/Titel. Agenten müssen tatsächliche Adresse, Ladezustand und Sichtbarkeit
+prüfen. Native Chrome-/Edge-Profile bleiben unabhängig. Diese Schnittstelle
+führt keine beliebigen Seitenskripte aus; Seitenklicks verwenden frische native
+Desktopbeobachtungen und Eingabe.
+
+Seit 13.10.2026 heißt die Konsole in der Oberfläche **Zusammenarbeit** (interne Tab-ID weiterhin `console`). Die Auftragseingabe bleibt in allen Bereichen unten erreichbar. **Projekte** oben schaltet die dauerhafte Projektseitenleiste; ausgewählte Ordner, aufklappbare Dateiliste und an Aufträge gebundene Textdateien: [Projektverzeichnis](projects.md). Die interne Browseransicht berücksichtigt Seitenleiste und Eingabehöhe. Auf kleinen Fenstern startet die Seitenleiste geschlossen. Desktop-Hinweise unterstützen zusätzlich vier feste Farben und eine Ellipse am Ziel: [Geführte Hinweise](guided-explanations.md).
+
 Der Artcraft-Fensterstream startet automatisch für das ausgewählte geöffnete Fenster und wird bei erneutem Anzeigen der Werkbank wieder aufgenommen. Metadaten werden ohne Screenshot-Polling alle drei Sekunden geprüft. Ctrl+Alt+Q oder „◎ Einkreisen“ oben öffnet Circle of Interest: Bildschirmbereich markieren, Frage stellen, lokale Bildanalyse und Antwort in derselben Hermes-Session. Details: `docs/circle-interest.md` und `docs/artcraft.md`.
 
 An on-demand resizable window with System, Console, Browser, Context, Project Graph, Intel and Artcraft workspaces. Closing, minimizing or Escape hides the window; opening it again keeps its browser and console state. It uses the existing Hermes session through its parent callbacks.

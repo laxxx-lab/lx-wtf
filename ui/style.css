@@ -25,6 +25,7 @@ body.expanded #companion{margin:8px;height:calc(100vh - 16px);padding:19px 22px 
 .camera-settings>small{display:block;font-size:9px;line-height:1.5;color:var(--muted);margin-top:11px}
 
 :root{--orb-accent:#39dcff}
+#handoff-location{color:#b2ebe4;font-size:10px;max-width:170px;min-height:13px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:2px 0 5px}body:not(.expanded) .core:has(#handoff-location:not([hidden])) #detail{display:none}body.expanded .core:has(#handoff-location:not([hidden])){height:315px}#handoff-recall{-webkit-app-region:no-drag;flex-shrink:0}
 #phase{color:var(--orb-accent);transition:color .25s}
 .live.active{color:var(--orb-accent);border-color:var(--orb-accent)}
 body.expanded .core{height:258px;margin-top:0}
@@ -69,3 +70,5 @@ body.expanded #phase{margin-top:-8px}
 .orb-countdown-track{display:block;height:2px;width:100%;background:#46657470;border-radius:2px;overflow:hidden}.orb-countdown-track i{display:block;height:100%;width:0;background:var(--orb-accent);box-shadow:0 0 7px var(--orb-accent);transition:width .3s}
 body.expanded #orb-countdown{bottom:34px;min-width:90px;padding:6px 10px}body.expanded #orb-countdown-time{font-size:15px}
 @media(prefers-reduced-motion:reduce){.orb-countdown-track i{transition:none}}
+
+#microphone-meter{width:100%}

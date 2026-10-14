@@ -102,3 +102,8 @@ test('a recording cannot be submitted to a different session after switching',as
   await assert.rejects(conversation.submit('Öffne Spotify',{sessionId:recordedSession}),/Session/);
   assert.equal(conversation.busy,false);
 });
+
+test('bounded local dialogue accompanies spoken Hermes tasks but never typed input',async()=>{
+ for(const speak of [true,false]){const f=reasoningFixture();await f.c.select({id:'stored'});await f.c.submit('Erkläre das zuletzt Gesagte',{speak,voiceContext:'[{"role":"user","content":"Testinhalt"}]'});const sent=f.calls.find(c=>c.method==='prompt.submit').params;assert.equal(sent.voice_context,speak?'[{"role":"user","content":"Testinhalt"}]':undefined);}
+ const f=reasoningFixture();await f.c.select({id:'stored'});await assert.rejects(f.c.submit('Hallo',{voiceContext:'x'.repeat(6001)}),/Sprachkontext/);assert.equal(f.calls.some(c=>c.method==='prompt.submit'),false);
+});

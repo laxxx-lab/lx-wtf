@@ -102,3 +102,34 @@ verwendet. Die Hörprobe liegt unter
 `voices/imported/lilith-reference-preview.wav`. Drei Probesätze wurden korrekt
 transkribiert; die Sprechervektoren sind technisch konsistent. Das garantiert
 keine identische Nachbildung der Originalstimme und ersetzt keinen Hörtest.
+
+## Mehrere lokale Stimmprofile
+
+Unter Einstellungen → **Stimme** erscheinen die tatsächlich installierten
+Profile mit ihren lokalen Anzeigenamen. Eine Auswahl oder Änderung der
+Sprechweise wird sofort gespeichert; **Anhören** spielt eine kurze Probe.
+Nur vorhandene Sprechweisen lassen sich auswählen. Profile mit ausschließlich
+natürlicher Sprechweise bieten kein Flüstern oder kraftvolle Projektion an.
+Die Wahl verändert weder Hermes-Session noch Mikrofon-, Sensor- oder Standby-
+Einstellungen.
+
+Die Liste kommt aus `voices/fixed/registry.json`: `hermes-<id>-<delivery>`
+identifiziert ein Profil, `display_name` benennt es optional. Der Renderer
+bekommt nur ID, Anzeigename und vorhandene Sprechweisen, keine Sprechervektoren,
+Referenztexte oder Audio-Codes. Frühere Profile werden unter eigener ID
+erhalten, einschließlich ihrer passenden Wakeword-Begrüßungen.
+
+Eine Referenz mit leerem `ref_text` nutzt nur den Sprechervektor; die
+Referenz-Audio-Codes werden im vorhandenen TTS-Server nicht zur Synthese
+übernommen. Das kann Begleitton aus einer gemischten Vorlage vermeiden,
+garantiert aber keinen rauschfreien Höreindruck. Eine separat gestaltete
+Studiostimme braucht keine gemischte Originalaufnahme. Hörproben und
+Profil-Backups bleiben unter den ignorierten `voices/` und `.local/`.
+
+**Lilith · Studio** bietet zusätzlich **Flüstern** an. Die natürliche Variante
+bleibt erhalten; die Flüsterreferenz verwendet denselben Sprechervektor und
+eine eigene lokal erzeugte Stilaufnahme. Kurze Antworten behalten ebenfalls
+die Stilreferenz. Falls eine gewünschte Sprechweise kein Audio erzeugt, wird
+ein Fehler gemeldet statt unbemerkt normal zu sprechen. Drei passende lokale
+Wakeword-Begrüßungen sind separat vorgerendert. Kraftvolle Projektion wird für
+dieses Profil nicht ergänzt.

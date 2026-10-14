@@ -5,12 +5,12 @@ import json
 import sys
 
 
-def detector(model):
+def detector(model, min_silence=.5):
     import sherpa_onnx
     config = sherpa_onnx.VadModelConfig()
     config.silero_vad.model = str(model)
     config.silero_vad.threshold = .5
-    config.silero_vad.min_silence_duration = .5
+    config.silero_vad.min_silence_duration = min_silence
     config.silero_vad.min_speech_duration = .12
     config.silero_vad.max_speech_duration = 28
     config.sample_rate = 16000
@@ -62,8 +62,11 @@ class SpeechListener:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model', required=True)
+    parser.add_argument('--min-silence', type=float, default=.5)
     args = parser.parse_args()
-    listener = SpeechListener(detector(args.model))
+    if not .25 <= args.min_silence <= 1:
+        raise ValueError('Invalid silence duration')
+    listener = SpeechListener(detector(args.model, args.min_silence))
     print(json.dumps({'type': 'vad-ready', 'ready': True}), flush=True)
     for line in sys.stdin:
         for event in listener.accept(json.loads(line)):

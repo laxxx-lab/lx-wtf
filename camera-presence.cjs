@@ -2,7 +2,7 @@
 
 // Recognition is a convenience signal, never an authentication decision.
 class CameraPresence {
-  constructor({ confirmHits = 3, absenceMs = 20000, cooldownMs = 120000 } = {}) {
+  constructor({ confirmHits = 3, absenceMs = 300000, cooldownMs = 0 } = {}) {
     this.confirmHits = confirmHits;
     this.absenceMs = absenceMs;
     this.cooldownMs = cooldownMs;
@@ -17,13 +17,17 @@ class CameraPresence {
     for (const [name, profile] of this.profiles) {
       if (!names.has(name)) {
         profile.hits = 0;
-        if (now - profile.lastSeen >= this.absenceMs) this.profiles.delete(name);
+        profile.missingSince ??= now;
       }
+      // A missing observation starts absence; a camera outage alone does not.
+      // Check returning faces before lastSeen or missingSince gets overwritten.
+      if (profile.missingSince != null && now - profile.missingSince >= this.absenceMs) this.profiles.delete(name);
     }
     const arrivals = [];
     for (const name of names) {
       const profile = this.profiles.get(name) || { hits: 0, present: false };
       profile.lastSeen = now;
+      profile.missingSince = null;
       profile.hits++;
       this.profiles.set(name, profile);
       if (!profile.present && profile.hits >= this.confirmHits) {
@@ -38,7 +42,12 @@ class CameraPresence {
     return arrivals;
   }
 
-  reset() { this.profiles.clear(); }
+  reset() {
+    for (const [name, profile] of this.profiles) {
+      if (!profile.present) this.profiles.delete(name);
+      else { profile.hits = 0; profile.missingSince = null; }
+    }
+  }
 }
 
 module.exports = { CameraPresence };

@@ -22,8 +22,13 @@ function fresh(value,now){
 }
 function request(value,now){
   const allowed=['purpose','windowId','pid','windowRect','targetRect','observedAt','snapshotId','label','text','taskId','toolCallId'];
+  if(value?.purpose==='guide')allowed.push('color','shape');
   if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!allowed.includes(key))||!['guide','activity'].includes(value.purpose))throw new Error('Ungültiger visueller Hinweis.');
   const result={purpose:value.purpose,windowId:identifier(value.windowId,'Fenster-ID'),pid:identifier(value.pid,'Prozess-ID',4294967295),windowRect:rect(value.windowRect),observedAt:value.observedAt,observedTime:fresh(value.observedAt,now)};
+  if(value.purpose==='guide'){
+    result.color=value.color===undefined?'cyan':value.color;result.shape=value.shape===undefined?'frame':value.shape;
+    if(!['cyan','violet','amber','green'].includes(result.color)||!['frame','ellipse'].includes(result.shape))throw new Error('Ungültige Hinweisfarbe oder Hinweisform.');
+  }
   for(const key of ['snapshotId','taskId','toolCallId'])if(value[key]!==undefined&&(typeof value[key]!=='string'||!value[key]||value[key].length>128||/[\u0000-\u001f\u007f]/.test(value[key])))throw new Error('Ungültige Hinweiszuordnung.');
   if(value.purpose==='activity'&&(!value.taskId||!value.toolCallId))throw new Error('Aktivität benötigt einen zugeordneten laufenden Auftrag und Werkzeugaufruf.');
   for(const [key,limit]of [['label',80],['text',600]])if(value[key]!==undefined&&(typeof value[key]!=='string'||value[key].length>limit))throw new Error('Hinweistext ist zu lang.');
@@ -115,10 +120,10 @@ function createGuideOverlay({electron,root,readWindow=readWindowBounds,onChange=
         if(expires<=now())throw new Error('Die beobachtete Position ist abgelaufen.');
         for(const {window,piece}of pending){
           window.setBounds(piece.bounds);
-          window.webContents.send('guide:event',{type:'guide',purpose:value.purpose,label:value.label,text:value.text,primary:piece.primary,width:piece.bounds.width,height:piece.bounds.height,windowRect:piece.windowRect,targetRect:piece.targetRect});
+          window.webContents.send('guide:event',{type:'guide',purpose:value.purpose,...(value.purpose==='guide'?{color:value.color,shape:value.shape}:{}),label:value.label,text:value.text,primary:piece.primary,width:piece.bounds.width,height:piece.bounds.height,windowRect:piece.windowRect,targetRect:piece.targetRect});
           window.showInactive();
         }
-        state={visible:true,purpose:value.purpose,label:value.label,text:value.text,clickThrough:true,simulatedPointer:!!value.targetRect,observedAt:value.observedAt,expiresAt:new Date(expires).toISOString()};publish();
+        state={visible:true,purpose:value.purpose,...(value.purpose==='guide'?{color:value.color,shape:value.shape}:{}),label:value.label,text:value.text,clickThrough:true,simulatedPointer:!!value.targetRect,observedAt:value.observedAt,expiresAt:new Date(expires).toISOString()};publish();
         expireTimer=timers.setTimeout(()=>{if(sequence===generation)clear();},expires-now());schedulePoll(value,sequence);return snapshot();
       }catch(error){if(sequence===generation)clear();throw error;}
     },

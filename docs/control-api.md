@@ -1,5 +1,39 @@
 # Lokale Steuerungs-API
 
+## Zwischenablage
+
+`POST /v1/clipboard` akzeptiert ausschließlich `{action:'read',maxChars?:1..20000}`
+oder `{action:'write',text:'…'}` mit 1 bis 20.000 UTF-16-Zeichen ohne Nullzeichen.
+Nur für diesen Endpunkt gilt ein Bodylimit von 131.072 Bytes, damit Unicode und
+JSON-Escaping passen; bestehende Endpunktlimits bleiben erhalten. Authentifizierung,
+Loopback, aktive lokale Session, Standby- und Datenschutzprüfung gelten weiterhin.
+Lesen liefert `ok,text,truncated,untrusted,observedAt`, Schreiben nach nativem
+Abgleich `ok,verified,characters`. Kein Polling, Bildformat oder Auftragsversand.
+Windows: `control.ps1 -Action clipboard -Operation read -MaxChars 20000` oder
+`-Operation write -ClipboardText '<gewünschter Text>'`. Der Linux-MCP bietet
+`lilith_clipboard_read` und `lilith_clipboard_write` für das Notebook.
+
+## Eigener Werkstatt-Browser
+
+`GET /v1/browser` liest `{ok,browser}`. `POST /v1/browser` akzeptiert ausschließlich
+`{action:'navigate',url:'https://…'}` oder `{action:'state'|'back'|'forward'|'reload'}`.
+`browser` liefert `ready`, `url`, `title`, `loading`, `visible`, `tab` und
+Vor-/Zurück-Bereitschaft. Lesen erstellt kein Browserfenster. Navigation öffnet
+die ausdrücklich beauftragte eigene Browseransicht; ein Ladefehler ist keine
+Öffnungsbestätigung. HTTP(S) ohne Credentials, keine freie JS-/Shell-Ausführung.
+Bearer, Origin-Sperre, Körperlimit und Datenschutz bleiben verbindlich.
+
+Windows: `control.ps1 -Action browser`, Navigation mit `-Operation navigate
+-Url https://example.com`; Vor/Zurück/Neu laden entsprechend. Der Windows-Status
+enthält `workbench.tab` und `workbench.browser` als frische Metadaten.
+Linux verwendet dieselben begrenzten Browser- und Werkstatt-Verträge über eine
+eigene Loopback-API `127.0.0.1:8874`; nur `status`, `workbench`, `browser` sind dort
+freigegeben. Das private `.local/linux-control.json` bleibt lokal (0600), wird
+vom bestehenden Linux-MCP gelesen und enthält keine Agentenfreigabe für andere
+API-Aktionen. Kein Token in Befehlsausgabe oder Git.
+
+`guide` akzeptiert bei `purpose:'guide'` die optionalen festen Darstellungsfelder `color` (`cyan`, `violet`, `amber`, `green`) und `shape` (`frame`, `ellipse`). Die Ellipse umrandet das tatsächlich beobachtete Zielrechteck. Standard bleibt cyan/frame. Aktivitätshinweise akzeptieren keine Darstellungsfelder. `control.ps1 -Action guide -GuideJson ...` übergibt diese Felder im bestehenden JSON; keine neuen freien CSS- oder Koordinatenwege. Fensteridentität, ursprünglicher Beobachtungszeitpunkt, native Prüfung und Ablauf gelten unverändert. Beispielzusatz zum frisch ermittelten Hinweis: `{color:'violet',shape:'ellipse',label:'Hier klicken'}`.
+
 ## Bluetooth
 
 `GET /v1/bluetooth-devices` liefert `{radios, devices, observedAt}` mit
@@ -28,6 +62,35 @@ und geprüfter Stand: [Bluetooth](bluetooth-control.md).
 ```
 
 ## Grundsteuerung
+
+`status.voiceHealth` zeigt beobachtete Sprachbereitschaft, einzelne Prüfungen und
+eine begrenzte Reparaturempfehlung. Die App verbindet bei Leerlauf nur den schon
+gewählten Eingang erneut, setzt die vorhandene Audioausgabe fort oder startet
+ihre fehlenden lokalen Sprachhelfer. Keine Kameraaktivierung, Sessionresets oder
+Wiederholung von Aufträgen. Ein toter Silero-/Wakeword-Worker ist ein Fehler auch
+bei erreichbarem STT-/TTS-Server. Der Orb zeigt dann **SPRACHE PRÜFEN**.
+`status.attention` nennt eine explizite Inhaltsquelle und ihren ursprünglichen
+Zeitpunkt ohne Quelltext/native IDs. Details: [Sprachdiagnose](voice-health.md).
+
+```powershell
+.\control.ps1 -Action current-content -Kind window -Selection pointer -Question 'Erkläre den Text hier'
+.\control.ps1 -Action current-content -Kind remembered -Question 'Erkläre die zuletzt gelesene Quelle nochmal'
+```
+
+`POST /v1/current-content` erlaubt zusätzlich `{kind:'window', selection:'pointer',
+question:'...'}` und `{kind:'remembered',question:'...'}`. Andere Auswahlarten,
+Pointer für Zwischenablage/alte Quelle und zusätzliche Schlüssel werden
+abgewiesen. Nur nach ausdrücklicher Inhaltsanfrage verwenden, nicht als dauerhaftes
+Beobachten. Bildinhalte weiterhin mit ausdrücklich ausgewähltem Einkreisen.
+
+`status.localConversation` meldet die lokale Gesprächsschicht getrennt vom
+Hermes-Auftrag: `enabled`, `ready`, `busy`, `model`, `pendingPlayback`, Fehler
+und `turnDetector.available`. Ein bereiter lokaler Dialog bedeutet keine neuen
+PC-Berechtigungen und keinen abgeschlossenen Hintergrundauftrag.
+`status.voiceTiming.summary` enthält Laufzeiten ohne Sprachinhalt, einschließlich
+`localFirstTokenMs`, `localModelMs` und `turnPredictionMs`. Die beiden lokalen
+Gesprächseinstellungen werden in SPRACHE / DIREKT gewählt. Vertrag und Grenzen:
+[Lokales Live-Gespräch](local-live-conversation.md).
 
 Hermes erreicht die App über seine vorhandene Windows-MCP-Shell und [control.ps1](../control.ps1). Der Helfer liest das lokale Token selbst. Es muss nicht zum VPS kopiert werden. Die API bindet ausschließlich an `127.0.0.1:8872`; es ist kein zusätzlicher Netzwerkport freigegeben.
 

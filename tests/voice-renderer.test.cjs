@@ -10,6 +10,136 @@ function renderer(){
   return {context,calls,event:event=>handlers.forEach(fn=>fn(event)),run:code=>vm.runInContext(code,context),tick:()=>intervals.forEach(fn=>fn())};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
+test('input diagnostics distinguish an armed silent capture from a stalled transcription',()=>{
+ const r=renderer();r.run('live=true;capturing=true;speechStarted=false;vadReady=true;awaitingResume=false;');
+ const armed=r.run('clientState()');assert.equal(armed.captureArmed,true);assert.equal(armed.capturing,false);assert.equal(armed.vadReady,true);
+ r.run('capturing=false;transcribing=true;awaitingResume=true;');const stalled=r.run('clientState()');assert.equal(stalled.captureArmed,false);assert.equal(stalled.transcribing,true);assert.equal(stalled.awaitingResume,true);
+});
+test('a delayed automatic standby refuses fresh speech and preserves its captured PCM',async()=>{
+ const r=renderer();r.run("sessionInfo={id:'runtime'};gatewayConnected=true;settings={wakeWord:true};wakeReady=true;vadReady=true;live=true;capturing=true;speechStarted=true;frames=[new Float32Array([.2])];captureTurnId='new-input';");
+ await r.run("applyControl({id:'idle',action:'standby',automatic:true,idleAt:0,sessionId:'runtime',settings:{wakeWord:true,standbyActive:true,cameraEnabled:false}})");
+ assert.equal(r.run('capturing'),true);assert.equal(r.run('frames.length'),1);assert.equal(r.run('captureTurnId'),'new-input');assert.equal(r.run('live'),true);assert.ok(r.calls.some(call=>call.method==='control-ack'&&call.value.error));
+});
+test('automatic standby rollback cannot cancel a newer recording or reopen a manually paused microphone',async()=>{
+ for(const newer of ["capturing=true;speechStarted=true;frames=[new Float32Array([.2])]","liveRequest=2"]){
+  const r=renderer();r.run("sessionInfo={id:'runtime'};gatewayConnected=true;settings={wakeWord:false};vadReady=true;liveRequest=1;live=false;idleStandbyRecord={ticket:sensorControlGeneration,live:true,request:1};");r.run(newer);
+  await r.run("applyControl({id:'cancel',action:'idle-standby-cancel',restoreLive:true,sessionId:'runtime',settings:{wakeWord:false,standbyActive:false,cameraEnabled:false}})");
+  assert.equal(r.run('live'),false);if(newer.includes('capturing')){assert.equal(r.run('capturing'),true);assert.equal(r.run('frames.length'),1);}
+ }
+});
+test('automatic standby with disabled wakewords releases the microphone without enabling detection',async()=>{
+ const r=renderer();r.run("sessionInfo={id:'runtime'};gatewayConnected=true;settings={wakeWord:false};wakeReady=true;vadReady=true;live=true;");await r.run('ensureMic()');
+ await r.run("applyControl({id:'idle-off',action:'standby',automatic:true,idleAt:Date.now(),sessionId:'runtime',settings:{wakeWord:false,standbyActive:true,cameraEnabled:false}})");
+ const ack=r.calls.find(call=>call.method==='control-ack'&&call.value.id==='idle-off');assert.equal(ack.value.error,undefined);assert.equal(r.run('live'),false);assert.equal(r.run('settings.wakeWord'),false);assert.equal(r.run('micStream'),null);assert.equal(ack.value.state.wakeArmed,false);
+});
+
+test('confirmed arrival opens Live after greeting playback drains without a wakeword',async()=>{
+ const r=renderer();r.run("sessionInfo={id:'arrival-session',storedId:'stored',profile:'default'};gatewayConnected=true;vadReady=true;busy=false;settings={wakeWord:false,microphoneDeviceId:'saved-mic'};privacyLocked=false;handoffPaused=false;");
+ r.event({type:'handoff-listen',sessionId:'arrival-session',turnId:'arrival-turn'});
+ r.run("audioNodes=[{turnId:'arrival-turn'}];");r.event({type:'handoff-listen-ready',sessionId:'arrival-session',turnId:'arrival-turn'});r.tick();await settle();assert.equal(r.run('live'),false);
+ r.run('audioNodes=[];');r.tick();await settle();assert.equal(r.run('live'),true);assert.equal(r.calls.some(row=>row.method==='wake-resume'),false);
+});
+
+test('arrival listening never reopens after manual pause, session change or privacy',async()=>{
+ for(const stop of ["toggleMic(false)","sessionInfo={id:'other'}", "quiesceLocal()"]){
+  const r=renderer();r.run("sessionInfo={id:'arrival-session'};gatewayConnected=true;vadReady=true;busy=false;settings={wakeWord:false};privacyLocked=false;handoffPaused=false;");r.event({type:'handoff-listen',sessionId:'arrival-session',turnId:'arrival-turn'});await r.run(stop);r.run('privacyLocked=false;');r.event({type:'handoff-listen-ready',sessionId:'arrival-session',turnId:'arrival-turn'});r.tick();await settle();assert.equal(r.run('live'),false,stop);
+ }
+ const r=renderer();r.run("sessionInfo={id:'own'};gatewayConnected=true;vadReady=true;privacyLocked=false;");r.event({type:'handoff-listen',sessionId:'foreign',turnId:'arrival'});r.event({type:'handoff-listen-ready',sessionId:'foreign',turnId:'arrival'});r.tick();await settle();assert.equal(r.run('live'),false);
+});
+
+test('an arrival with no greeting PCM can still open its microphone',async()=>{
+ const r=renderer();r.run("sessionInfo={id:'arrival-session'};gatewayConnected=true;vadReady=true;busy=false;settings={wakeWord:false};privacyLocked=false;handoffPaused=false;audioContext=new AudioContext();speakingUntil=0;");
+ r.event({type:'handoff-listen',sessionId:'arrival-session',turnId:'silent-greeting'});r.event({type:'handoff-listen-ready',sessionId:'arrival-session',turnId:'silent-greeting'});r.tick();await settle();assert.equal(r.run('live'),true);
+});
+
+test('a delayed arrival microphone grant cannot cross session, connection, standby or safety changes',async()=>{
+ for(const change of ["renderState({status:'offline',session:{id:'arrival'},connected:false,busy:false})", "renderState({status:'ready',session:{id:'other'},connected:true,busy:false})", "settings.standbyActive=true", "sensorControlGeneration++", "vadReady=false"]){
+  const r=renderer();r.run("globalThis.grantMic=null;navigator.mediaDevices.getUserMedia=()=>new Promise(resolve=>grantMic=resolve);sessionInfo={id:'arrival'};gatewayConnected=true;vadReady=true;wakeReady=true;settings={wakeWord:true};privacyLocked=false;handoffPaused=false;busy=false;");
+  r.event({type:'handoff-listen',sessionId:'arrival',turnId:'turn'});r.event({type:'handoff-listen-ready',sessionId:'arrival',turnId:'turn'});await settle();
+  r.run(change);r.run('grantMic({getTracks:()=>[{stop(){}}]})');await settle();await settle();assert.equal(r.run('live'),false,change);assert.equal(r.run('capturing'),false,change);
+ }
+});
+
+test('a remote offline owner remains named on the orb with an explicit recall action',async()=>{
+ const r=renderer();r.run("orbRenderer.draw=()=>{};orbPreviewRenderer.draw=()=>{};");
+ r.event({type:'state',status:'ready',connected:true,busy:false,session:{id:'selected'}});
+ r.event({type:'handoff-input',passive:true});await settle();
+ r.event({type:'handoff-state',handoff:{available:true,pending:null,presence:{remote:true,name:'lx-gaming-nb',online:false}}});
+ r.run('draw(2000)');assert.equal(r.run("$('phase').textContent"),'AWAY');
+ assert.match(r.run("$('handoff-location').textContent"),/lx-gaming-nb.*offline/);
+ assert.equal(r.run("$('handoff-recall').hidden"),false);assert.equal(r.run("$('handoff-recall').disabled"),false);
+ r.context.document.getElementById('handoff-recall').onclick();await settle();assert.ok(r.calls.some(row=>row.method==='recall'));assert.equal(r.calls.some(row=>row.method==='submit'),false);
+ r.run('privacyLocked=true;');r.event({type:'handoff-state',handoff:{available:true,pending:null,presence:{remote:true,name:'lx-gaming-nb',online:false}}});assert.equal(r.run("$('handoff-recall').disabled"),true);
+});
+
+test('a ready handoff without a pending receipt shows availability instead of claiming setup is missing',()=>{
+ const r=renderer();r.event({type:'state',status:'ready',connected:true,busy:false,session:{id:'selected'}});
+ r.event({type:'handoff-state',handoff:{available:true,phase:'idle',detail:'',pending:null}});
+ assert.equal(r.run("$('handoff-notebook').disabled"),false);
+ assert.equal(r.run("$('handoff-detail').textContent"),'Gesprächsübergabe bereit');
+ r.event({type:'handoff-state',handoff:{available:false,phase:'unavailable',detail:'Gesprächsübergabe am Gateway noch nicht verfügbar',pending:null}});
+ assert.equal(r.run("$('handoff-notebook').disabled"),true);
+ assert.match(r.run("$('handoff-detail').textContent"),/noch nicht verfügbar/);
+});
+
+test('handoff pauses only conversation input and leaves saved sensor preferences intact',async()=>{
+ const r=renderer();r.run("settings={wakeWord:true,cameraEnabled:true,screenEnabled:true,gesturesEnabled:true};privacyLocked=false;live=false;");const before=r.run('JSON.stringify(settings)');
+ r.event({type:'handoff-input',passive:true});await settle();assert.equal(r.run('handoffPaused'),true);assert.equal(r.run('JSON.stringify(settings)'),before);assert.equal(r.run('privacyLocked'),false);
+ r.run('capturing=false;micStream={};live=true;startCapture();');assert.equal(r.run('capturing'),false);assert.equal(r.calls.some(call=>call.method==='settings'),false);
+});
+test('the notebook transfer button invokes the dedicated action without submitting a model prompt',async()=>{
+ const r=renderer();r.context.document.getElementById('handoff-notebook').onclick();await settle();assert.ok(r.calls.some(call=>call.method==='handoff'&&call.value==='notebook'));assert.equal(r.calls.some(call=>call.method==='submit'),false);
+});
+test('a delayed wake event on the passive client never resumes the old conversation',async()=>{
+ const r=renderer();r.run("settings={wakeWord:true,cameraEnabled:true,gesturesEnabled:true};privacyLocked=false;sessionInfo={id:'runtime'};gatewayConnected=true;busy=false;live=false;handoffPaused=true;");r.event({type:'wake-detected',sessionId:'runtime'});await settle();assert.equal(r.calls.some(call=>call.method==='wake-resume'),false);
+});
+test('a refused passive wake-resume control leaves the camera and gestures alone',async()=>{
+ const r=renderer();r.run("settings={wakeWord:true,cameraEnabled:true,gesturesEnabled:true};privacyLocked=false;sessionInfo={id:'runtime'};gatewayConnected=true;live=false;handoffPaused=true;globalThis.disabled=0;cameraControls.controller.disable=()=>disabled++;gestureController.disable=()=>disabled++;");r.event({type:'control-request',id:'late-wake',action:'wake-resume',enabled:true,sessionId:'runtime'});await settle();assert.equal(r.run('disabled'),0);assert.ok(r.calls.some(call=>call.method==='control-ack'&&call.value.error));
+});
+
+test('installed alternative voices can be selected and saved directly without allowing uninstalled delivery styles',async()=>{
+ const r=renderer(),voice=r.context.document.getElementById('voice'),delivery=r.context.document.getElementById('delivery');
+ voice.replaceChildren=(...options)=>{voice.options=options;};delivery.options=['normal','whisper','power'].map(value=>({value,disabled:false}));
+ r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});return Promise.resolve({settings:{voice:value?.voice,delivery:value?.delivery},voiceProfiles:[{id:'dark',label:'Samtig & kraftvoll',deliveries:['normal','whisper','power']},{id:'lilith-studio',label:'Lilith · Studio',deliveries:['normal']}]});};
+ r.run("syncVoiceCatalog([{id:'dark',label:'Samtig & kraftvoll',deliveries:['normal','whisper','power']},{id:'lilith-studio',label:'Lilith · Studio',deliveries:['normal']}]);");
+ assert.equal(voice.options.length,2);assert.equal(voice.options[1].textContent,'Lilith · Studio');
+ voice.value='lilith-studio';delivery.value='whisper';await voice.onchange();
+ const save=r.calls.find(call=>call.method==='settings');assert.equal(save.value.voice,'lilith-studio');assert.equal(save.value.delivery,'normal');assert.equal(delivery.options.find(o=>o.value==='whisper').disabled,true);
+ voice.value='dark';delivery.value='normal';await voice.onchange();assert.ok(delivery.options.every(o=>o.disabled===false));
+});
+
+test('a studio profile with an installed whisper enables whisper while keeping projection unavailable',async()=>{
+ const r=renderer(),voice=r.context.document.getElementById('voice'),delivery=r.context.document.getElementById('delivery');voice.replaceChildren=(...options)=>{voice.options=options;};delivery.options=['normal','whisper','power'].map(value=>({value,disabled:false}));
+ const profiles=[{id:'lilith-studio',label:'Lilith · Studio',deliveries:['normal','whisper']}];r.context.profiles=profiles;r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});return Promise.resolve({settings:{voice:value.voice,delivery:value.delivery},voiceProfiles:profiles});};r.run('syncVoiceCatalog(profiles);');voice.value='lilith-studio';delivery.value='whisper';await delivery.onchange();
+ assert.equal(r.calls.find(call=>call.method==='settings').value.delivery,'whisper');assert.equal(delivery.options.find(option=>option.value==='whisper').disabled,false);assert.equal(delivery.options.find(option=>option.value==='power').disabled,true);
+});
+
+test('health heartbeat counts silent real microphone callbacks and does not expose recorded content',async()=>{
+ const r=renderer();r.run("settings={wakeWord:true};wakeReady=true;gatewayConnected=true;sessionInfo={id:'selected'};");await r.run('ensureMic()');r.context.quiet=new Float32Array(2048);r.run('micProcessor.onaudioprocess({inputBuffer:{getChannelData:()=>quiet}});');const state=r.run('clientState()');assert.equal(state.frameCount,1);assert.ok(state.frameAt>0);assert.equal(state.capturing,false);assert.equal(Object.hasOwn(state,'audio'),false);
+});
+test('automatic microphone recovery preserves the chosen input and all sensor preferences',async()=>{
+ const r=renderer(),inputs=[];r.context.navigator.mediaDevices.getUserMedia=async c=>{inputs.push(c.audio.deviceId?.exact);const track={label:'Desk',getSettings:()=>({deviceId:'desk'}),stop(){},addEventListener(){}};return {getTracks:()=>[track],getAudioTracks:()=>[track]};};
+ r.run("settings={wakeWord:true,microphoneDeviceId:'desk',cameraEnabled:false};wakeReady=true;gatewayConnected=true;sessionInfo={id:'selected'};");await r.run('ensureMic()');await r.run("applyControl({id:43,action:'voice-health-repair',enabled:'microphone',sessionId:'selected'})");assert.deepEqual(inputs,['desk','desk']);assert.equal(r.run('live'),false);assert.equal(r.run('cameraControls.controller.active'),false);assert.equal(r.calls.find(c=>c.method==='control-ack'&&c.value.id===43)?.value.error,undefined);
+ r.run('privacyLocked=true;');await r.run("applyControl({id:44,action:'voice-health-repair',enabled:'microphone',sessionId:'selected'})");assert.equal(inputs.length,2);assert.match(r.calls.find(c=>c.method==='control-ack'&&c.value.id===44).value.error,/Datenschutz/);
+});
+
+test('spoken shared attention preserves pointer selection through the workstation dispatcher',async()=>{
+ const r=renderer();r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});if(method==='current-content-intent')return Promise.resolve({kind:'window',selection:'pointer',question:value});return Promise.resolve();};await r.run("workstationControls.send('Erklär mir das hier.','selected')");assert.equal(r.calls.find(c=>c.method==='current-content-read')?.value.selection,'pointer');
+});
+
+test('an idle orb shows measured speech trouble instead of ready and returns after recovery',()=>{
+ const r=renderer();r.run('orbRenderer.draw=()=>{};orbPreviewRenderer.draw=()=>{};');r.event({type:'state',status:'ready',busy:false,connected:true,session:{id:'selected'}});r.event({type:'voice-health',voiceHealth:{state:'degraded',checks:[]}});r.run('draw(2000)');assert.match(r.run("$('phase').textContent"),/SPRACHE.*PRÜFEN/);r.event({type:'voice-health',voiceHealth:{state:'ready',checks:[]}});r.run('draw(2030)');assert.equal(r.run("$('phase').textContent"),'BEREIT');
+});
+
+test('local playback drains independently of queued audio from a different Hermes turn',async()=>{
+ const r=renderer();
+ r.event({type:'speech-pending',pending:2,turnId:'local',turnPending:1,generation:4});
+ r.event({type:'audio-start',generation:4,turnId:'local'});r.event({type:'audio-chunk',generation:4,turnId:'local',data:Buffer.alloc(4800).toString('base64')});
+ r.event({type:'speech-pending',pending:1,turnId:'local',turnPending:0,generation:4});
+ r.event({type:'audio-start',generation:4,turnId:'hermes'});r.event({type:'audio-chunk',generation:4,turnId:'hermes',data:Buffer.alloc(4800).toString('base64')});
+ r.run('audioNodes[0].source.onended();');await settle();
+ assert.equal(r.run('audioNodes.length'),1);assert.ok(r.calls.some(c=>c.method==='playback-drained'&&c.value.turnId==='local'&&c.value.generation===4));
+});
 test('a queued waiting notice does not light an error-looking alert orb',()=>{
  const r=renderer();r.event({type:'notice',message:'Auftrag vorgemerkt. Die aktuelle Sprachausgabe läuft noch.'});assert.equal(r.run('orbAlertUntil'),0);
  r.event({type:'notice',message:'Mikrofon ist nicht verfügbar.'});assert.ok(r.run('orbAlertUntil')>0);
@@ -43,6 +173,29 @@ async function prepareBarge(r){
   r.context.input=new Float32Array(2048).fill(.08);
   for(let i=0;i<4;i++)r.run('micProcessor.onaudioprocess({inputBuffer:{getChannelData:()=>input}});');
 }
+
+test('natural dialogue ducks confirmed speech without aborting Hermes before knowing the utterance',async()=>{
+ const r=renderer();await prepareBarge(r);r.run('settings.naturalConversation=true;');const generation=r.calls.find(c=>c.method==='vad-reset').value;r.event({type:'vad-speech',generation});
+ assert.equal(r.calls.filter(c=>c.method==='interrupt').length,0);assert.equal(r.run('speakingUntil'),10);assert.equal(r.run('naturalBarge'),true);assert.equal(r.run('playbackDucked'),true);
+});
+
+test('a short mhm resumes playback without sending a new task or cancelling the working agent',async()=>{
+ const r=renderer();r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});if(method==='snapshot')return new Promise(()=>{});if(method==='transcribe')return Promise.resolve('Mhm.');return Promise.resolve();};
+ await prepareBarge(r);r.run('settings.naturalConversation=true;');const generation=r.calls.find(c=>c.method==='vad-reset').value;r.event({type:'vad-speech',generation});r.event({type:'vad-end',generation});await settle();await settle();
+ assert.equal(r.calls.filter(c=>c.method==='interrupt'||c.method==='submit').length,0);assert.equal(r.run('playbackDucked'),false);assert.equal(r.run('speakingUntil'),10);
+});
+
+test('a genuine interruption waits for the previous turn to end before dispatching',async()=>{
+ const r=renderer();r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});if(method==='snapshot')return new Promise(()=>{});if(method==='transcribe')return Promise.resolve('Hallo Lilith');if(method==='interrupt'){r.event({type:'state',status:'ready',connected:true,busy:false,session:{id:'selected'}});return Promise.resolve({ready:true});}return Promise.resolve();};
+ await prepareBarge(r);r.run('settings.naturalConversation=true;');const generation=r.calls.find(c=>c.method==='vad-reset').value;r.event({type:'vad-speech',generation});r.event({type:'vad-end',generation});await settle();await settle();
+ const interrupts=r.calls.filter(c=>c.method==='interrupt');assert.equal(interrupts.length,1);assert.equal(interrupts[0].value.conversationOnly,undefined);assert.equal(r.calls.filter(c=>c.method==='submit').length,1);assert.equal(r.run('busy'),false);
+});
+
+test('privacy invalidates a pending semantic endpoint before transcription can begin',async()=>{
+ const r=renderer();let prediction;r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});if(method==='snapshot')return new Promise(()=>{});if(method==='turn-predict')return new Promise(resolve=>prediction=resolve);return Promise.resolve();};
+ r.run("settings={wakeWord:false,naturalConversation:true};localConversationInfo={turnDetector:{available:true}};sessionInfo={id:'selected'};gatewayConnected=true;vadReady=true;");await r.run('ensureMic()');r.run('live=true;startCapture();frames=[new Float32Array(1600).fill(.1)];speechStarted=true;');const generation=r.run('captureGeneration');r.event({type:'vad-end',generation});await settle();assert.equal(typeof prediction,'function');r.run('quiesceLocal()');prediction({available:true,complete:true});await settle();
+ assert.equal(r.calls.filter(c=>c.method==='transcribe'||c.method==='submit').length,0);
+});
 
 test('loud playback residual cannot interrupt until local VAD confirms speech, retaining the opening PCM',async()=>{
   const r=renderer();await prepareBarge(r);
@@ -242,6 +395,20 @@ test('a cancelled voice dispatch cannot submit when its delayed local intent che
   ptt(r,true);await settle();r.run('micProcessor.onaudioprocess({inputBuffer:{getChannelData:()=>input}});');ptt(r,false);await settle();assert.equal(typeof intent,'function');
   r.event({type:'state',status:'ready',connected:true,busy:false,session:{id:'different'}});intent(false);await settle();
   assert.equal(r.calls.some(call=>call.method==='submit'),false);
+});
+
+test('a transcribed voice request keeps thinking visible while local dispatch waits',async()=>{
+  const r=renderer();preparePushToTalk(r);let transcript,intent;
+  r.context.orbStates=[];r.run('orbRenderer.draw=(_now,value)=>orbStates.push(value.state);orbPreviewRenderer.draw=()=>{};');
+  r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});if(method==='transcribe')return new Promise(resolve=>transcript=resolve);if(method==='system-intent')return new Promise(resolve=>intent=resolve);return method==='snapshot'?new Promise(()=>{}):Promise.resolve();};
+  r.event({type:'state',status:'ready',connected:true,busy:false,session:{id:'selected'}});
+  ptt(r,true);await settle();r.run('micProcessor.onaudioprocess({inputBuffer:{getChannelData:()=>input}});draw(2000)');assert.equal(r.run("$('phase').textContent"),'HÖRT ZU');
+  ptt(r,false);await settle();r.event({type:'state',status:'transcribing',connected:true,busy:false,session:{id:'selected'}});r.run('draw(2030)');assert.equal(r.run("$('phase').textContent"),'ERKENNT SPRACHE');
+  r.event({type:'state',status:'ready',connected:true,busy:false,session:{id:'selected'}});assert.equal(r.run("$('phase').textContent"),'DENKT');
+  transcript('Öffne die Datei.');await settle();assert.equal(typeof intent,'function');
+  r.event({type:'state',status:'ready',connected:true,busy:false,session:{id:'selected'}});assert.equal(r.run("$('phase').textContent"),'DENKT');
+  r.run('draw(2060)');assert.equal(r.run("$('phase').textContent"),'DENKT');assert.equal(r.context.orbStates.at(-1),'thinking');assert.equal(r.run('busy'),false);assert.equal(r.run('phase'),'ready');
+  intent(false);await settle();assert.equal(r.calls.filter(call=>call.method==='submit').length,1);r.run('draw(2090)');assert.equal(r.run("$('phase').textContent"),'BEREIT');assert.equal(r.context.orbStates.at(-1),'idle');
 });
 
 test('a typed command during a delayed voice check keeps its own input identity',async()=>{

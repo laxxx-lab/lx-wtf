@@ -1,9 +1,23 @@
 # Hermes Voice für Windows
 
+Lilith ist deine Werkstatt-Zentrale: ein sichtbarer, sprachgesteuerter Zugang
+zu deinem vorhandenen Hermes und echten Werkzeugen auf PC und Notebook.
+Der nächste Maßstab ist zuverlässige Arbeit: bestätigte Aktionen, unterbrechbare
+Gespräche und Wiederherstellung nach Abbrüchen. Die lokale Sprachverarbeitung
+ersetzt nicht den bestehenden VPS-Hermes und dessen Modellanbindung.
+
 Ein lokaler Sprachclient für deine vorhandene Hermes-Instanz: animierter Orb,
 Infobereich, Hotkey, deutsche Stimme, Aktivierungsnamen und Systemüberwachung.
 Die Sprachmodelle laufen auf diesem PC. Aufträge und Texte gehen an deinen
 Hermes-Gateway; die vorhandene Windows-MCP-Verbindung bleibt dessen Werkzeug.
+
+Kurze freie Gespräche laufen zusätzlich über ein kostenloses lokales Modell mit
+derselben Referenzstimme. Hermes erhält den begrenzten Gesprächskontext bei der
+nächsten gesprochenen Aufgabe. [Lokales Live-Gespräch](docs/local-live-conversation.md).
+Die App überwacht ihre Sprachbereitschaft und kann den gewählten Eingang und
+fehlende eigene Sprachhelfer begrenzt wiederverbinden. Neue Zusammenarbeit:
+„Erklär mir das hier“ am Mauszeiger, „Warte, nur …“ als Auftragskorrektur und
+Missionskarten in der Werkstatt. [Zusammenarbeit](docs/workbench-collaboration.md).
 
 ## Starten
 

@@ -2,7 +2,7 @@
   'use strict';
   const bridge=window.workbench,$=id=>document.getElementById(id),tabs=['system','console','browser','context','graph','intel','artcraft'];
   let current={},activeTab='system',pending=false,lastEvents='',noticeTimer,animation=null;
-  let gestureHelpChosen=false,lastBackground='';
+  let gestureHelpChosen=false,lastBackground='',amendmentDraft=null;
   function showGestureHelp(enabled){$('gesture-guide').hidden=!enabled;document.body.classList.toggle('gesture-help-open',enabled);$('gesture-help').setAttribute('aria-expanded',String(enabled));void invoke('gesture-help',{enabled});}
   let editingRoutine=null,routineDirty=false,projectDirty=false,lastContextRows='',lastTaskRows='',lastRoutineRows='',lastLogs='',lastOperationRows='',lastSource='';
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -14,6 +14,11 @@
   const intelView=window.OsirisView?.mount({container:$('osiris-panel'),invoke:(method,payload)=>bridge.invoke(method,payload),notice});
   let lastCraft={};
   const craftView=window.ArtcraftView?.mount({container:$('artcraft-panel'),invoke:(method,payload)=>bridge.invoke(method,payload),notice});
+  let projectFileLoading=false;
+  const projects=window.ProjectLibraryView?.mount({invoke:(method,payload)=>bridge.invoke(method,payload),notice,onContext:({project,source,loading})=>{projectFileLoading=loading===true;$('command-context').textContent=loading?'Datei wird gelesen …':source?project.name+' / '+source.path:project?'Projekt: '+project.name:'Was möchtest du erledigen?';$('command').maxLength=project?4000:20000;updateCommand();}});
+  let sidebarChosen=false,sidebarOpen=false;
+  function workspaceLayout(){if(!sidebarChosen)sidebarOpen=window.innerWidth>=1100;document.body?.style.setProperty('--sidebar-width',sidebarOpen?'232px':'0px');$('projects-sidebar').hidden=!sidebarOpen;$('projects-toggle').setAttribute('aria-expanded',String(sidebarOpen));void invoke('workspace-layout',{sidebar:sidebarOpen});}
+  $('projects-toggle').addEventListener('click',()=>{sidebarChosen=true;sidebarOpen=!sidebarOpen;workspaceLayout();});window.addEventListener('resize',workspaceLayout);workspaceLayout();void projects?.refresh();
   function setTab(tab){
     if(!tabs.includes(tab))return;if(activeTab==='graph'&&tab!=='graph')graphView?.cancelGesture?.();activeTab=tab;
     for(const name of tabs){$(name).hidden=name!==tab;$('tab-'+name).setAttribute('aria-selected',String(name===tab));$('tab-'+name).tabIndex=name===tab?0:-1;}
@@ -53,10 +58,10 @@
   function timeLabel(timestamp){return Number.isFinite(timestamp)?new Date(timestamp).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'—';}
   function runningTask(){return (current.tasks||[]).find(task=>task.status==='running')||null;}
   function renderActivity(){
-    const task=runningTask(),jobs=current.jobQueue?.jobs||[],job=jobs.find(value=>value.status==='running'||value.status==='outcome-unknown'),latest=task||(!current.busy&&!job?(current.tasks||[])[0]:null),hud=current.hud||{},locked=current.privacyLocked===true,presentation=current.presentation||{};
-    const attention=!locked&&(current.jobQueue?.blocked||['approval','question','error'].includes(current.status)),active=!locked&&(current.busy||task||job?.status==='running');
+    const task=runningTask(),jobs=current.jobQueue?.jobs||[],job=jobs.find(value=>value.status==='outcome-unknown')||jobs.find(value=>['running','delegated'].includes(value.status))||(!current.busy&&!task&&!(current.tasks||[]).length?jobs.at(-1):null),latest=task||(!current.busy&&!job?(current.tasks||[])[0]:null),hud=current.hud||{},locked=current.privacyLocked===true,presentation=current.presentation||{};
+    const attention=!locked&&(current.jobQueue?.blocked||['approval','question','error'].includes(current.status)),active=!locked&&(current.busy||task||['running','delegated'].includes(job?.status));
     $('mission-bar').dataset.state=attention?'attention':active?'active':'idle';
-    $('mission-title').textContent=locked?'Dein privater Raum.':task?.title||job?.title||((active||attention)&&hud.title?hud.title:attention?'Deine Aufmerksamkeit wird gebraucht.':presentation.owner==='agent'&&presentation.reason?presentation.reason:current.connected?'Bereit für deinen nächsten Schritt.':'Hermes verbinden, dann geht es los.');
+    $('mission-title').textContent=locked?'Dein privater Raum.':job?.title||task?.title||latest?.title||((active||attention)&&hud.title?hud.title:attention?'Deine Aufmerksamkeit wird gebraucht.':presentation.owner==='agent'&&presentation.reason?presentation.reason:current.connected?'Bereit für deinen nächsten Schritt.':'Hermes verbinden, dann geht es los.');
     const steps=(latest?.tools?.length?latest.tools.map(tool=>({label:tool.name,status:tool.status})):hud.steps||[]).slice(-5);
     const liveStep=steps.findLast(step=>['running','working','started','pending'].includes(step.status));
     $('mission-detail').textContent=locked?'Sensoren und Kontexteingaben sind gesperrt.':attention?(job?.reason||current.detail||'Deine Aufmerksamkeit wird gebraucht.'):liveStep?.label||current.detail||(active?'Lilith bearbeitet deinen Auftrag.':'Was möchtest du heute erledigen?');
@@ -65,12 +70,26 @@
     if(!locked&&current.jobQueue?.blocked)$('phase').textContent='ERGEBNIS OFFEN';
     $('task-jump').disabled=locked||!(task||job||current.busy||(current.events||[]).length);
     $('activity-state').textContent=locked?'PRIVAT':attention?'AUFMERKSAMKEIT':active?'IN ARBEIT':latest?.status==='agent-finished'?'AGENT BEENDET':'BEREIT';
-    $('activity-title').textContent=locked?'Datenschutz ist aktiv':task?.title||job?.title||latest?.title||(active?hud.title:'Noch kein Auftrag')||'Aktueller Auftrag';
+    $('activity-title').textContent=locked?'Datenschutz ist aktiv':job?.title||task?.title||latest?.title||(active?hud.title:'Noch kein Auftrag')||'Aktueller Auftrag';
     const completed=latest?.completedTools??hud.completedTools,total=latest?.toolCount;
     $('activity-progress').textContent=locked?'Freigaben bleiben unter deiner Kontrolle.':job?.status==='outcome-unknown'?'Ergebnis unbekannt. Remote-Status zuerst prüfen.':Number.isFinite(total)&&total>0&&Number.isFinite(completed)?completed+' von '+total+' Werkzeugschritten beendet.':Number.isFinite(completed)&&completed>0?completed+' Werkzeugschritte beendet.':active?'Warte auf den nächsten beobachteten Schritt.':'Schritte erscheinen, sobald Lilith arbeitet.';
     const observed=steps.length?steps:(current.events||[]).filter(event=>event.type==='tool').slice(-3).map(event=>({label:event.text,status:'observed'}));
     $('activity-steps').replaceChildren(...(locked?[]:observed).map(step=>{const row=node('li'),done=['done','complete','completed','success','ok','finished','tool.end'].includes(step.status),failed=['error','failed','interrupted','disconnected'].includes(step.status),running=['running','working','started','pending'].includes(step.status);row.dataset.state=done?'done':failed?'attention':running?'active':'observed';row.append(node('strong',String(step.label||'Werkzeugschritt').slice(0,180)),node('small',done?'Beendet':failed?'Hinweis':running?'Läuft':'Beobachtet'));return row;}));
     $('activity-hint').textContent=latest?.status==='agent-finished'?'Der Agent hat seinen Turn beendet. Werkzeugbelege stehen im Lagebild.':'Der Verlauf zeigt beobachtete Werkzeugschritte.';
+    const unknown=job?.status==='outcome-unknown',verified=!unknown&&(latest?.verification==='verified'||job?.status==='completed');
+    $('activity-result').textContent=locked?'Privat':unknown?'Ergebnis unbekannt. Zuerst Remote-Status prüfen.':verified?'Werkzeugwirkung bestätigt.':latest?.status==='agent-finished'||job?.status==='agent-finished'?'Agent beendet · Wirkung noch offen.':active?'Ergebnis noch offen.':'Noch kein bestätigtes Ergebnis.';
+    $('activity-result').dataset.state=unknown?'attention':verified?'done':'observed';
+    $('activity-obstacle').textContent=locked?'Datenschutz aktiv.':unknown?job.reason||'Remote-Ergebnis fehlt.':attention?job?.reason||current.detail||'Deine Aufmerksamkeit wird gebraucht.':job?.reason||(['error','interrupted','disconnected'].includes(latest?.status)?latest.summary||'Auftrag wurde nicht abgeschlossen.':'Kein Hindernis gemeldet.');
+  }
+  function renderCollaboration(){
+    const health=current.voiceHealth,locked=current.privacyLocked===true,attention=locked?null:current.attention;
+    $('voice-health').dataset.state=health?.state||'unknown';$('voice-health').textContent=locked?'SPRACHE PRIVAT':health?.summary||'SPRACHSTATUS';$('voice-health').title=health?.summary||'Beobachteten Sprachstatus anzeigen';
+    $('voice-health-summary').textContent=health?.summary||'Noch keine Sprachbeobachtung.';
+    $('voice-health-checks').replaceChildren(...(health?.checks||[]).map(check=>{const row=node('li');row.dataset.state=check.state;row.append(node('span',check.summary||'Noch keine Messung'),node('small',({healthy:'Bereit',ready:'Bereit',degraded:'Prüfen',error:'Fehler',unknown:'Offen',starting:'Startet',paused:'Pausiert'})[check.state]||'Beobachtet'));return row;}));
+    $('voice-health-repair').textContent=health?.repair?.reason||'';$('voice-health-repair').hidden=!health?.repair;
+    $('attention-card').hidden=!attention;$('attention-label').textContent=attention?.label||'';
+    const source=({pointer:'UNTER DEM ZEIGER',foreground:'VORDERGRUND',clipboard:'ZWISCHENABLAGE',remembered:'FRÜHERE QUELLE'})[attention?.selection]||'';
+    $('attention-summary').textContent=attention?[source,timeLabel(Date.parse(attention.observedAt)),attention.stale?'ALTE BEOBACHTUNG':'BEOBACHTET',attention.summary].filter(Boolean).join(' · '):'';$('attention-card').dataset.state=attention?.stale?'stale':'observed';
   }
   function renderSource(){
     const content=current.privacyLocked?null:current.currentContent,key=JSON.stringify(content||null);if(key===lastSource)return;lastSource=key;
@@ -113,19 +132,30 @@
     const queue=snapshot.jobQueue||{},awareness=snapshot.awareness||{},locked=snapshot.privacyLocked===true,jobs=Array.isArray(queue.jobs)?queue.jobs:[],cards=Array.isArray(awareness.cards)?awareness.cards:[];
     $('job-queue-state').textContent=locked?'DATENSCHUTZ AKTIV':queue.blocked?'ERGEBNIS ZUERST PRÜFEN':queue.held?'WARTESCHLANGE ANGEHALTEN':'WARTESCHLANGE BEREIT';$('job-resume').hidden=!queue.held;$('job-resume').disabled=locked||queue.blocked;$('job-queue-count').textContent=jobs.length+' AUFTRÄGE';
     $('awareness-project').textContent=awareness.project?.name||'Kein Projekt zugeordnet';$('awareness-confidence').textContent=({manual:'VON DIR GESETZT',registered:'AUS REGISTRIERTEM PROJEKT',unknown:'ZUORDNUNG OFFEN'})[awareness.project?.confidence]||'ZUORDNUNG OFFEN';
-    const fingerprint=JSON.stringify({jobs,cards,locked});if(fingerprint===lastOperationRows)return;lastOperationRows=fingerprint;
+    if(amendmentDraft){const job=jobs.find(value=>value.id===amendmentDraft.id);if(locked||queue.blocked||!job||!['queued','running','delegated'].includes(job.status))amendmentDraft=null;}
+    const fingerprint=JSON.stringify({jobs,cards,locked,blocked:queue.blocked});if(fingerprint===lastOperationRows)return;lastOperationRows=fingerprint;
 
+    const editing=amendmentDraft?.input,focused=editing&&document.activeElement===editing,start=editing?.selectionStart,end=editing?.selectionEnd;
     $('job-queue-list').replaceChildren();if(!jobs.length)$('job-queue-list').append(node('p','Noch keine Aufträge in der Warteschlange.','context-empty'));
     for(const job of jobs.slice().reverse()){
+      if(amendmentDraft?.id===job.id){const draft=amendmentDraft;draft.title.textContent=job.title||'Auftrag';draft.status.textContent=({queued:'Wartet',running:'Läuft',delegated:'Im Hintergrund'})[job.status];draft.row.className='queue-row '+job.status;draft.reason.textContent=job.reason||'';draft.summary.textContent=job.summary||'';draft.reason.hidden=!job.reason;draft.summary.hidden=!job.summary;draft.submit.textContent=job.status==='queued'?'Korrektur vormerken':'Stoppen und korrigieren';draft.hint.textContent=job.status==='queued'?'Der wartende Auftrag erhält eine neue Revision.':'Der laufende Turn muss zuerst nachweislich enden. Bereits ausgeführte Schritte bleiben berücksichtigt.';draft.revision.textContent=(job.attempts||0)+' gestartete Versuche'+(Number.isSafeInteger(job.revision)?' · Revision '+job.revision:'');$('job-queue-list').append(draft.row);continue;}
       const row=node('article',undefined,'queue-row '+job.status),heading=node('div',undefined,'queue-row-heading'),actions=node('div',undefined,'queue-actions');heading.append(node('strong',job.title||'Auftrag'),node('span',({delegated:'Im Hintergrund',queued:'Wartet',running:'Läuft','agent-finished':'Agent beendet',completed:'Ergebnis bestätigt',error:'Fehler',paused:'Angehalten',cancelled:'Abgebrochen','outcome-unknown':'Ergebnis unbekannt'})[job.status]||'Status unbekannt'));row.append(heading);
-      if(job.reason)row.append(node('p',job.reason));if(job.summary)row.append(node('p',job.summary));row.append(node('small',(job.attempts||0)+' gestartete Versuche'));
+      const reason=node('p',job.reason||''),summary=node('p',job.summary||''),revision=node('small',(job.attempts||0)+' gestartete Versuche'+(Number.isSafeInteger(job.revision)?' · Revision '+job.revision:''));reason.hidden=!job.reason;summary.hidden=!job.summary;row.append(reason,summary,revision);
       if(job.status==='outcome-unknown')actions.append(actionButton('Remote-Status prüfen','job-reconcile',job.id));
       if(['paused','error'].includes(job.status))actions.append(actionButton('Erneut versuchen','job-retry',job.id));
       if(['queued','paused','error','running'].includes(job.status))actions.append(actionButton('Abbrechen','job-cancel',job.id));
-      row.append(actions);$('job-queue-list').append(row);
+      row.append(actions);if(!locked&&!queue.blocked&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(job.id)&&['queued','running','delegated'].includes(job.status))row.append(amendmentForm(job,{row,title:heading.children[0],status:heading.children[1],reason,summary,revision}));$('job-queue-list').append(row);
     }
+    if(focused&&amendmentDraft?.input===editing){editing.focus();editing.setSelectionRange?.(start,end);}
     $('awareness-cards').replaceChildren();if(!cards.length)$('awareness-cards').append(node('p',locked?'Hinweise pausieren im Datenschutzmodus.':'Aktuell keine Hinweise mit Handlungsbedarf.','context-empty'));
     for(const card of cards){const row=node('article',undefined,'awareness-card '+card.kind),actions=node('div',undefined,'queue-actions');row.append(node('strong',card.title),node('p',card.detail));if(card.source)row.append(node('small',card.source));if(card.actionLabel)actions.append(actionButton(card.actionLabel,'awareness-action',card.id));actions.append(actionButton('Ausblenden','awareness-dismiss',card.id));row.append(actions);$('awareness-cards').append(row);}
+  }
+  function amendmentForm(job,parts){
+    const details=node('details',undefined,'job-amend'),form=node('form',undefined,'job-amend-form'),input=node('textarea'),label=node('label','Neue Richtung'),submit=node('button',job.status==='queued'?'Korrektur vormerken':'Stoppen und korrigieren');
+    details.append(node('summary','Auftrag korrigieren'));input.maxLength=1200;input.rows=2;input.placeholder='Was soll Lilith ändern?';input.setAttribute('aria-label','Korrektur für '+job.title);submit.type='submit';label.append(input);const hint=node('small',job.status==='queued'?'Der wartende Auftrag erhält eine neue Revision.':'Der laufende Turn muss zuerst nachweislich enden. Bereits ausgeführte Schritte bleiben berücksichtigt.');form.append(label,hint,submit);
+    input.addEventListener('input',()=>{amendmentDraft=input.value?{id:job.id,...parts,input,submit,hint}:null;});
+    form.addEventListener('submit',async event=>{event.preventDefault();const latest=current.jobQueue?.jobs?.find(value=>value.id===job.id),instruction=input.value.trim();if(submit.disabled||!instruction||instruction.length>1200||current.privacyLocked||current.jobQueue?.blocked||!latest||!['queued','running','delegated'].includes(latest.status))return;submit.disabled=true;const result=await invoke('job-amend',{id:job.id,instruction});submit.disabled=false;if(result?.ok){input.value='';amendmentDraft=null;lastOperationRows='';renderOperations(current);notice('Korrektur angenommen. Der beobachtete Auftragstatus zeigt den weiteren Verlauf.');}});
+    details.append(form);return details;
   }
   function actionButton(label,method,id){const button=node('button',label);button.type='button';button.disabled=current.privacyLocked===true;button.addEventListener('click',()=>invoke(method,{id}));return button;}
   function renderBackground(snapshot){
@@ -150,7 +180,7 @@
   function updateRoutineButtons(){const saved=(current.routines||[]).some(routine=>routine.id===editingRoutine),locked=current.privacyLocked===true;$('routine-run').disabled=!saved||routineDirty||!current.connected||locked;$('routine-run').textContent=current.busy?'Ablauf vormerken':'Ablauf starten';$('routine-delete').disabled=!saved||locked;$('routine-save').disabled=locked;$('routine-hint').textContent=routineDirty&&saved?'Änderungen zuerst speichern. Gestartet wird nur der gespeicherte Ablauf.':'Ein Ablauf startet erst auf deinen Befehl. Schritte und Erfolgskriterien speichern; keine Passwörter eintragen.';}
   function newRoutineId(name){const base=name.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/ß/g,'ss').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,32).replace(/-+$/,'');const prefix=/^[a-z]/.test(base)?base:'r-'+(base||Date.now());const ids=new Set((current.routines||[]).map(routine=>routine.id));let id=prefix,index=2;while(ids.has(id))id=prefix+'-'+index++;return id;}
   function render(snapshot){
-    current=snapshot;setTab(snapshot.tab||activeTab);craftView?.update({...lastCraft,connected:snapshot.connected,busy:snapshot.busy,privacyLocked:snapshot.privacyLocked,tasks:snapshot.tasks,teach:snapshot.teach,windowVisible:snapshot.visible});
+    current=snapshot;projects?.update({privacyLocked:snapshot.privacyLocked===true});setTab(snapshot.tab||activeTab);craftView?.update({...lastCraft,connected:snapshot.connected,busy:snapshot.busy,privacyLocked:snapshot.privacyLocked,tasks:snapshot.tasks,teach:snapshot.teach,windowVisible:snapshot.visible});
     if(document.body){document.body.dataset.glass=String(snapshot.appearance?.glass!==false);const opacity=snapshot.appearance?.opacity;document.body.style.setProperty('--glass-opacity',Number.isFinite(opacity)?String(Math.max(.9,Math.min(1,opacity))):'.94');}
     $('signal').classList.toggle('online',snapshot.connected);
     $('session-title').textContent=snapshot.sessionTitle||'Keine Session gewählt';
@@ -175,13 +205,14 @@
     $('screen-state').textContent=snapshot.screen?.looking?'Blick läuft':snapshot.screen?.enabled?'Aktiviert':'Aus';$('mode-state').textContent=snapshot.mode?.name||'Keiner';
     const report=snapshot.systemReport;$('report-text').textContent=report?.text||'Noch kein Systembericht. „Status prüfen“ ruft den aktuellen Bericht ab.';$('report-age').textContent=!report?'KEIN BERICHT':report.fresh?'AKTUELL':Number.isFinite(report.ageSeconds)?report.ageSeconds+' S ALT':'ZEIT UNBEKANNT';
     const modeButtons=(snapshot.modes||[]).map(mode=>{const button=document.createElement('button');button.type='button';button.textContent=mode.name;button.classList.toggle('active',mode.id===snapshot.mode?.id);button.addEventListener('click',()=>invoke('action',{name:'mode',id:mode.id}));return button;});$('mode-actions').replaceChildren(...modeButtons);
-    privacy(snapshot);renderContext(snapshot);renderOperations(snapshot);renderBackground(snapshot);renderVoiceTiming(snapshot.voiceTiming);renderEvents(snapshot.events);renderGesture(snapshot.gesture);renderActivity();renderSource();updateCommand();
+    privacy(snapshot);renderContext(snapshot);renderOperations(snapshot);renderBackground(snapshot);renderVoiceTiming(snapshot.voiceTiming);renderEvents(snapshot.events);renderGesture(snapshot.gesture);renderActivity();renderCollaboration();renderSource();updateCommand();
   }
-  function updateCommand(){$('send-command').disabled=pending||current.privacyLocked===true||!current.connected;$('send-command').textContent=current.busy?'Vormerken':'Auftrag senden';$('command').disabled=pending||current.privacyLocked===true;}
+  function updateCommand(){$('send-command').disabled=pending||projectFileLoading||current.privacyLocked===true||!current.connected;$('send-command').textContent=current.busy?'Vormerken':'Auftrag senden';$('command').disabled=pending||current.privacyLocked===true;}
   for(const button of document.querySelectorAll('[data-tab]'))button.addEventListener('click',()=>invoke('tab',button.dataset.tab));
   document.querySelector('.tabs').addEventListener('keydown',async event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const index=tabs.indexOf(activeTab),next=event.key==='Home'?tabs[0]:event.key==='End'?tabs.at(-1):tabs[(index+(event.key==='ArrowLeft'?-1:1)+tabs.length)%tabs.length];await invoke('tab',next);$('tab-'+next).focus();});
   for(const id of ['minimize','close'])$(id).addEventListener('click',()=>invoke('hide'));
   $('task-jump').addEventListener('click',jumpToTask);
+  $('voice-health').addEventListener('click',async()=>{await invoke('tab','system');$('voice-health-panel').scrollIntoView?.({block:'nearest',behavior:'auto'});});
   $('circle-open').addEventListener('click',()=>invoke('circle-open'));
   $('gesture-help').addEventListener('click',()=>{gestureHelpChosen=true;showGestureHelp($('gesture-guide').hidden);});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!$('gesture-guide').hidden){gestureHelpChosen=true;showGestureHelp(false);}else invoke('hide');}});
@@ -197,7 +228,7 @@
   $('routine-form').addEventListener('submit',async event=>{event.preventDefault();const name=$('routine-name').value.trim(),instructions=$('routine-steps').value.trim(),verification=$('routine-verification').value.trim();if(!name||!instructions||!verification){notice('Name, Schritte und Erfolgskriterien ausfüllen.');return;}const id=editingRoutine||newRoutineId(name);const result=await invoke('action',{name:'routine-save',routine:{id,name,instructions,verification}});if(result?.ok){editingRoutine=id;routineDirty=false;lastRoutineRows='';renderContext(current);notice('Ablauf gespeichert.');}});
   $('routine-run').addEventListener('click',()=>{if(editingRoutine&&!$('routine-run').disabled)invoke('action',{name:'routine-run',id:editingRoutine});});
   $('routine-delete').addEventListener('click',async()=>{if(!editingRoutine)return;const result=await invoke('action',{name:'routine-delete',id:editingRoutine});if(result?.ok){editRoutine();notice('Ablauf gelöscht.');}});
-  $('command-form').addEventListener('submit',async event=>{event.preventDefault();const input=$('command'),value=input.value.trim();if(!value||pending)return;pending=true;updateCommand();const result=await invoke('command',value);if(result?.ok)input.value='';pending=false;updateCommand();input.focus();});
+  $('command-form').addEventListener('submit',async event=>{event.preventDefault();const input=$('command'),value=input.value.trim();if(!value||pending)return;pending=true;updateCommand();try{const result=projects?await projects.command(value):await invoke('command',value);if(result?.ok&&input.value.trim()===value)input.value='';}catch(error){notice(error.message);}finally{pending=false;updateCommand();input.focus();}});
   $('browser-form').addEventListener('submit',event=>{event.preventDefault();invoke('browser',{action:'navigate',url:$('address').value});});
   for(const action of ['back','forward','reload'])$(action).addEventListener('click',()=>invoke('browser',{action}));
   $('guide-clear').addEventListener('click',()=>invoke('guide-clear'));
@@ -211,6 +242,7 @@
     else if(event.type==='browser'){document.querySelector('.browser-empty').hidden=Boolean(event.url);$('back').disabled=!event.back;$('forward').disabled=!event.forward;if(document.activeElement!==$('address'))$('address').value=event.url;$('reload').textContent=event.loading?'◌':'↻';}
     else if(event.type==='browser-error')notice(event.message);
     else if(event.type==='graph-update')graphView?.update(event.graph);
+    else if(event.type==='project-update')projects?.render(event.projects);
     else if(event.type==='craft-stream-stop')craftView?.stopStream(event.reason);
     else if(event.type==='visibility'){current.visible=event.visible;if(!event.visible)graphView?.cancelGesture?.();craftView?.update({windowVisible:event.visible});}
     else if(event.type==='craft-update'){lastCraft=event.craft;craftView?.update({...lastCraft,connected:current.connected,busy:current.busy,privacyLocked:current.privacyLocked,teach:current.teach,windowVisible:current.visible});}

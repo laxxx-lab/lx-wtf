@@ -86,7 +86,7 @@
       if(/^(?:öffne|zeige|öffne die|zeige die) (?:digitale )?(?:werkstatt|workbench)$/.test(workspace))return this.invoke('workbench-show','system');
       if(/^(?:schließe|verberge|schließe die|verberge die) (?:digitale )?(?:werkstatt|workbench)$/.test(workspace))return this.invoke('workbench-hide');
       if(await this.invoke('background-intent',text))return this.invoke('submit',{text,sessionId});
-      const content=await this.invoke('current-content-intent',text);if(content)return this.invoke('current-content-read',{kind:content.kind,question:content.question,sessionId});
+      const content=await this.invoke('current-content-intent',text);if(content)return this.invoke('current-content-read',{kind:content.kind,...(content.selection==='pointer'?{selection:'pointer'}:{}),question:content.question,sessionId});
       if(await this.invoke('system-intent',text))return this.invoke('system-report',{speak:true,sessionId});
       const intel=await this.invoke('intel-intent',text);if(intel)return this.invoke('intel-look',{question:text,request:intel,sessionId});
       const mode=await this.invoke('mode-intent',text);if(mode)return this.run(mode);

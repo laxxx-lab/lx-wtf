@@ -1,6 +1,11 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 let timing;try{timing=require('../voice-timing.cjs');}catch(error){if(error.code!=='MODULE_NOT_FOUND')throw error;timing={};}
 
+test('local model and semantic endpoint have separate content-free durations',()=>{
+ const report=new timing.VoiceTiming({clock:()=>1000});report.mark('live','local-model-submit',100);report.mark('live','local-model-first-delta',200);report.mark('live','local-model-end',350);report.mark('live','turn-predict-start',40);report.mark('live','turn-predict-end',75);
+ assert.deepEqual(report.snapshot().rows[0].durations,{localFirstTokenMs:100,localModelMs:250,turnPredictionMs:35});
+});
+
 test('voice timings correlate each stage without persisting content and summarize only valid durations',()=>{
   assert.equal(typeof timing.VoiceTiming,'function');
   const report=new timing.VoiceTiming({clock:()=>1000,limit:3});

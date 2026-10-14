@@ -17,6 +17,9 @@ GUI-Starts und echte Audio-/Sensorprüfung brauchen die interaktive Anbindung.
 | Bereich | Quellen / Vertrag |
 | --- | --- |
 | Electron-Hauptprozess, Session, Aufträge, IPC | `main.cjs`, `preload.cjs`, `conversation.cjs`, `gateway.cjs` |
+| Gesprächsübergabe PC / Notebook | `session-handoff.cjs`, Verlaufdarstellung in `reply.cjs`, `scripts/session_handoff.py`, `scripts/hermes_handoff_router.py`, `docs/session-handoff.md` |
+| Lokales Live-Gespräch / Satzenden | `local-dialogue.cjs`, `turn-detector.cjs`, `docs/local-live-conversation.md` |
+| Sprachdiagnose / Auftragskorrektur / Aufmerksamkeit | `voice-health.cjs`, `job-adjustment.cjs`, `current-content.cjs`, passende `docs/` |
 | Automatische Rechentiefe pro Auftrag | `automatic-thinking.cjs`, `conversation.cjs`, `docs/automatic-thinking.md` |
 | Orb, Mikrofon, Live, Wakeword, Wiedergabe | `ui/app.js`, `ui/microphone.js`, `ui/speech-activity.js`, `ui/voice-interaction.js`, `ui/orb.js` |
 | Lokale Steuerungs-API und Agentenhelfer | `control-api.cjs`, `control.ps1`, `docs/control-api.md` |
@@ -26,6 +29,8 @@ GUI-Starts und echte Audio-/Sensorprüfung brauchen die interaktive Anbindung.
 | Hintergrundagenten und freie Gesprächsspur | `background-jobs.cjs`, `main.cjs`, `docs/background-orchestration.md` |
 | Kamera / Bildschirm / Einkreisen | `camera-service.cjs`, `screen-service.cjs`, `circle-interest.cjs`, `ui/camera.js`, `ui/screen-capture.js` |
 | Werkstatt / Artcraft / Projektgraph / Lagekarte | `workbench.cjs`, `artcraft.cjs`, `project-graph.cjs`, `osiris-client.cjs`, passende `ui/`-Dateien |
+| Projektverzeichnis / Dateiauswahl / gebundene Werkstattaufträge | `project-library.cjs`, `ui/project-library.js`, `docs/projects.md`, Integration in `main.cjs` |
+| Linux-Client / Orb / lokale Notebook-Sprache / Linux-MCP | `linux-main.cjs`, `linux-window.cjs`, `linux-client.cjs`, `linux-mcp-enrollment.cjs`, `launch-linux.sh`, `scripts/linux_mcp.py`, passende `docs/linux-*.md` |
 | Datenschutz, Standby, Autostart | `local-safety.cjs`, Standby in `main.cjs`/`ui/app.js`, `startup.cjs`, `launch.ps1` |
 
 Dateinamen und Exporte vor Benutzung aktuell prüfen. `rg --files` und gezielte

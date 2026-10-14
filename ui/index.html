@@ -8,6 +8,7 @@
   <section class="core">
     <button id="orb" aria-label="Hermes-Steuerung öffnen"><canvas id="neural" width="400" height="400"></canvas><span id="orb-countdown" hidden><span id="orb-countdown-label"></span><strong id="orb-countdown-time"></strong><span class="orb-countdown-track"><i id="orb-countdown-progress"></i></span></span></button>
     <div id="phase">VERBINDE</div><p id="detail">Deine Stimme. Dein Hermes.</p>
+    <span id="handoff-location" role="status" hidden></span><button id="handoff-recall" class="live" type="button" hidden>Hierher zurückholen</button>
     <span id="camera-indicator" hidden>● KAMERA AKTIV</span>
     <button id="mic" class="live" aria-label="Live-Gespräch starten">◉ <span>Live starten</span></button>
   </section>
@@ -23,6 +24,7 @@
     <div class="system-links"><span id="system-gateway">HERMES · PRÜFE</span><span id="system-mcp">PC · NICHT GEPRÜFT</span></div>
     <div class="workstation-actions"><button id="system-report-button">Statusbericht</button><button id="workbench-button">Digitale Werkstatt ↗</button><button id="context-open">Lagebild ↗</button></div>
     <section class="session-line"><label for="sessions">HERMES-SESSION</label><select id="sessions"><option value="">Bitte verbinden</option></select><button id="refresh" title="Erneut verbinden">↻</button></section>
+    <section id="handoff-controls" class="speech-settings"><button id="handoff-notebook" type="button" disabled>Auf Notebook weiterarbeiten ↗</button><p id="handoff-detail" role="status">Gesprächsübergabe noch nicht eingerichtet</p></section>
     <div id="auth"><span>Mit deinem Gateway anmelden, um deine Session fortzusetzen.</span><button id="login">Anmelden</button></div>
     <section id="approval" hidden><p id="approval-command"></p><div><button id="approve">Einmal erlauben</button><button id="deny">Ablehnen</button></div></section>
     <form id="clarify" hidden><div id="questions"></div><button>Antworten übermitteln</button></form>
@@ -40,10 +42,12 @@
       <label class="check"><input id="autoStart" type="checkbox"> Mit Windows starten</label>
       <label class="check"><input id="wakeWord" type="checkbox"> Lokal auf „Hey Hermes / Hey Lilith / Hey Lillis“ hören</label>
       <label class="check"><input id="bareNames" type="checkbox"> Auch „Lilith“ und „Lillis“ allein erkennen</label>
+      <label>Automatischer Standby nach Minuten<input id="idleStandbyMinutes" type="number" min="0" max="1440" step="1" value="15" required></label>
+      <small>15 Minuten ohne Interaktion mit Lilith. 0 = Aus. Laufende Arbeit und Sprache halten Lilith aktiv.</small>
       <section class="speech-settings" aria-label="Mikrofon">
         <div class="workstation-heading"><span>AUDIO / MIKROFON</span><button id="microphone-refresh" type="button">Aktualisieren</button></div>
         <label>Spracheingang<select id="microphone-device"><option value="">Windows-Standard</option></select></label>
-        <meter id="microphone-meter" min="0" max="1" value="0" aria-label="Mikrofonpegel" style="width:100%"></meter>
+        <meter id="microphone-meter" min="0" max="1" value="0" aria-label="Mikrofonpegel"></meter>
         <small id="microphone-status">Mikrofon wird beim Öffnen der Einstellungen angezeigt.</small>
         <small>Die Auswahl wird sofort gespeichert und gilt für Live, Wakeword und Sprechtaste. Windows-Standards bleiben erhalten.</small>
       </section>
@@ -67,6 +71,10 @@
         <div class="workstation-heading"><span>SPRACHE / DIREKT</span><small>LOKAL</small></div>
         <label class="check"><input id="directCommandsEnabled" type="checkbox" checked> Standardbefehle direkt ausführen</label>
         <small>Programme öffnen, Windows-Lautstärke, Audioausgabe und einfache Spotify-Aktionen. Titelsuche und komplexe Aufträge übernimmt Hermes.</small>
+        <label class="check"><input id="localDialogueEnabled" type="checkbox" checked> Schnelle Gespräche lokal führen</label>
+        <small id="local-conversation-status">Lokales Gespräch wird vorbereitet · Hermes ist verfügbar</small>
+        <label class="check"><input id="naturalConversation" type="checkbox" checked> Natürliches Satzende und Dazwischenreden</label>
+        <small id="natural-conversation-status">Kurzes „mhm“ lässt Lilith weiterreden. Neue Fragen unterbrechen ihre Ausgabe; Hermes arbeitet weiter. „Stopp“ beendet den Auftrag.</small>
         <label class="check"><input id="pushToTalkEnabled" type="checkbox"> Sprechtaste zum Gedrückthalten aktivieren</label>
         <label>Sprechtaste<select id="pushToTalkKey"><option value="F8">F8</option><option value="F9">F9</option><option value="Ctrl+Space">Ctrl + Leertaste</option></select></label>
         <small>Halten: aufnehmen · Loslassen: Auftrag senden. Funktioniert auch bei verkleinertem Orb. Live, Standby und Kamera behalten ihren Zustand.</small>
@@ -128,7 +136,7 @@
         <div class="camera-actions"><button id="camera-refresh">Kameras aktualisieren</button><button id="camera-look">Kamerablick</button></div>
         <p id="camera-description">Frag mich: „Was halte ich in der Hand?“</p>
         <label class="check"><input id="cameraRecognize" type="checkbox"> Eingerichtete Personen lokal wiedererkennen</label>
-        <label class="check"><input id="cameraGreetings" type="checkbox"> Erkannte Personen einmal begrüßen</label>
+        <label class="check"><input id="cameraGreetings" type="checkbox"> Erkannte Personen beim Start und nach fünf Minuten Abwesenheit begrüßen</label>
         <div class="camera-enroll"><input id="camera-name" maxlength="60" placeholder="Dein Name" aria-label="Name für lokale Wiedererkennung"><button id="camera-enroll">Mein Gesicht einrichten</button></div>
         <div class="camera-enroll"><select id="camera-profile" aria-label="Gespeichertes Gesicht"><option value="">Keine Gesichter eingerichtet</option></select><button id="camera-forget">Profil löschen</button></div>
         <small>Einrichtung speichert drei Gesichtsreferenzen auf diesem PC. Kamerafotos werden nicht gespeichert oder zum VPS gesendet. Ausschalten stoppt die Kamera sofort.</small>

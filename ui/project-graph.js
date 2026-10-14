@@ -77,7 +77,12 @@
     function shape(tag,attributes){const element=document.createElementNS(ns,tag);for(const[key,value]of Object.entries(attributes))element.setAttribute(key,String(value));return element;}
     async function call(method,payload){try{return await invoke(method,payload);}catch(error){if(!disposed)notice(String(error?.message||error));throw error;}}
     function viewbox(){const w=1000/zoom,h=560/zoom;svg.setAttribute('viewBox',[(1000-w)/2,(560-h)/2,w,h].join(' '));}
-    function visible(){return !disposed&&document.visibilityState!=='hidden'&&inViewport&&!container.closest('[hidden]')&&svg.getClientRects().length>0;}
+    function visible(fresh=false){
+      if(disposed||document.visibilityState==='hidden'||container.closest('[hidden]')||svg.getClientRects().length===0)return false;
+      if(!fresh)return inViewport;
+      const rect=svg.getBoundingClientRect(),width=document.documentElement.clientWidth||global.innerWidth,height=document.documentElement.clientHeight||global.innerHeight;
+      return rect.width>0&&rect.height>0&&rect.right>0&&rect.bottom>0&&rect.left<width&&rect.top<height;
+    }
     function rotating(){return motion&&!hovered&&!focused&&!spatial.pointer&&graph.nodes.length>0&&visible();}
     function syncAnimation(){
       if(disposed)return;
@@ -163,7 +168,7 @@
     }
     function stopGesture(){clearTimeout(gestureTimer);gestureTimer=null;spatial={...spatial,pointer:null,drag:null};gestureLabel=null;if(container.classList.contains('pg-gesture-active'))container.classList.remove('pg-gesture-active');if(!disposed){renderFrame();syncAnimation();}}
     function gesture(value){
-      if(disposed)return false;const result=applyGraphGesture({...spatial,yaw,zoom},value,{visible:visible()&&graph.nodes.length>0});spatial=result.state;
+      if(disposed)return false;const result=applyGraphGesture({...spatial,yaw,zoom},value,{visible:visible(true)&&graph.nodes.length>0});spatial=result.state;
       if(!result.accepted||value.kind==='cancel'){if(!spatial.pointer)stopGesture();return result.accepted;}
       yaw=spatial.yaw;zoom=spatial.zoom;gestureLabel=null;
       if(spatial.pointer){

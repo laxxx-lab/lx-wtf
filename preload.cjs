@@ -4,8 +4,12 @@ methods.push('privacy','emergency-stop','context-read','context-clear','routine-
 methods.push('intel-intent','intel-look');
 methods.push('wake-resume','background-intent');
 methods.push('voice-timing');
+methods.push('turn-predict','local-dialogue-ready');
+methods.push('playback-drained','job-adjustment-intent','job-amend');
 methods.push('job-reconcile','job-resume');
 methods.push('current-content-intent','current-content-read','stop-intent','stop-task','mode-folder-pick');
+methods.push('handoff','recall');
+methods.push('activity');
 contextBridge.exposeInMainWorld('hermes',{
   invoke:(method,payload)=>{
     if(!methods.includes(method)) return Promise.reject(new Error('Unbekannte Aktion.'));

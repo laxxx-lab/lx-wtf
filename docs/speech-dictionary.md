@@ -100,3 +100,7 @@ Breite der Einstellungsspalte. Netzwerkzugriffe und Berechtigungen sind in
 diesem Test gesperrt; die laufende Lilith-App wird nicht verändert. Ohne die
 vorhandene lokale Electron-Testlaufzeit wird nur dieser Renderer-Test
 übersprungen.
+
+## Englische Aussprache in der Ausgabe · 13.10.2026
+
+Wakeword/Wake-Word und Wakewords/Wake-Words bekommen erst an der gemeinsamen TTS-Anfrage die phonetischen Formen „Weik Wörd“ bzw. „Weik Wörds“. Das approximiert die englische Aussprache mit dem deutschen Sprachmodell. Angezeigter Text, Erkennungswörterbuch, Aktivierungswörter und Referenzstimme bleiben unverändert. Die Anfrage ist mit einer Regression geprüft; korrekter Höreindruck braucht zusätzlich echte Wiedergabe.

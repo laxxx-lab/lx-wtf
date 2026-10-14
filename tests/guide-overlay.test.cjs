@@ -42,6 +42,27 @@ test('guide shows only a fresh identified native window and sends a simulated po
   f.controller.dispose();assert.equal(window.dead,true);assert.equal(f.timerCount(),0);
 });
 
+test('guide validates fixed appearance choices and keeps cyan frame defaults',async()=>{
+  for(const color of ['cyan','violet','amber','green'])for(const shape of ['frame','ellipse']){
+    const f=fixture();const result=await f.controller.show({...source,color,shape});
+    assert.equal(result.color,color);assert.equal(result.shape,shape);
+    assert.equal(f.windows[0].sent[0].color,color);assert.equal(f.windows[0].sent[0].shape,shape);
+    assert.deepEqual(f.reads,[{pid:123,windowId:456},{pid:123,windowId:456}]);
+    f.setNative({windowId:987});await f.advance(400);assert.equal(f.controller.snapshot().visible,false);f.controller.dispose();
+  }
+  const defaultGuide=fixture();await defaultGuide.controller.show(source);
+  assert.equal(defaultGuide.windows[0].sent[0].color,'cyan');assert.equal(defaultGuide.windows[0].sent[0].shape,'frame');defaultGuide.controller.dispose();
+});
+
+test('appearance never accepts arbitrary CSS and remains unavailable to activity',async()=>{
+  for(const appearance of [{color:'red'},{color:'#fff'},{color:'var(--evil)'},{color:null},{color:1},{shape:'circle'},{shape:'ellipse; color:red'},{shape:null},{shape:1}]){
+    const f=fixture();await assert.rejects(f.controller.show({...source,...appearance}));assert.equal(f.reads.length,0);assert.equal(f.windows.length,0);f.controller.dispose();
+  }
+  for(const appearance of [{color:'cyan'},{shape:'frame'},{color:undefined},{shape:undefined}]){
+    const f=fixture();await assert.rejects(f.controller.show({...source,purpose:'activity',taskId:'task',toolCallId:'call',targetRect:undefined,...appearance}));assert.equal(f.reads.length,0);f.controller.dispose();
+  }
+});
+
 test('rejects stale future missing or malformed source positions before native calls',async()=>{
   for(const invalid of [
     {...source,observedAt:new Date(observedTime-15001).toISOString()},
@@ -115,8 +136,13 @@ test('guide renderer uses text nodes and a distinct synthetic pointer without in
   const file=path.join(__dirname,'../ui/guide.js');assert.ok(fs.existsSync(file),'guide renderer is missing');
   const nodes=new Map();let receive;
   const element=id=>{if(!nodes.has(id))nodes.set(id,{hidden:false,textContent:'',style:{},attributes:{},setAttribute(key,value){this.attributes[key]=value;}});return nodes.get(id);};
-  vm.runInNewContext(fs.readFileSync(file,'utf8'),{document:{getElementById:element},window:{guide:{on:callback=>receive=callback}}});
-  receive({type:'guide',purpose:'guide',primary:true,width:600,height:400,windowRect:{x:12,y:12,width:500,height:300},targetRect:{x:120,y:80,width:60,height:30},label:'<img src=x onerror=evil()>',text:'Bitte hier öffnen.'});
+  vm.runInNewContext(fs.readFileSync(file,'utf8'),{document:{getElementById:element,body:element('body')},window:{guide:{on:callback=>receive=callback}}});
+  receive({type:'guide',purpose:'guide',color:'violet',shape:'ellipse',primary:true,width:600,height:400,windowRect:{x:12,y:12,width:500,height:300},targetRect:{x:120,y:80,width:60,height:30},label:'<img src=x onerror=evil()>',text:'Bitte hier öffnen.'});
   assert.equal(element('label').textContent,'<img src=x onerror=evil()>');assert.equal(element('pointer').hidden,false);assert.equal(element('pointer-label').textContent,'Hier klicken');
-  receive({type:'guide',purpose:'activity',primary:true,width:600,height:400,windowRect:{x:12,y:12,width:500,height:300},targetRect:null,label:'Editor',text:''});assert.equal(element('pointer').hidden,true);
+  assert.equal(element('body').attributes['data-color'],'violet');assert.equal(element('target').attributes['data-shape'],'ellipse');
+  assert.equal(element('target').style.width,'60px');assert.equal(element('target').style.height,'30px');
+  receive({type:'guide',purpose:'guide',color:'url(evil)',shape:'evil',width:600,height:400,windowRect:{x:12,y:12,width:500,height:300}});
+  assert.equal(element('body').attributes['data-color'],'cyan');assert.equal(element('target').attributes['data-shape'],'frame');
+  receive({type:'guide',purpose:'activity',color:'green',shape:'ellipse',primary:true,width:600,height:400,windowRect:{x:12,y:12,width:500,height:300},targetRect:null,label:'Editor',text:''});assert.equal(element('pointer').hidden,true);
+  assert.equal(element('body').attributes['data-color'],'cyan');assert.equal(element('target').attributes['data-shape'],'frame');
 });

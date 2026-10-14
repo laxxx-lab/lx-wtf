@@ -6,6 +6,81 @@ const {pathToFileURL}=require('node:url');
 const {EventEmitter}=require('node:events');
 const api=(()=>{try{return require('../workbench.cjs');}catch(error){if(error.code==='MODULE_NOT_FOUND')return {};throw error;}})();
 
+test('project navigation binds exact local project IDs and paths through trusted IPC',async()=>{
+ const id='37b9ad63-5a29-48a1-83b2-37984291c46a',calls=[];let locked=false;
+ const f=fixture({getSnapshot:()=>({privacyLocked:locked}),onVisual:async(method,payload)=>{calls.push({method,payload});return {ok:true};}});await f.controller.show('console');
+ for(const [method,payload] of [['project-snapshot'],['project-pick'],['project-select',{id}],['project-rename',{id,name:'Meine Arbeit'}],['project-list',{id,path:'docs'}],['project-read',{id,path:'README.md'}],['project-command',{id,path:'README.md',text:'Fasse diese Datei zusammen.'}],['project-remove',{id}]])await f.invoke(method,payload);
+ assert.equal(calls.length,8);assert.deepEqual(calls[6],{method:'project-command',payload:{id,path:'README.md',text:'Fasse diese Datei zusammen.'}});
+ for(const [method,payload]of [['project-select',{id:'anything'}],['project-select',{id,root:'C:/'}],['project-read',{id,path:'../secret.md'}],['project-read',{id,path:'C:/secret.md'}],['project-read',{id,path:'README.md',shell:'cmd.exe'}],['project-command',{id,text:''}],['project-rename',{id,name:'x\u0000'}],['project-pick',{root:'C:/'}]])await assert.rejects(f.invoke(method,payload));
+ locked=true;await assert.rejects(f.invoke('project-read',{id,path:'README.md'}),/Datenschutz/);await assert.rejects(f.invoke('project-command',{id,text:'Weiter'}),/Datenschutz/);assert.equal(calls.length,8);f.controller.destroy();
+});
+
+test('workspace layout keeps native browser aligned with project sidebar and global composer',async()=>{
+ const f=fixture();await f.controller.show({tab:'browser',url:'https://example.com'});
+ await f.invoke('workspace-layout',{sidebar:true});assert.equal(f.views[0].bounds.x,254);assert.equal(f.views[0].bounds.height,f.windows[0].getContentBounds().height-326);
+ await f.invoke('workspace-layout',{sidebar:false});assert.equal(f.views[0].bounds.x,22);
+ for(const payload of [{sidebar:1},{sidebar:true,x:-999},null])await assert.rejects(f.invoke('workspace-layout',payload));f.controller.destroy();
+});
+test('agent browser control returns actual page metadata and refuses private or arbitrary operations',async()=>{
+ let locked=false;const f=fixture({getSnapshot:()=>({privacyLocked:locked})});
+ assert.equal(f.controller.browserState.ready,false);assert.equal(f.windows.length,0);
+ const page=await f.controller.controlBrowser({action:'navigate',url:'https://example.com'});
+ assert.equal(page.ready,true);assert.equal(page.url,'https://example.com/');assert.equal(page.title,'Page');assert.equal(page.visible,true);assert.equal(page.tab,'browser');
+ f.controller.hide();assert.equal(f.controller.browserState.visible,false);assert.equal(f.controller.browserState.url,page.url);
+ for(const value of [{action:'evaluate',script:'alert(1)'},{action:'state',url:'https://example.com'},{action:'navigate',url:'file:///private'},{action:'navigate',url:'https://user:secret@example.com'},{action:'reload',shell:'cmd'}])await assert.rejects(f.controller.controlBrowser(value));
+ locked=true;assert.equal(f.controller.browserState,null);await assert.rejects(f.controller.controlBrowser({action:'state'}),/Datenschutz/);f.controller.destroy();
+});
+
+test('failed browser navigation cannot return an opening confirmation',async()=>{
+ const f=fixture();await f.controller.show('console');f.views[0].webContents.loadURL=async()=>{throw Error('ERR_NAME_NOT_RESOLVED');};
+ await assert.rejects(f.controller.controlBrowser({action:'navigate',url:'https://unreachable.invalid'}),/ERR_NAME_NOT_RESOLVED/);f.controller.destroy();
+});
+
+test('privacy during pending agent navigation never reveals the newly loaded browser',async()=>{
+ let locked=false,release;const f=fixture({getSnapshot:()=>({privacyLocked:locked})});await f.controller.show('console');f.controller.hide();
+ const contents=f.views[0].webContents;contents.loadURL=url=>new Promise(resolve=>{release=()=>{contents.url=url;resolve();};});
+ const navigating=f.controller.controlBrowser({action:'navigate',url:'https://example.com'});await new Promise(resolve=>setImmediate(resolve));locked=true;f.controller.publish({type:'privacy-state',locked:true});release();
+ await assert.rejects(navigating,/Datenschutz/);assert.equal(f.controller.visible,false);assert.equal(f.controller.activeTab,'console');assert.equal(f.views[0].visible,false);f.controller.destroy();
+});
+
+test('privacy lock and unlock cancels an older pending browser opening',async()=>{
+ let locked=false,release;const f=fixture({getSnapshot:()=>({privacyLocked:locked})});await f.controller.show('console');f.controller.hide();const contents=f.views[0].webContents;
+ contents.loadURL=url=>new Promise(resolve=>{release=()=>{contents.url=url;resolve();};});const navigating=f.controller.controlBrowser({action:'navigate',url:'https://example.com'});await new Promise(resolve=>setImmediate(resolve));
+ locked=true;f.controller.publish({type:'privacy-state',locked:true});locked=false;f.controller.publish({type:'privacy-state',locked:false});release();await assert.rejects(navigating,/gestoppt|Datenschutz/);assert.equal(f.controller.visible,false);f.controller.destroy();
+});
+
+test('a failed main-frame load is visible to agent status and clears only with a successful navigation',async()=>{
+ const f=fixture();await f.controller.controlBrowser({action:'navigate',url:'https://example.com'});const contents=f.views[0].webContents;
+ contents.emit('did-fail-load',{},-105,'ERR_NAME_NOT_RESOLVED','https://example.com',true);assert.equal(f.controller.browserState.ready,false);assert.match(f.controller.browserState.error,/ERR_NAME_NOT_RESOLVED/);
+ contents.emit('did-fail-load',{},-105,'child failed','https://example.com',false);assert.match(f.controller.browserState.error,/ERR_NAME_NOT_RESOLVED/);
+ contents.emit('did-navigate',{},'https://example.com');assert.equal(f.controller.browserState.ready,true);assert.equal(f.controller.browserState.error,null);f.controller.destroy();
+});
+
+test('automatic project metadata loading cannot cancel a workbench window still opening',async()=>{
+ for(const agent of [false,true]){
+  let resume;const loading=new Promise(resolve=>resume=resolve),id='37b9ad63-5a29-48a1-83b2-37984291c46a';
+  const f=fixture({beforeLoadFile:()=>loading,onVisual:async()=>({id,path:'',entries:[]})});const opening=agent?f.controller.present({tab:'console',requestId:'agent'}):f.controller.show('console');
+  await f.invoke('project-snapshot');await f.invoke('project-list',{id,path:''});resume();await opening;assert.equal(f.controller.visible,true);assert.equal(f.windows[0].focusCalls,agent?0:1);assert.equal(f.controller.presentation.owner,agent?'agent':'user');f.controller.destroy();
+ }
+});
+
+test('collaboration snapshot projects health, explicit attention and revision without private source or repair data',()=>{
+ const health={state:'degraded',summary:'Mikrofon wartet',checks:[{key:'microphone',state:'degraded',summary:'Keine Frames',deviceId:'PRIVATE'}],repair:{kind:'microphone',reason:'token=SECRET',command:'PRIVATE'}};
+ const attention={kind:'window',label:'Editor',observedAt:'2026-10-12T12:00:00Z',selection:'pointer',stale:true,summary:'Frühere Beobachtung',pid:42,hwnd:'PRIVATE',bounds:{x:1},text:'PRIVATE'};
+ const result=api.safeSnapshot({voiceHealth:health,attention,jobQueue:{jobs:[{id:'test',status:'queued',revision:2,lastAmendment:'PRIVATE'}]}});
+ assert.deepEqual(result.voiceHealth,{state:'degraded',summary:'Mikrofon wartet',checks:[{key:'microphone',state:'degraded',summary:'Keine Frames'}],repair:{kind:'microphone',reason:'token=[redacted]'}});
+ assert.deepEqual(result.attention,{kind:'window',label:'Editor',observedAt:'2026-10-12T12:00:00.000Z',selection:'pointer',stale:true,summary:'Frühere Beobachtung'});assert.equal(result.jobQueue.jobs[0].revision,2);assert.doesNotMatch(JSON.stringify(result),/PRIVATE|SECRET|deviceId|bounds|hwnd|lastAmendment/);
+ assert.equal(api.safeSnapshot({privacyLocked:true,attention}).attention,null);assert.equal(api.safeSnapshot({attention:{...attention,observedAt:'bad'}}).attention,null);assert.equal(api.safeSnapshot().voiceHealth,null);
+});
+
+test('job amendments require an owned actionable UUID and bounded exact payload while preserving manual ownership',async()=>{
+ const id='37b9ad63-5a29-48a1-83b2-37984291c46a',calls=[];let status='queued',locked=false,blocked=false;
+ const f=fixture({getSnapshot:()=>({privacyLocked:locked,jobQueue:{blocked,jobs:[{id,status}]}}),onVisual:async(method,payload)=>{calls.push({method,payload});return {ok:true};}});await f.controller.present({tab:'context',requestId:'agent'});
+ await f.invoke('job-amend',{id,instruction:'Bitte nur das Foto.'});assert.deepEqual(calls,[{method:'job-amend',payload:{id,instruction:'Bitte nur das Foto.'}}]);assert.equal(f.controller.presentation.owner,'user');assert.equal(f.controller.release('agent').closed,false);
+ for(const payload of [{id:'unknown',instruction:'Korrektur'},{id,instruction:''},{id,instruction:'x'.repeat(1201)},{id,instruction:'x\u0000'},{id,instruction:'Weiter',shell:'cmd.exe'},{id:'49b9ad63-5a29-48a1-83b2-37984291c46a',instruction:'Weiter'}])await assert.rejects(f.invoke('job-amend',payload));
+ status='outcome-unknown';await assert.rejects(f.invoke('job-amend',{id,instruction:'Weiter'}));status='running';locked=true;await assert.rejects(f.invoke('job-amend',{id,instruction:'Weiter'}));locked=false;blocked=true;await assert.rejects(f.invoke('job-amend',{id,instruction:'Weiter'}));blocked=false;await f.invoke('job-amend',{id,instruction:'Neue Richtung'});assert.equal(calls.length,2);f.controller.destroy();
+});
+
 test('browser navigation accepts explicit web URLs and rejects privileged schemes and credentials',()=>{
   assert.equal(typeof api.validateBrowserUrl,'function','URL boundary is missing');
   assert.equal(api.validateBrowserUrl(' https://example.com/a?q=1 '),'https://example.com/a?q=1');
@@ -310,7 +385,7 @@ test('gesture navigation feedback is bounded and the help reserves space above t
 
 test('renderer hides its empty browser placeholder after a real page loads and restores it for blank',()=>{
   const fs=require('node:fs'),vm=require('node:vm'),nodes=new Map();let receive;
-  const element=id=>{if(!nodes.has(id))nodes.set(id,{hidden:false,value:'',disabled:false,addEventListener(){}});return nodes.get(id);};
+  const element=id=>{if(!nodes.has(id))nodes.set(id,{hidden:false,value:'',disabled:false,addEventListener(){},setAttribute(){}});return nodes.get(id);};
   const document={getElementById:element,querySelector:element,querySelectorAll:()=>[],addEventListener(){}};
   const window={workbench:{invoke:async()=>null,on:callback=>receive=callback},matchMedia:()=>({matches:true}),HermesOrb:{OrbRenderer:class{}},addEventListener(){}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../ui/workbench.js'),'utf8'),{document,window,requestAnimationFrame:()=>1,cancelAnimationFrame(){},setTimeout,clearTimeout});

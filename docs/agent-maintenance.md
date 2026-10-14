@@ -54,6 +54,19 @@ Hintergrundaufträge: [Parallelität](background-orchestration.md). Vor Neustart
 `status.busy`, aktive Hintergrundaufträge und Bildauswertung prüfen;
 `conversationBusy=false` allein bedeutet lediglich, dass Lilith weiterreden kann.
 
+Kurze Sprachgespräche können über die lokale, kostenlose Gesprächsschicht laufen:
+[Lokales Live-Gespräch](local-live-conversation.md). `status.localConversation`
+trennt deren Bereitschaft von Hermes und Satzendmodell. Aufgaben, persönliche
+Erinnerung und Sensorbeobachtungen bleiben bei Hermes; ein lokaler Gesprächszug
+ist keine bestätigte Aktion. Die Sprachausgabe verwendet dieselbe Referenzstimme.
+
+Die gemeinsame Arbeit wird durch [Sprachdiagnose](voice-health.md),
+[Auftragskorrekturen](job-adjustment.md) und
+[Werkstattkarten](workbench-collaboration.md) ergänzt. `status.voiceHealth`
+misst Frame-Heartbeat, echte Modell-/Workerbereitschaft und Reparaturbestätigung;
+Stille oder ein langsames Modell allein ist kein Fehler. Pointer-Quellen und
+frühere Momentaufnahmen: [aktueller Inhalt](current-content.md).
+
 ## Reparatur oder Erweiterung
 
 Zuerst `AGENTS.md`, diese Datei, den betroffenen Bedienvertrag und den aktuellen

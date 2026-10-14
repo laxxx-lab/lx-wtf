@@ -176,4 +176,4 @@ function createProjectGraph({cacheRoot,runner=runGraphify,now=Date.now,onChange=
   }
   return {index,snapshot,search,readSource,cancel,restore,observeTool,dispose(){cancel();disposed=true;nodes=[];links=[];stamps.clear();state.ready=false;}};
 }
-module.exports={createProjectGraph,GRAPHIFY_VERSION};
+module.exports={createProjectGraph,GRAPHIFY_VERSION,sourcePath,allowedRelative,allowedDirectory};

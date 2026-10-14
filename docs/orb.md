@@ -28,3 +28,9 @@ Abbruch/Erledigung entfernt ihn; Datenschutz blendet ihn aus. Nach einem App-
 Neustart bleiben geplante Erinnerungen sichtbar, frühere Power-Timer laufen
 weiterhin nicht automatisch an. Für Analysen ohne bekannte Fälligkeit gibt es
 keine erfundene Restzeit. Der Countdown schaltet keine Sensoren ein.
+
+## Antwortformulierung und ruhige Übergabe · 13.10.2026
+
+Der Orb zeigt Denken beim Formulieren einer Antwort, auch bei Rechentiefe none. Tatsächliche Werkzeugaktionen zeigen Arbeiten. Ein noch laufendes zweites Werkzeug hält die Arbeitsdarstellung aufrecht. Aufnahme, tatsächliche Sprachausgabe und Datenschutz behalten Vorrang. Der Weg von Transkription zu Einsendung bleibt durchgehend erkennbar; ein verspätetes ready darf die aktuelle Einsendung nicht überblenden.
+
+Bei Übergaben erhalten beide Clients ihre aktuelle Fenstergröße und zeigen den Orb ohne Fokusübernahme. Der Nutzer öffnet die Gesprächsansicht bei Bedarf selbst. Ruhezeit: [Standby](idle-standby.md).

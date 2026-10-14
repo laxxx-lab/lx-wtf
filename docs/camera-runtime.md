@@ -1,5 +1,20 @@
 # Lokale Kamera-Prüfung · 9. Oktober 2026
 
+Aktueller Begrüßungsvertrag: Die gespeicherte Kameraauswahl startet mit der App,
+wenn Kamera, Wiedererkennung und Begrüßung bereits ausdrücklich aktiviert sind
+und Datenschutz oder Standby die Kamera nicht sperren. Nur bekannte Profile
+werden nach drei aufeinanderfolgenden Erkennungen zur Begrüßung vorgemerkt.
+Für dieselbe Person ist eine weitere Begrüßung erst nach mindestens fünf Minuten
+beobachteter Abwesenheit möglich; ein kurzer Erkennungsverlust zählt nicht als
+neuer Besuch. Die Abwesenheit beginnt mit einem Bild ohne diese bekannte Person.
+Ein Kameraausfall ohne solche Beobachtung beweist keine Abwesenheit.
+Kamerawechsel, Ein-/Ausschalten oder geänderte Erkennungseinstellungen löschen
+unvollständige Bestätigungen, erhalten aber die bereits bestätigte Anwesenheit;
+die Zeit bei abgeschalteter Kamera zählt nicht als beobachtete Abwesenheit.
+Ein neuer App-Prozess beginnt mit einer neuen Anwesenheitsprüfung.
+Die Zustandsprüfung ist mit `node --test tests/camera-presence.test.cjs` abgedeckt;
+das ersetzt keinen tatsächlichen Kamera- oder Tonausgabetest.
+
 Die echten Kamera-Geräte wurden bei der Implementierung nicht aktiviert.
 Der native UI-Lauf bestätigt Kamera-Aus-Zustand, null Video-Tracks, verborgenen
 Aktivitätsindikator und null Renderer-/Preload-Fehler. Die Einstellungen wurden

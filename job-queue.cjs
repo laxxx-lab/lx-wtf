@@ -33,6 +33,8 @@ function display(job) {
 function storedJob(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.id !== 'string' || !UUID.test(value.id)) throw new TypeError('Invalid stored job.');
   instructions(value.text); ownership(value.sessionId, value.profile); app(value.appId); voiceTurn(value.turnId ?? null);
+  const revision = value.revision === undefined ? 1 : value.revision;
+  if (!Number.isSafeInteger(revision) || revision < 1) throw new TypeError('Invalid stored revision.');
   const executor=value.executor??'hermes',localCommand=value.localCommand??null;
   const kind=value.kind??'user',sourceJobId=value.sourceJobId??null,resource=value.resource??null;
   if(resource!==null&&resource!=='desktop')throw new TypeError('Invalid job resource.');
@@ -50,7 +52,7 @@ function storedJob(value) {
   if ((SETTLED.has(value.status) || value.status === 'paused') && value.finishedAt === null) throw new TypeError('Invalid settled job.');
   return {
     id: value.id, text: value.text, sessionId: value.sessionId, profile: value.profile, appId: value.appId, speak: value.speak, turnId: value.turnId ?? null,kind,sourceJobId,resource,executor,localCommand:copy(localCommand),
-    status: value.status, verified: value.verified, runtimeId: value.runtimeId, attempts: value.attempts,
+    status: value.status, verified: value.verified, runtimeId: value.runtimeId, attempts: value.attempts, revision,
     createdAt: value.createdAt, updatedAt: value.updatedAt, startedAt: value.startedAt, acceptedAt: value.acceptedAt, finishedAt: value.finishedAt,
     title: redactContext(value.title, 200) || 'Auftrag bearbeiten', summary: redactContext(value.summary, 1200), reason: redactContext(value.reason, 450),
   };
@@ -133,7 +135,7 @@ class JobQueue {
     }
     const timestamp = this.#timestamp();
     const job = {
-      id: randomUUID(), text, sessionId, profile, appId, speak, turnId,kind,sourceJobId,resource,executor:'hermes',localCommand:null,status: 'queued', verified: false, runtimeId: null, attempts: 0,
+      id: randomUUID(), text, sessionId, profile, appId, speak, turnId,kind,sourceJobId,resource,executor:'hermes',localCommand:null,status: 'queued', verified: false, runtimeId: null, attempts: 0, revision: 1,
       createdAt: timestamp, updatedAt: timestamp, startedAt: null, acceptedAt: null, finishedAt: null,
       title: redactContext(title, 200) || 'Auftrag bearbeiten', summary: '', reason: '',
     };
@@ -148,6 +150,30 @@ class JobQueue {
     const job = this.#jobs.find(item=>item.kind!=='background-result'&&eligible(item))||this.#jobs.find(eligible);
     if (!job) return null;
     return this.#update(job.id, ['queued'], { status: 'running', startedAt: this.#timestamp(), attempts: job.attempts + 1 });
+  }
+
+  owned(id, { sessionId, profile = 'default' } = {}) {
+    ownership(sessionId, profile);
+    return copy(this.#jobs.find(job => job.id === id && job.sessionId === sessionId && job.profile === profile) || null);
+  }
+
+  amendQueued(id, { text, title, sessionId, profile = 'default', expectedRevision } = {}) {
+    instructions(text); ownership(sessionId, profile);
+    if (title !== undefined && typeof title !== 'string') throw new TypeError('Invalid title.');
+    if (expectedRevision !== undefined && (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1)) throw new TypeError('Invalid expectedRevision.');
+    const job = this.#jobs.find(item => item.id === id && item.sessionId === sessionId && item.profile === profile && item.kind === 'user' && item.status === 'queued' && item.executor === 'hermes' && item.acceptedAt === null && item.runtimeId === null && item.startedAt === null);
+    if (!job || expectedRevision !== undefined && job.revision !== expectedRevision) return null;
+    if (job.revision === Number.MAX_SAFE_INTEGER) throw new RangeError('Job revision limit reached.');
+    return this.#update(id, ['queued'], { text, revision: job.revision + 1, ...(title === undefined ? {} : { title: redactContext(title, 200) || 'Auftrag bearbeiten' }) });
+  }
+
+  cancelPrepared(id, { sessionId, profile = 'default', expectedRevision } = {}) {
+    ownership(sessionId, profile);
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) throw new TypeError('Invalid expectedRevision.');
+    // Caller must prove this is still its undisbursed preparation, before any send.
+    const job = this.#jobs.find(item => item.id === id && item.sessionId === sessionId && item.profile === profile && item.revision === expectedRevision && item.kind === 'user' && item.status === 'running' && item.executor === 'hermes' && item.acceptedAt === null && item.runtimeId === null);
+    if (!job) return null;
+    return this.#update(id, ['running'], { status: 'cancelled', verified: false, finishedAt: this.#timestamp(), reason: 'Vor Ausführung durch Änderung ersetzt.' });
   }
 
   accepted(id, { runtimeId } = {}) {

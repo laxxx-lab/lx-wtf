@@ -1,9 +1,9 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
-function fixture({fileSystem={}}={}){
+function fixture({fileSystem={},clipboardSource={}}={}){
  const prompts=[],events=[],app={setPath(){},setName(){},setAppUserModelId(){},setLoginItemSettings(){},on(){},isReady:()=>false,quit(){},requestSingleInstanceLock:()=>false};
  const ctx=vm.createContext({__dirname:path.resolve(__dirname,'..'),process,Buffer,setTimeout,clearTimeout,setInterval,clearInterval,AbortSignal,AbortController,fetch,console,require:name=>{
-  if(name==='electron')return {app,ipcMain:{handle(){}},Notification:{isSupported:()=>false}};
+  if(name==='electron')return {app,clipboard:clipboardSource,ipcMain:{handle(){}},Notification:{isSupported:()=>false}};
   if(name==='node:fs')return {...fs,mkdirSync(){},writeFileSync(){},readFileSync(){throw Error('test settings');},...fileSystem};
   if(name.startsWith('./'))return require(path.resolve(__dirname,'..',name));return require(name);
  }});
@@ -11,6 +11,75 @@ function fixture({fileSystem={}}={}){
  vm.runInContext("let fixtureReasoning='none';connected=true;emit=(type,data={})=>events.push({type,...data});conversation=new Conversation(async(method,params)=>{if(method==='config.get')return {value:fixtureReasoning};if(method==='config.set'){fixtureReasoning=params.value;return {key:'reasoning',value:fixtureReasoning};}if(method==='prompt.submit'){prompts.push(params.text);return {};}return {};});conversation.session={id:'runtime',storedId:'stored',profile:'default',title:'Test'};",ctx);
  return {ctx,prompts,events,run:s=>vm.runInContext(s,ctx)};
 }
+test('explicit clipboard writes verify native content and block privacy, standby and a remote session',async()=>{
+ let text='Old';const f=fixture({clipboardSource:{readText:()=>text,writeText:value=>{text=value}}});f.ctx.clipboardValue={action:'write',text:'New text'};
+ const result=await f.run('apiClipboard(clipboardValue)');assert.equal(result.verified,true);assert.equal(text,'New text');assert.equal(result.text,undefined);
+ for(const guard of ['config.privacyLocked=true','config.standbyActive=true','ownsConversationInput=()=>false']){
+  const g=fixture({clipboardSource:{readText:()=>text,writeText:value=>{text=value}}});g.ctx.clipboardValue={action:'write',text:'Blocked'};g.run(guard);await assert.rejects(g.run('apiClipboard(clipboardValue)'));assert.equal(text,'New text');
+ }
+});
+test('clipboard reads are bounded untrusted observations, never included in status',async()=>{
+ const f=fixture({clipboardSource:{readText:()=> 'abcdef'}});const result=await f.run("apiClipboard({action:'read',maxChars:3})");assert.equal(result.text,'abc');assert.equal(result.truncated,true);assert.equal(result.untrusted,true);assert.equal(JSON.stringify(f.run('controlStatus()')).includes('abcdef'),false);
+});
+test('restart recovery uses the real owned reconciliation and never infers action success',async()=>{
+ const f=fixture();f.run("globalThis.job=getJobs().enqueue({text:'Originalauftrag',sessionId:'stored',profile:'default',speak:false});getJobs().claim({sessionId:'stored'});getJobs().unknown(job.id,'App neu gestartet');scheduleJobs=()=>{};gateway={request:async()=>({running:false,session_id:'restored-runtime'}),json:async()=>({session_id:'stored',profile:'default',messages:[{role:'user',content:'[Lilith-Auftrag: '+job.id+']\\nOriginalauftrag'}]})};");
+ await f.run('recoverInterruptedJob()');assert.equal(f.run('getJobs().active()'),null);assert.equal(f.run('getJobs().list()[0].status'),'paused');assert.equal(f.run('getJobs().list()[0].verified'),false);assert.equal(f.run('conversation.session.id'),'restored-runtime');assert.equal(f.prompts.length,0);
+});
+test('a correlated running job reconnects after recovery without dispatching it again',async()=>{
+ const f=fixture();f.run("globalThis.job=getJobs().enqueue({text:'Originalauftrag',sessionId:'stored',profile:'default',speak:false});getJobs().claim({sessionId:'stored'});getJobs().unknown(job.id,'App neu gestartet');scheduleJobs=()=>{};gateway={request:async()=>({running:true,session_id:'restored-runtime'}),json:async()=>({session_id:'stored',messages:[{role:'user',content:'[Lilith-Auftrag: '+job.id+']\\nOriginalauftrag'}]})};");
+ await f.run('recoverInterruptedJob()');assert.equal(f.run('getJobs().active().status'),'running');assert.equal(f.run('conversation.busy'),true);assert.equal(f.run('getJobs().active().attempts'),1);assert.equal(f.prompts.length,0);
+});
+test('restart recovery parks stopped uncertain work without replay and releases later jobs',async()=>{
+ const f=fixture();f.run("globalThis.job=getJobs().enqueue({text:'Originalauftrag',sessionId:'stored',profile:'default',speak:false});getJobs().claim({sessionId:'stored'});getJobs().unknown(job.id,'App neu gestartet');globalThis.later=getJobs().enqueue({text:'Nächster Auftrag',sessionId:'stored',profile:'default',speak:false});globalThis.recoveryChecks=0;jobAction=async()=>{recoveryChecks++;getJobs().reconcile(job.id,{remoteRunning:false,verified:false});};");
+ await f.run('recoverInterruptedJob()');assert.equal(f.run('recoveryChecks'),1);assert.equal(f.run('getJobs().active()'),null);assert.equal(f.run('getJobs().list()[0].status'),'paused');assert.equal(f.run('getJobs().list()[1].status'),'queued');assert.equal(f.prompts.length,0);
+});
+test('restart recovery is single flight, bounded and respects privacy and foreign ownership',async()=>{
+ const f=fixture();f.run("globalThis.job=getJobs().enqueue({text:'Originalauftrag',sessionId:'stored',profile:'default',speak:false});getJobs().claim({sessionId:'stored'});getJobs().unknown(job.id,'App neu gestartet');globalThis.checks=0;globalThis.resolveCheck=null;jobAction=()=>{checks++;return new Promise(resolve=>resolveCheck=resolve)};config.privacyLocked=true;");
+ await f.run('recoverInterruptedJob()');assert.equal(f.run('checks'),0);f.run("config.privacyLocked=false;conversation.session.storedId='foreign'");await f.run('recoverInterruptedJob()');assert.equal(f.run('checks'),0);
+ f.run("conversation.session.storedId='stored'");const first=f.run('recoverInterruptedJob()');await f.run('recoverInterruptedJob()');assert.equal(f.run('checks'),1);f.run('resolveCheck()');await first;await f.run('recoverInterruptedJob()');assert.equal(f.run('checks'),1);
+});
+test('control status exposes only content-free capture readiness flags',()=>{
+ const f=fixture();f.run("registerHandlers()['client-state'](null,{live:true,captureArmed:true,awaitingResume:true,vadReady:true,transcribing:true,dispatchCurrent:false,inputBusy:false,inputTtsPending:false,transcript:'private'})");
+ const live=f.run('controlStatus().live');assert.equal(live.captureArmed,true);assert.equal(live.transcribing,true);assert.equal(live.awaitingResume,true);assert.equal(live.dispatchCurrent,false);assert.equal(live.transcript,undefined);
+});
+test('answer formulation stays thinking even with reasoning disabled; tools alone switch to working',async()=>{
+ const f=fixture();await f.run("submit('Eine kurze Testfrage.',{speak:false})");
+ assert.equal(f.run('conversation.reasoningState.effective'),'none');assert.equal(f.run('status'),'thinking');
+ f.run("gatewayEvent({type:'message.start',session_id:'runtime',data:{}})");assert.equal(f.run('status'),'thinking');
+ f.run("gatewayEvent({type:'tool.start',session_id:'runtime',data:{name:'test',tool_call_id:'call-1'}})");assert.equal(f.run('status'),'working');
+ f.run("gatewayEvent({type:'tool.end',session_id:'runtime',data:{name:'test',tool_call_id:'call-1'}})");assert.equal(f.run('status'),'thinking');
+});
+test('idle standby defaults to fifteen minutes, resets on interaction, and never interrupts work',async()=>{
+ const f=fixture();assert.equal(f.run('config.idleStandbyMinutes'),15);
+ f.run('globalThis.idleNow=0;idleStandby=createIdleStandby({now:()=>idleNow});globalThis.entries=0;enterStandby=async()=>{entries++};');
+ f.run('idleNow=900000;conversation.busy=true;');await f.run('checkIdleStandby()');assert.equal(f.run('entries'),0);
+ f.run('conversation.busy=false;idleNow=1800000;');await f.run('checkIdleStandby()');assert.equal(f.run('entries'),1);
+ f.run('idleNow=1900000;registerHandlers().activity();idleNow=2700000;');await f.run('checkIdleStandby()');assert.equal(f.run('entries'),1);
+ f.run('config.idleStandbyMinutes=0;idleNow=999999999;');await f.run('checkIdleStandby()');assert.equal(f.run('entries'),1);
+});
+test('invalid idle preference is rejected before other saved preferences can change',async()=>{
+ const f=fixture();await assert.rejects(f.run('registerHandlers().settings(null,{idleStandbyMinutes:-1,monitoring:false})'),/Standby/);
+ assert.equal(f.run('config.monitoring'),true);assert.equal(f.run('config.idleStandbyMinutes'),15);
+ await f.run('registerHandlers().settings(null,{idleStandbyMinutes:0})');assert.equal(f.run('config.idleStandbyMinutes'),0);
+});
+test('automatic standby cancels delayed settings when new input or session identity arrives',async()=>{
+ for(const change of ["registerHandlers().activity()","clientInfo.capturing=true","conversation.busy=true","conversation.session={id:'new',storedId:'new',profile:'default'}","safetyGeneration++"]){
+  const f=fixture({fileSystem:{existsSync:()=>false}});f.run("globalThis.idleNow=0;idleStandby=createIdleStandby({now:()=>idleNow});config.cameraEnabled=true;config.wakeWord=false;globalThis.controls=[];globalThis.stops=0;stopSpeech=()=>stops++;actionHandlers={settings:async(_e,values)=>{Object.assign(config,values);if(values.cameraEnabled===false)await new Promise(resolve=>{globalThis.finishSettings=resolve});}};clientControl=async action=>controls.push(action);idleNow=900000;");
+  const pending=f.run('checkIdleStandby()');f.run(change+';finishSettings();');await pending;
+  assert.equal(f.run('stops'),0,change);assert.equal(f.run("controls.includes('standby')"),false,change);assert.equal(f.run('config.standbyActive'),false,change);assert.equal(f.run('config.cameraEnabled'),change==='safetyGeneration++'?false:true,change);if(change!=='safetyGeneration++')assert.equal(f.run('config.wakeWord'),false,change);
+ }
+});
+test('automatic standby cancels a pending renderer control without overwriting newer camera preference',async()=>{
+ const f=fixture({fileSystem:{existsSync:()=>false}});f.run("globalThis.idleNow=0;idleStandby=createIdleStandby({now:()=>idleNow});config.cameraEnabled=true;config.wakeWord=false;actionHandlers=registerHandlers();globalThis.controls=[];clientControl=async action=>{controls.push(action);if(action==='standby')await new Promise(resolve=>{globalThis.finishControl=resolve});};idleNow=900000;");
+ const pending=f.run('checkIdleStandby()');await new Promise(resolve=>setImmediate(resolve));
+ await f.run('actionHandlers.settings(null,{cameraEnabled:false,wakeWord:false})');f.run('clientInfo.capturing=true;finishControl();');await pending;
+ assert.equal(f.run('config.standbyActive'),false);assert.equal(f.run('config.cameraEnabled'),false);assert.equal(f.run('config.wakeWord'),false);assert.ok(f.run("controls.includes('idle-standby-cancel')"));
+});
+test('automatic standby preserves disabled wakewords and accepts a quiet microphone-off confirmation',async()=>{
+ const f=fixture({fileSystem:{existsSync:()=>false}});f.run("globalThis.idleNow=0;idleStandby=createIdleStandby({now:()=>idleNow});config.cameraEnabled=true;config.wakeWord=false;actionHandlers=registerHandlers();globalThis.stops=0;stopSpeech=()=>stops++;clientControl=async()=>{};idleNow=900000;");await f.run('checkIdleStandby()');
+ assert.equal(f.run('config.standbyActive'),true);assert.equal(f.run('config.cameraEnabled'),false);assert.equal(f.run('config.standbyCameraEnabled'),true);assert.equal(f.run('config.wakeWord'),false);assert.equal(f.run('stops'),0);
+ f.run("globalThis.confirmed=false;pendingControls.set(91,{action:'standby',resolve:()=>confirmed=true,reject:()=>confirmed=false});registerHandlers()['control-ack'](null,{id:91,state:{live:false,cameraActive:false,microphoneActive:false,wakeArmed:false}})");assert.equal(f.run('confirmed'),true);
+});
 test('busy PC commands queue durably without a second remote submit',async()=>{
  const f=fixture();await f.run("submit('Öffne Spotify.',{speak:false})");await f.run("submit('Suche einen Song.',{speak:false})");
  assert.equal(f.prompts.length,1);assert.match(f.prompts[0],/Lilith-Auftrag: [a-f0-9-]{36}/);assert.deepEqual(Array.from(f.run('getJobs().list().map(j=>j.status)')),['running','queued']);
@@ -59,6 +128,10 @@ test('a late failed acknowledgment cannot replace a correlated completed result 
 test('a rejected routine name preserves the verified teaching steps',async()=>{
  const f=fixture();f.run("config.routines=[{id:'existing',name:'Test',instructions:'Prüfen.',verification:'Sichtbar.'}];teach.start({name:'Test'});teach.record({appId:'light',kind:'key',key:'Enter'});teach.confirm({index:0,verification:'Menü geöffnet'});");
  await assert.rejects(f.run("visualAction('teach-save',{verification:'Fertig sichtbar'})"),/eindeutig/);assert.equal(f.run('teach.snapshot().steps.length'),1);assert.equal(f.run('teach.snapshot().active'),true);
+});
+test('a normal completion during interruption cannot leave the old final voice queued',async()=>{
+ const f=fixture();f.run("conversation.busy=true;conversation.remoteRunning=true;conversation.speakReply=true;conversation.request=async()=>({});globalThis.oldFinalPcmPending=0;speak=()=>{ttsPending++;oldFinalPcmPending=speechGeneration;};");
+ const pending=f.run("registerHandlers().interrupt(null,{turnId:'barge-1'})");f.run("gatewayEvent({type:'message.complete',session_id:'runtime',data:{status:'complete',text:'Alte Abschlussantwort'}})");const result=await pending;assert.equal(result.ready,true);assert.ok(f.run('oldFinalPcmPending')>0);assert.equal(f.run('ttsPending'),0);assert.ok(f.run('speechGeneration>oldFinalPcmPending'));
 });
 test('disconnect after an interrupt request never reports confirmed readiness',async()=>{
  const f=fixture();f.run('conversation.busy=true;conversation.request=async()=>({});');const pending=f.run("registerHandlers().interrupt(null,{turnId:'barge-1'})");

@@ -11,7 +11,7 @@ const INTEL_KINDS=['earthquakes','cameras','ukraine','news','weather','flights',
 function validIntelRequest(value){return !!value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(key=>['kind','query','region','lat','lon','radiusKm','date','feed'].includes(key))&&INTEL_KINDS.includes(value.kind)&&['query','region','date'].every(key=>value[key]===undefined||typeof value[key]==='string'&&value[key].length<=200)&&(value.kind!=='feed'||typeof value.feed==='string'&&/^[a-z][a-z0-9/-]{0,60}$/.test(value.feed))&&(value.feed===undefined||value.kind==='feed')&&['lat','lon','radiusKm'].every(key=>value[key]===undefined||Number.isFinite(value[key]))&&(value.lat===undefined||Math.abs(value.lat)<=90)&&(value.lon===undefined||Math.abs(value.lon)<=180)&&(value.radiusKm===undefined||value.radiusKm>0&&value.radiusKm<=1000)&&(value.date===undefined||/^\d{4}-\d{2}-\d{2}$/.test(value.date));}
 function validGuideRequest(value){
   const rect=box=>!!box&&typeof box==='object'&&!Array.isArray(box)&&Object.keys(box).length===4&&['x','y','width','height'].every(key=>Number.isFinite(box[key]))&&box.width>1&&box.height>1&&box.width<=20000&&box.height<=20000;
-  return !!value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(key=>['purpose','pid','windowId','windowRect','targetRect','observedAt','snapshotId','label','text','taskId','toolCallId'].includes(key))&&['guide','activity'].includes(value.purpose)&&Number.isSafeInteger(value.pid)&&value.pid>0&&typeof value.windowId==='string'&&/^\d{1,20}$/.test(value.windowId)&&rect(value.windowRect)&&(value.targetRect===undefined||rect(value.targetRect))&&typeof value.observedAt==='string'&&Number.isFinite(Date.parse(value.observedAt))&&['snapshotId','taskId','toolCallId','label','text'].every(key=>value[key]===undefined||typeof value[key]==='string'&&value[key].length<=(key==='text'?500:160));
+  return !!value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(key=>['purpose','pid','windowId','windowRect','targetRect','observedAt','snapshotId','label','text','taskId','toolCallId','color','shape'].includes(key))&&['guide','activity'].includes(value.purpose)&&(value.color===undefined||value.purpose==='guide'&&['cyan','violet','amber','green'].includes(value.color))&&(value.shape===undefined||value.purpose==='guide'&&['frame','ellipse'].includes(value.shape))&&Number.isSafeInteger(value.pid)&&value.pid>0&&typeof value.windowId==='string'&&/^\d{1,20}$/.test(value.windowId)&&rect(value.windowRect)&&(value.targetRect===undefined||rect(value.targetRect))&&typeof value.observedAt==='string'&&Number.isFinite(Date.parse(value.observedAt))&&['snapshotId','taskId','toolCallId','label','text'].every(key=>value[key]===undefined||typeof value[key]==='string'&&value[key].length<=(key==='text'?500:160));
 }
 
 const CRAFT_IDS=['photo','vector','design','deck','grid','word','cad','light','sound','effect','film','pdf'];
@@ -31,7 +31,7 @@ function validEverydayRequest(action,v){
  if(action==='reminders')return exact(['action','id'])&&v.action==='cancel'&&typeof v.id==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(v.id)||exact(['action','kind','text','at'])&&v.action==='create'&&['reminder','alarm'].includes(v.kind)&&typeof v.text==='string'&&v.text.trim().length>0&&v.text.length<=500&&typeof v.at==='string'&&v.at.length<=64&&/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(v.at)&&Number.isFinite(Date.parse(v.at));
  return false;
 }
-async function createControlApi({ port = 8872, token, readStatus, onCommand, onLook, onScreen, onContent, onHighlight, onMode, readModes, onWorkbench,readContext,readTasks,readRoutines,onRoutine,onStop,onStopTask,readGraph,onGraphSearch,onGraphSource,readIntelCatalog,onIntel,onGuide,clearGuide,readArtcraft,onArtcraft,readAudioOutputs,onAudioOutput,readBluetooth,onBluetooth,readMicrophones,onMicrophone,readVolume,onVolume,readApps,onAppOpen,readWindows,onWindowFocus,readPower,onPower,readReminders,onReminder }) {
+async function createControlApi({ port = 8872, token, readStatus, onCommand, onLook, onScreen, onContent, onHighlight, onMode, readModes, onWorkbench,readContext,readTasks,readRoutines,onRoutine,onStop,onStopTask,readGraph,onGraphSearch,onGraphSource,readIntelCatalog,onIntel,onGuide,clearGuide,readArtcraft,onArtcraft,readAudioOutputs,onAudioOutput,readBluetooth,onBluetooth,readMicrophones,onMicrophone,readVolume,onVolume,readApps,onAppOpen,readWindows,onWindowFocus,readPower,onPower,readReminders,onReminder,onBrowser,onClipboard,enabledActions=null }) {
   if (typeof token !== 'string' || !token || typeof readStatus !== 'function' || typeof onCommand !== 'function') {
     throw new Error('Invalid control API configuration');
   }
@@ -58,10 +58,12 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
         return reply(401, { error: 'Unauthorized' });
       }
       const action = req.url.slice('/v1/'.length);
-      if (!['status','look','standby','screen','current-content','highlight','mode','modes','workbench','context','tasks','routines','routine','privacy','stop','emergency-stop','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','power','reminders'].includes(action) && !ACTIONS.has(action)) return reply(404, { error: 'Not found' });
-      const dual=['volume','power','reminders'].includes(action);
+      if(enabledActions&&!enabledActions.includes(action))return reply(404,{error:'Not found'});
+      if (!['clipboard','browser','status','look','standby','screen','current-content','highlight','mode','modes','workbench','context','tasks','routines','routine','privacy','stop','emergency-stop','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','power','reminders'].includes(action) && !ACTIONS.has(action)) return reply(404, { error: 'Not found' });
+      const bodyLimit=action==='clipboard'?131072:MAX_BODY_BYTES;
+      const dual=['browser','volume','power','reminders'].includes(action);
       if (!dual&&req.method !== (['status','modes','context','tasks','routines','graph','intel-catalog','artcraft','audio-outputs','bluetooth-devices','microphones','apps','windows'].includes(action) ? 'GET' : 'POST')||dual&&!['GET','POST'].includes(req.method)) return reply(405, { error: 'Method not allowed' });
-      if (Number(req.headers['content-length'] || 0) > MAX_BODY_BYTES) {
+      if (Number(req.headers['content-length'] || 0) > bodyLimit) {
         req.resume();
         return reply(413, { error: 'Payload too large' });
       }
@@ -70,7 +72,7 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
         const chunks = [];
         req.on('data', chunk => {
           bytes += chunk.length;
-          if (bytes > MAX_BODY_BYTES) {
+          if (bytes > bodyLimit) {
             chunks.length = 0;
             reject(Object.assign(new Error('Payload too large'), { status: 413 }));
           } else chunks.push(chunk);
@@ -83,12 +85,23 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
       if(req.method==='GET'&&['microphones','volume','apps','windows','power','reminders'].includes(action))return typeof everydayRead==='function'?reply(200,await everydayRead()):reply(503,{error:'Control unavailable'});
       if(action==='bluetooth-devices')return typeof readBluetooth==='function'?reply(200,await readBluetooth()):reply(503,{error:'Bluetooth unavailable'});
       if(action==='audio-outputs')return typeof readAudioOutputs==='function'?reply(200,await readAudioOutputs()):reply(503,{error:'Audio unavailable'});
+      if(action==='browser'&&req.method==='GET'){if(typeof onBrowser!=='function')return reply(503,{error:'Browser unavailable'});const state=await readStatus();if(state?.privacyLocked||state?.privacy?.locked)return reply(423,{error:'Local privacy lock is active'});return reply(200,{ok:true,browser:await onBrowser({action:'state'})});}
       if (action === 'status') return reply(200, await readStatus());
       if (action === 'modes') return typeof readModes==='function'?reply(200,{modes:await readModes()}):reply(503,{error:'Modes are unavailable'});
       const reader={context:readContext,tasks:readTasks,routines:readRoutines,graph:readGraph,'intel-catalog':readIntelCatalog,artcraft:readArtcraft}[action];
       if(['context','tasks','routines','graph','intel-catalog','artcraft'].includes(action))return typeof reader==='function'?reply(200,await reader()):reply(503,{error:'Resource unavailable'});
       let payload;
       try { payload = JSON.parse(body); } catch { return reply(400, { error: 'Invalid JSON' }); }
+      if(action==='clipboard'){
+        const plain=payload&&typeof payload==='object'&&!Array.isArray(payload),keys=plain?Object.keys(payload):[];
+        const read=plain&&payload.action==='read'&&keys.every(k=>['action','maxChars'].includes(k))&&(payload.maxChars===undefined||Number.isInteger(payload.maxChars)&&payload.maxChars>=1&&payload.maxChars<=20000);
+        const write=plain&&payload.action==='write'&&keys.length===2&&keys.includes('text')&&typeof payload.text==='string'&&payload.text.length>0&&payload.text.length<=20000&&!payload.text.includes('\0');
+        if(!read&&!write)return reply(400,{error:'Invalid clipboard request'});
+        if(typeof onClipboard!=='function')return reply(503,{error:'Clipboard unavailable'});
+        const state=await readStatus();if(state?.privacyLocked||state?.privacy?.locked)return reply(423,{error:'Local privacy lock is active'});
+        return reply(200,await onClipboard(payload));
+      }
+      if(action==='browser'){try{require('./workbench.cjs').validateWorkbenchBrowserRequest(payload);}catch{return reply(400,{error:'Invalid browser request'});}if(typeof onBrowser!=='function')return reply(503,{error:'Browser unavailable'});const state=await readStatus();if(state?.privacyLocked||state?.privacy?.locked)return reply(423,{error:'Local privacy lock is active'});return reply(200,{ok:true,browser:await onBrowser(payload)});}
       if(['microphone','volume','app-open','window-focus','power','reminders'].includes(action)){
         if(!validEverydayRequest(action,payload))return reply(400,{error:'Invalid typed control request'});
         const callback={microphone:onMicrophone,volume:onVolume,'app-open':onAppOpen,'window-focus':onWindowFocus,power:onPower,reminders:onReminder}[action];
@@ -109,9 +122,9 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
         const result=await command;return reply(200,{ok:result.verified===true,action,result});
       }
       if(action==='current-content'){
-        if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.keys(payload).length!==2||!['clipboard','window'].includes(payload.kind)||typeof payload.question!=='string'||!payload.question.trim()||payload.question.length>500)return reply(400,{error:'Expected only a content kind and short question'});
+        if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.keys(payload).some(key=>!['kind','question','selection'].includes(key))||!['clipboard','window','remembered'].includes(payload.kind)||typeof payload.question!=='string'||!payload.question.trim()||payload.question.length>500||payload.selection!==undefined&&(payload.kind!=='window'||payload.selection!=='pointer'))return reply(400,{error:'Expected an explicit content kind, short question and optional pointer selection for a window'});
         if(typeof onContent!=='function')return reply(503,{error:'Current content unavailable'});
-        const observation=await onContent({kind:payload.kind,question:payload.question.trim()});
+        const observation=await onContent({kind:payload.kind,question:payload.question.trim(),...(payload.selection==='pointer'?{selection:'pointer'}:{})});
         return reply(200,{ok:true,action,observation,status:await readStatus()});
       }
       if(['artcraft-select','artcraft-open','artcraft-link'].includes(action)){

@@ -1,11 +1,12 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
-function fixture({singleInstance=false,dialog}={}){
+function fixture({singleInstance=false,dialog,transcript}={}){
   const captured=[],submitted=[],saved=[],events={},frame={image:'/9j/aGVsbG8=',source:{deviceId:'chosen',label:'HD Webcam C525'},capturedAt:new Date().toISOString()};
   const app={setPath(){},setName(){},setAppUserModelId(){},setLoginItemSettings(){},on(name,fn){events[name]=fn;},isReady:()=>false,quit(){},requestSingleInstanceLock:()=>singleInstance,whenReady:()=>({then(){}})};
   const context=vm.createContext({__dirname:path.resolve(__dirname,'..'),process,Buffer,setTimeout,clearTimeout,setInterval,clearInterval,AbortSignal,AbortController,fetch,console,require:name=>{
     if(name==='electron')return {app,dialog,ipcMain:{handle(){}},Notification:{isSupported:()=>false},screen:{getDisplayMatching:()=>context.fixtureDisplay},desktopCapturer:{getSources:async options=>{context.captureOptions=options;return context.fixtureSources||[];}}};
     if(name==='node:fs')return {...fs,mkdirSync(){},writeFileSync(file,text){saved.push({file,text});},readFileSync(){throw new Error('No saved settings in test');}};
     if(name==='./system-monitor.cjs')return {createSystemSampler:()=>async()=>({}),germanAlert:()=>''};
+    if(name==='./transcription.cjs'&&transcript!==undefined)return {...require('../transcription.cjs'),transcribeAudio:typeof transcript==='function'?transcript:async()=>transcript};
     if(name==='./context-observer.cjs'){const observer=require('../context-observer.cjs');return {...observer,readForegroundContext:async()=>context.fixtureForeground||{app:null,windowTitle:null,excluded:false}};}
     if(name==='./screen-service.cjs'){const service=require('../screen-service.cjs');return {...service,describeScreen:(image,question,options)=>service.describeScreen(image,question,{...options,fetcher:context.fetch})};}
     if(name==='./circle-interest.cjs')return {createCircleInterest:options=>{context.circleOptions=options;return {show:async()=>{assert.equal(options.allowed(),true);context.circleShown=true;return {ok:true};},clear(){context.circleCleared=true;}};}};
@@ -16,9 +17,30 @@ function fixture({singleInstance=false,dialog}={}){
   vm.runInContext('const originalSubmit=submit;',context);
   context.fixtureFrame=frame;context.fixtureService={request:async()=>({faces:[{name:'Patrik',box:[1,2,3,4]}]}),describe:async(image,question)=>{captured.push({image,question});return {description:'Eine Tasse.',held_object:'Tasse',uncertain:false};}};
   context.submitSpy=()=>{submitted.push(true);};context.activity=[];
-  vm.runInContext("config.cameraEnabled=true;config.cameraDeviceId='chosen';config.cameraRecognize=true;clientInfo.cameraActive=true;conversation={session:{id:'selected'},busy:true};getCameraService=()=>fixtureService;clientControl=async action=>{if(action!=='look')throw new Error('Must not open a camera');return fixtureFrame;};submit=submitSpy;emit=(type,data)=>{if(type==='camera-activity')activity.push(data.active);};",context);
+  vm.runInContext("config.localDialogueEnabled=false;config.naturalConversation=false;config.cameraEnabled=true;config.cameraDeviceId='chosen';config.cameraRecognize=true;clientInfo.cameraActive=true;conversation={session:{id:'selected'},busy:true};getCameraService=()=>fixtureService;clientControl=async action=>{if(action!=='look')throw new Error('Must not open a camera');return fixtureFrame;};submit=submitSpy;emit=(type,data)=>{if(type==='camera-activity')activity.push(data.active);};",context);
   return {context,captured,submitted,saved,events,look:()=>vm.runInContext("lookCurrentCamera('Was halte ich in der Hand?')",context)};
 }
+test('recognized startup greeting waits for connection and attendance without being consumed by an old frame',()=>{
+ const f=fixture();f.context.greeted=[];
+ vm.runInContext("config.cameraGreetings=true;conversation.busy=false;voiceClient={};speak=text=>greeted.push(text);cameraGreetings=['Patrik'];cameraSeen.set('Patrik',Date.now()-10000);connected=false;",f.context);
+ vm.runInContext('drainCameraGreetings()',f.context);assert.equal(f.context.greeted.length,0);assert.equal(vm.runInContext('cameraGreetings.length',f.context),1);
+ vm.runInContext('connected=true;drainCameraGreetings()',f.context);assert.equal(vm.runInContext('cameraGreetings.length',f.context),1);
+ vm.runInContext("cameraSeen.set('Patrik',Date.now());config.privacyLocked=true;drainCameraGreetings()",f.context);assert.equal(f.context.greeted.length,0);
+ vm.runInContext('config.privacyLocked=false;drainCameraGreetings();drainCameraGreetings()',f.context);assert.equal(f.context.greeted.length,1);assert.match(f.context.greeted[0],/Patrik/);
+});
+test('transcription alone cannot leave main thinking when a bare wakeword or cancelled dispatch creates no job',async()=>{
+ const f=fixture({transcript:'Lilith'}),wav=Buffer.alloc(44);wav.write('RIFF');f.context.qaAudio=wav.toString('base64');
+ vm.runInContext('connected=true;conversation.busy=false;',f.context);
+ const text=await vm.runInContext("registerHandlers().transcribe(null,{audio:qaAudio,sessionId:'selected'})",f.context);
+ assert.equal(text,'Lilith');assert.equal(vm.runInContext('status',f.context),'ready');assert.equal(vm.runInContext('getJobs().list().length',f.context),0);
+});
+test('a late transcript cannot overwrite work that took ownership of the status',async()=>{
+ let finish;const f=fixture({transcript:()=>new Promise(resolve=>finish=resolve)}),wav=Buffer.alloc(44);wav.write('RIFF');f.context.qaAudio=wav.toString('base64');
+ vm.runInContext('connected=true;conversation.busy=false;',f.context);
+ const pending=vm.runInContext("registerHandlers().transcribe(null,{audio:qaAudio,sessionId:'selected'})",f.context);
+ vm.runInContext("conversation.busy=true;state('working','Synthetic tool');",f.context);finish('Lilith');await pending;
+ assert.equal(vm.runInContext('status',f.context),'working');assert.equal(vm.runInContext('conversation.busy',f.context),true);
+});
 test('privacy rejects both capture and sensor settings before local or remote work starts',async()=>{
   const f=fixture();vm.runInContext('config.privacyLocked=true;config.screenEnabled=true;',f.context);
   await assert.rejects(f.look(),/Datenschutz/i);assert.equal(f.captured.length,0);
@@ -249,7 +271,7 @@ test('silent text submissions bypass voice prompting and voice-only brevity',asy
   const f=fixture();f.context.prompts=[];
   vm.runInContext("submit=originalSubmit;connected=true;conversation.busy=false;conversation.submit=async(text,options)=>prompts.push({text,options});",f.context);
   await vm.runInContext("submit('Erkläre mein Projekt vollständig.',{speak:false,sessionId:'selected'})",f.context);
-  assert.equal(f.context.prompts[0].text.replace(/^\[Lilith-Auftrag: [a-f0-9-]{36}\]\n/,''),'Erkläre mein Projekt vollständig.');assert.equal(vm.runInContext('compactReply',f.context),false);
+  const prompt=f.context.prompts[0].text;assert.doesNotMatch(prompt,/\[Hermes Voice: Diese Antwort wird laut gesprochen/);assert.equal(require('../reply.cjs').visibleHandoffHistory([{role:'user',text:prompt}])[0].text,'Erkläre mein Projekt vollständig.');assert.equal(vm.runInContext('compactReply',f.context),false);
 });
 test('queued user work chooses thinking from the visible request, not generated prompt context',async()=>{
  for(const [text,effort] of [['Öffne Spotify und spiele Musik.','none'],['Analysiere die Ursache des Abbruchs.','medium'],['Denke gründlich nach und plane die Architektur.','high'],['Kannst du mir '+('folgende Inhalte '.repeat(40)),'medium']]){
@@ -375,10 +397,10 @@ test('a mode with only whitespace instructions still performs its configured fin
 
 test('an installed reference voice is selectable and uses its actual supported natural delivery',async()=>{
   const f=fixture();f.context.referenceRegistry=[{name:'hermes-reference-normal'}];
-  vm.runInContext('voiceClient={registry:referenceRegistry};',f.context);
+  vm.runInContext('voiceClient=new VoiceClient({registry:referenceRegistry});',f.context);
   const result=await vm.runInContext("registerHandlers().settings(null,{voice:'reference',delivery:'power'})",f.context);
   assert.equal(result.settings.voice,'reference');assert.equal(result.settings.delivery,'normal');assert.equal(result.referenceVoiceReady,true);
-  assert.throws(()=>vm.runInContext("registerHandlers().audition(null,{voice:'reference',delivery:'whisper'})",f.context),/natürliche/);
+  assert.throws(()=>vm.runInContext("registerHandlers().audition(null,{voice:'reference',delivery:'whisper'})",f.context),/Sprechweise/);
 });
 
 test('a missing imported profile cannot silently select a nonexistent clone',async()=>{

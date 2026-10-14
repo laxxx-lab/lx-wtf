@@ -11,9 +11,9 @@ function validateGatewayUrl(value) {
 }
 
 class Gateway extends EventEmitter {
-  constructor({ url, onEvent = () => {}, fetcher = fetch }) {
+  constructor({ url, onEvent = () => {}, fetcher = fetch, socketOptions }) {
     super(); this.url = validateGatewayUrl(url); this.fetcher = fetcher;
-    this.onEvent = onEvent; this.pending = new Map(); this.sequence = 0; this.socket = null;this.heartbeat=null;
+    this.onEvent = onEvent; this.socketOptions=socketOptions; this.pending = new Map(); this.sequence = 0; this.socket = null;this.heartbeat=null;
   }
   async json(path, options = {}) {
     const response = await this.fetcher(this.url + path, { ...options, signal: AbortSignal.timeout(15000) });
@@ -28,7 +28,7 @@ class Gateway extends EventEmitter {
     const url = new URL(this.url + '/api/ws');
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     if (token) url.searchParams.set('token', token);
-    const socket = new WebSocket(url, ticket ? ['hermes-gateway-v1', 'hermes-gateway-ticket.' + ticket] : undefined);
+    const socket = new WebSocket(url, ticket ? ['hermes-gateway-v1', 'hermes-gateway-ticket.' + ticket] : undefined,this.socketOptions);
     this.socket = socket;
     socket.on('message', raw => {
       let frame; try { frame = JSON.parse(raw.toString()); } catch { return; }

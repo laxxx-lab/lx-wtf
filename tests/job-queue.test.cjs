@@ -22,6 +22,109 @@ function fixture(t, initial) {
   return { file, dir, create: options => new (require(modulePath).JobQueue)({ file, now: () => 1000, ...options }) };
 }
 function enqueue(queue, extra = {}) { return queue.enqueue({ text: 'Do this task.', sessionId: 'session-a', ...extra }); }
+
+test('queued correction preserves ID and ownership while atomically persisting a redacted revision', t => {
+  const events = [], f = fixture(t), queue = f.create({ onChange: value => events.push(value) });
+  const job = enqueue(queue, { profile: 'work', speak: false, turnId: 'turn-1', resource: 'desktop' });
+  assert.equal(typeof queue.amendQueued, 'function'); assert.equal(typeof queue.owned, 'function');
+  assert.equal(job.revision, 1);
+  assert.equal(queue.owned(job.id, { sessionId: 'foreign', profile: 'work' }), null);
+  const original = queue.owned(job.id, { sessionId: 'session-a', profile: 'work' }); original.text = 'Changed copy';
+  const changed = queue.amendQueued(job.id, { sessionId: 'session-a', profile: 'work', expectedRevision: 1, text: 'PRIVATE CORRECTION token=SECRET-TEXT', title: 'Revision token=SECRET-TITLE' });
+  assert.equal(changed.id, job.id); assert.equal(changed.revision, 2); assert.equal(changed.status, 'queued');
+  assert.equal(changed.text, 'PRIVATE CORRECTION token=SECRET-TEXT'); assert.equal(changed.sessionId, 'session-a'); assert.equal(changed.profile, 'work');
+  assert.equal(changed.speak, false); assert.equal(changed.turnId, 'turn-1'); assert.equal(changed.resource, 'desktop');
+  assert.equal(changed.attempts, 0); assert.equal(changed.acceptedAt, null);
+  const shown = JSON.stringify([queue.snapshot(), events]); assert.doesNotMatch(shown, /PRIVATE CORRECTION|SECRET-TEXT|SECRET-TITLE/);
+  assert.equal(queue.list()[0].revision, 2); assert.equal(queue.list()[0].updatedAt, 1000);
+  assert.equal(f.create().claim({ sessionId: 'session-a', profile: 'work' }).text, changed.text);
+  assert.equal(JSON.parse(fs.readFileSync(f.file, 'utf8')).jobs[0].revision, 2);
+});
+
+test('correction rejects foreign ownership, stale revisions and every dispatched or non-user job', t => {
+  const q = fixture(t).create(), job = enqueue(q), change = { sessionId: 'session-a', text: 'Changed' };
+  assert.equal(typeof q.amendQueued, 'function');
+  for (const extra of [{ sessionId: 'foreign' }, { profile: 'other' }, { expectedRevision: 2 }]) assert.equal(q.amendQueued(job.id, { ...change, ...extra }), null);
+  assert.equal(q.amendQueued('missing', change), null);
+  for (const extra of [{ text: '' }, { text: 'x'.repeat(20001) }, { text: 'bad\0input' }, { sessionId: '' }, { profile: '../other' }, { title: {} }, { expectedRevision: 0 }, { expectedRevision: 1.5 }]) assert.throws(() => q.amendQueued(job.id, { ...change, ...extra }));
+  assert.equal(q.owned(job.id, { sessionId: 'session-a' }).text, 'Do this task.');
+  const report = enqueue(q, { kind: 'background-result', sourceJobId: job.id }); assert.equal(q.amendQueued(report.id, change), null);
+  q.claim({ sessionId: 'session-a' }); assert.equal(q.amendQueued(job.id, change), null);
+  q.accepted(job.id, { runtimeId: 'remote' }); assert.equal(q.amendQueued(job.id, change), null);
+  q.unknown(job.id); assert.equal(q.amendQueued(job.id, change), null);
+  q.delegate(job.id); assert.equal(q.amendQueued(job.id, change), null);
+  q.finish(job.id); assert.equal(q.amendQueued(job.id, change), null);
+});
+
+test('failed queued amendment preserves old instructions, revision, storage and observers', t => {
+  const events = [], f = fixture(t), q = f.create({ onChange: value => events.push(value) }), job = enqueue(q);
+  assert.equal(typeof q.amendQueued, 'function');
+  const saved = fs.readFileSync(f.file, 'utf8'); fs.unlinkSync(f.file); fs.mkdirSync(f.file);
+  assert.throws(() => q.amendQueued(job.id, { sessionId: 'session-a', text: 'Replacement' }));
+  assert.equal(q.owned(job.id, { sessionId: 'session-a' }).text, 'Do this task.'); assert.equal(q.list()[0].revision, 1); assert.equal(events.length, 1);
+  assert.deepEqual(fs.readdirSync(f.dir), ['jobs.json']); fs.rmdirSync(f.file); fs.writeFileSync(f.file, saved);
+  assert.equal(f.create().claim({ sessionId: 'session-a' }).text, 'Do this task.');
+});
+
+test('old queue records get revision one and malformed persisted revisions fail closed', t => {
+  const f = fixture(t), q = f.create(), job = enqueue(q); const stored = JSON.parse(fs.readFileSync(f.file, 'utf8'));
+  delete stored.jobs[0].revision; fs.writeFileSync(f.file, JSON.stringify(stored));
+  const old = f.create(); assert.equal(old.list()[0].revision, 1);
+  assert.equal(old.amendQueued(job.id, { sessionId: 'session-a', text: 'Updated old job' }).revision, 2);
+  for (const revision of [0, -1, 1.5, '1', null, Number.MAX_SAFE_INTEGER + 1]) {
+    stored.jobs[0].revision = revision; fs.writeFileSync(f.file, JSON.stringify(stored)); const invalid = f.create();
+    assert.deepEqual(invalid.list(), []); assert.equal(invalid.snapshot().held, true);
+  }
+});
+
+test('stale queued editor cannot change a claimed request and revision exhaustion preserves its text', t => {
+  const f = fixture(t), q = f.create(), job = enqueue(q), editor = q.owned(job.id, { sessionId: 'session-a' });
+  const claimed = q.claim({ sessionId: 'session-a' });
+  assert.equal(q.amendQueued(editor.id, { sessionId: 'session-a', expectedRevision: editor.revision, text: 'Late change' }), null);
+  assert.equal(claimed.text, 'Do this task.'); assert.equal(q.active().text, 'Do this task.');
+  const stored = JSON.parse(fs.readFileSync(f.file, 'utf8'));
+  Object.assign(stored.jobs[0], { status: 'queued', startedAt: null, attempts: 0, revision: Number.MAX_SAFE_INTEGER });
+  fs.writeFileSync(f.file, JSON.stringify(stored)); const exhausted = f.create();
+  assert.throws(() => exhausted.amendQueued(job.id, { sessionId: 'session-a', text: 'Too many changes' }), /revision/i);
+  assert.equal(exhausted.owned(job.id, { sessionId: 'session-a' }).text, 'Do this task.');
+});
+
+test('owned undisbursed preparation can be durably cancelled only at its exact revision', t => {
+  const f = fixture(t), q = f.create(), job = enqueue(q); q.claim({ sessionId: 'session-a' });
+  assert.equal(typeof q.cancelPrepared, 'function');
+  const input = { sessionId: 'session-a', expectedRevision: 1 };
+  for (const extra of [{ sessionId: 'foreign' }, { profile: 'other' }, { expectedRevision: 2 }]) assert.equal(q.cancelPrepared(job.id, { ...input, ...extra }), null);
+  assert.equal(q.cancelPrepared('missing', input), null);
+  for (const expectedRevision of [undefined, 0, -1, 1.5, '1']) assert.throws(() => q.cancelPrepared(job.id, { ...input, expectedRevision }), /Revision/i);
+  const cancelled = q.cancelPrepared(job.id, input);
+  assert.equal(cancelled.status, 'cancelled'); assert.equal(cancelled.verified, false); assert.equal(cancelled.finishedAt, 1000);
+  assert.equal(cancelled.reason, 'Vor Ausführung durch Änderung ersetzt.'); assert.equal(cancelled.id, job.id); assert.equal(cancelled.revision, 1);
+  assert.equal(cancelled.acceptedAt, null); assert.equal(cancelled.runtimeId, null); assert.equal(q.active(), null);
+  cancelled.text = 'Changed copy'; assert.equal(q.owned(job.id, { sessionId: 'session-a' }).text, 'Do this task.');
+  assert.equal(f.create().list()[0].status, 'cancelled'); assert.equal(q.cancelPrepared(job.id, input), null);
+});
+
+test('prepared cancellation never releases accepted, local, unknown, delegated or report work', () => {
+  const { JobQueue } = require(modulePath), owner = { sessionId: 'session-a', expectedRevision: 1 };
+  for (const state of ['queued', 'accepted', 'local', 'unknown', 'delegated', 'report']) {
+    const q = new JobQueue(), job = enqueue(q, state === 'report' ? { kind: 'background-result', sourceJobId: '00000000-0000-4000-8000-000000000001' } : {});
+    if (state !== 'queued') q.claim(owner);
+    if (state === 'accepted') q.accepted(job.id, { runtimeId: 'remote' });
+    if (state === 'local') q.setLocal(job.id, { type: 'volume', action: 'mute' });
+    if (state === 'unknown') q.unknown(job.id);
+    if (state === 'delegated') q.delegate(job.id);
+    assert.equal(q.cancelPrepared(job.id, owner), null, state);
+  }
+});
+
+test('failed prepared cancellation retains ownership gate and sends no safe event', t => {
+  const events = [], f = fixture(t), q = f.create({ onChange: value => events.push(value) }), job = enqueue(q); q.claim({ sessionId: 'session-a' });
+  assert.equal(typeof q.cancelPrepared, 'function');
+  const saved = fs.readFileSync(f.file, 'utf8'); fs.unlinkSync(f.file); fs.mkdirSync(f.file);
+  assert.throws(() => q.cancelPrepared(job.id, { sessionId: 'session-a', expectedRevision: 1 }));
+  assert.equal(q.active().id, job.id); assert.equal(q.active().status, 'running'); assert.equal(events.length, 2);
+  fs.rmdirSync(f.file); fs.writeFileSync(f.file, saved);
+});
 test('pending voice identity belongs to the first queued request of that exact owner',t=>{
  const q=fixture(t).create();enqueue(q,{sessionId:'foreign',turnId:'foreign-turn'});const own=enqueue(q,{turnId:'own-first'});enqueue(q,{turnId:'own-second'});
  assert.equal(q.pendingTurn({sessionId:'session-a'}),'own-first');assert.equal(q.pendingTurn({sessionId:'session-a',profile:'other'}),null);q.claim({sessionId:'session-a'});assert.equal(q.pendingTurn({sessionId:'session-a'}),'own-second');q.finish(own.id);assert.equal(q.pendingTurn({sessionId:'session-a'}),'own-second');assert.throws(()=>q.pendingTurn({sessionId:''}));

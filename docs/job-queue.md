@@ -1,5 +1,17 @@
 # Durable local job queue
 
+Seit 14.10.2026 prüft der Windows-Hauptprozess unterbrochene Vordergrundaufträge
+automatisch nach Session-Anbindung und danach höchstens alle 30 Sekunden.
+Die bestehende Prüfung des ursprünglichen Besitzers wird wiederverwendet;
+Datenschutz, Übergabe, neue Aufnahme, Sessionwechsel und laufende lokale
+Ausführung sperren sie. Eine bestätigte laufende Remote-Arbeit wird erneut
+angebunden, ohne einen zweiten Prompt. Ein bestätigter freier Hermes lässt den
+alten Auftrag `paused` und unbestätigt zurück, gibt aber neue Aufträge frei.
+Nur die vom Verbindungsabbruch erzeugte Queue-Pause wird automatisch aufgehoben;
+manuelle Pause und Not-Aus bleiben bestehen. Unbekannter Remote-Status bleibt
+sichtbar und wird erneut geprüft. Es gibt keine automatische Wiederholung und
+keine erfundene Erfolgsbestätigung.
+
 The expanded Orb view now shows a blocked/held queue above the conversation.
 “Auftrag prüfen” invokes the existing owner-checked reconciliation, never retry
 or submit. A known idle remote can leave uncertain work paused and release the
