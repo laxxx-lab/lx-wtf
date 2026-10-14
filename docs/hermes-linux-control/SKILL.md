@@ -26,6 +26,10 @@ Standardfarben: Zuhören Türkis, Sprechen helles Cyan, Arbeiten Blau,
 Kamerablick Violett, Erfolg Grün, Freigabe/Rückfrage Amber, Fehler Rot und
 Offline Blaugrau. Eigene Farben bleiben maßgeblich; Zustände zeigen echte
 Aktivität und dürfen nicht als Erfolgsnachweis verwendet werden.
+Standby zeigt langsame Rotation, Lichtpunkt und sanften Puls; Zuhören offene
+Bögen und echte Mikrofonpegel. Orb-Animation bietet Animiert, Systemstandard
+oder Reduziert; alle Zustände respektieren die gewählte Bewegung.
+Die Darstellung schaltet keinen Sprachkanal und keine Kamera ein.
 
 ## Ruhezeit und kompakte Übergabe · 13.10.2026
 

@@ -5,7 +5,7 @@
   let gestureHelpChosen=false,lastBackground='',amendmentDraft=null;
   function showGestureHelp(enabled){$('gesture-guide').hidden=!enabled;document.body.classList.toggle('gesture-help-open',enabled);$('gesture-help').setAttribute('aria-expanded',String(enabled));void invoke('gesture-help',{enabled});}
   let editingRoutine=null,routineDirty=false,projectDirty=false,lastContextRows='',lastTaskRows='',lastRoutineRows='',lastLogs='',lastOperationRows='',lastSource='';
-  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const orbMotionPreference=window.matchMedia('(prefers-reduced-motion: reduce)'),reduced=orbMotionPreference.matches;
   const orb=new window.HermesOrb.OrbRenderer($('reactor'),{reducedMotion:reduced});
   const phases={offline:'OFFLINE',ready:'BEREIT',listening:'HÖRT ZU',thinking:'DENKT',working:'ARBEITET',connecting:'VERBINDET',transcribing:'TRANSKRIBIERT',approval:'FREIGABE',question:'RÜCKFRAGE',error:'FEHLER'};
   function notice(message){$('notice').textContent=String(message||'');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').textContent='',7000);}
@@ -249,7 +249,7 @@
     else if(event.type==='intel-update')intelView?.update(event.intel);
     else if(event.type==='guide-update')$('guide-clear').hidden=!event.guide?.visible;
   });
-  function draw(now){if(!document.hidden&&activeTab==='system'){const state=window.HermesOrb.orbState({phase:current.privacyLocked?'offline':current.status||'offline',looking:current.camera?.looking||current.screen?.looking,background:current.privacyLocked?null:current.background});orb.draw(now,{state,intensity:1});}animation=requestAnimationFrame(draw);}
+  function draw(now){orb.reducedMotion=window.HermesOrb.orbReducedMotion(current.orbMotion,orbMotionPreference.matches);if(!document.hidden&&activeTab==='system'){const state=window.HermesOrb.orbState({phase:current.privacyLocked?'offline':current.status||'offline',looking:current.camera?.looking||current.screen?.looking,background:current.privacyLocked?null:current.background});orb.draw(now,{state,intensity:1});}animation=requestAnimationFrame(draw);}
   animation=requestAnimationFrame(draw);window.addEventListener('unload',()=>{cancelAnimationFrame(animation);craftView?.dispose();});
   invoke('snapshot').then(snapshot=>{if(snapshot)render(snapshot);});
 })();

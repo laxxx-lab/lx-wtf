@@ -44,7 +44,15 @@ function checkCanvas(){
   const start=performance.now();for(let i=1;i<=120;i++)pale.orb.draw(pale.now+i*16,{state:'thinking',intensity:2.4});
   const msPerFrame=(performance.now()-start)/120,images={thinking:normal.image,working:working.image,idle:idle.image,custom:custom.image,reduced:still.image};
   for(const state of ['listening','speaking','looking','success','alert','error','offline'])images[state]=frame(state).image;
-  return {thinking:hues(normal.pixels),working:hues(working.pixels),idle:hues(idle.pixels),returned:hues(returned),customDifference:difference(normal.pixels,custom.pixels),movement:difference(before,after),stillMovement:difference(still.pixels,stillAfter),stillGrayMovement:difference(stillGray.pixels,stillGrayAfter),intensityDifference:difference(normal.pixels,gentle.pixels),edgePixels,msPerFrame,images};
+  // A small Orb must visibly move in standby and show a quiet listening aperture.
+  let compactBeaconPixels=0;
+  const compactMovement=(state,reducedMotion=false)=>{canvas.width=canvas.height=190;const renderer=new HermesOrb.OrbRenderer(canvas,{reducedMotion});for(let i=0;i<=240;i++)renderer.draw(i*16,{state});const a=ctx.getImageData(0,0,190,190).data.slice();if(!reducedMotion)for(let y=0;y<190;y++)for(let x=0;x<190;x++){const radius=Math.hypot(x-95,y-95);if(radius>40&&radius<44&&a[(y*190+x)*4+3]>200)compactBeaconPixels++;}for(let i=1;i<=60;i++)renderer.draw(3840+i*16,{state});return difference(a,ctx.getImageData(0,0,190,190).data);};
+  const smallIdleMovement=compactMovement('idle'),smallIdleStill=compactMovement('idle',true);canvas.width=canvas.height=400;
+  const listening=frame('listening',{reducedMotion:true}),points=ctx.getImageData(0,0,400,400).data;
+  // At rest, two open side arcs are visible around the quiet microphone bands.
+  let aperturePixels=0;for(let y=110;y<290;y++)for(let x=290;x<305;x++)if(points[(y*400+x)*4+3]>100)aperturePixels++;
+  const stateMotion={},stateStill={};for(const state of Object.keys(HermesOrb.ORB_DEFAULTS)){const f=frame(state);for(let i=1;i<=45;i++)f.orb.draw(f.now+i*16,{state});stateMotion[state]=difference(f.pixels,ctx.getImageData(0,0,400,400).data);const quiet=frame(state,{reducedMotion:true});for(let i=1;i<=60;i++)quiet.orb.draw(quiet.now+i*16,{state});stateStill[state]=difference(quiet.pixels,ctx.getImageData(0,0,400,400).data);}
+  return {thinking:hues(normal.pixels),working:hues(working.pixels),idle:hues(idle.pixels),returned:hues(returned),customDifference:difference(normal.pixels,custom.pixels),movement:difference(before,after),stillMovement:difference(still.pixels,stillAfter),stillGrayMovement:difference(stillGray.pixels,stillGrayAfter),intensityDifference:difference(normal.pixels,gentle.pixels),edgePixels,msPerFrame,smallIdleMovement,smallIdleStill,compactBeaconPixels,aperturePixels,stateMotion,stateStill,systemReducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,images};
 }
 
 test('native thinking reactor renders a moving palette, preserves color and motion preferences, and stays bounded',{skip:!fs.existsSync(electron),timeout:30000},async t=>{
@@ -71,6 +79,7 @@ test('native thinking reactor renders a moving palette, preserves color and moti
   const code=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',resolve);});
   const {result,errors,error}=fs.existsSync(output)?JSON.parse(fs.readFileSync(output,'utf8')):{};
   assert.equal(code,0,error||stderr);assert.deepEqual(errors,[]);
+  t.diagnostic(JSON.stringify(result));
   assert.ok(result.thinking.bins>=4,'Thinking must show several simultaneous hues');
   assert.ok(result.thinking.colored>1200,'The gradient must illuminate visible reactor geometry');
   assert.ok(result.working.bins<=2&&result.idle.bins<=2&&result.returned.bins<=2,'Other states retain their own single-color signatures');
@@ -80,5 +89,10 @@ test('native thinking reactor renders a moving palette, preserves color and moti
   assert.equal(result.stillGrayMovement,0,'A gray base color must also keep a settled reduced-motion spectrum still');
   assert.ok(result.intensityDifference>1,'The motion preference must visibly affect thinking');
   assert.equal(result.edgePixels,0,'The strongest reactor keeps a transparent margin');
-  t.diagnostic(JSON.stringify(result));
+  assert.ok(result.smallIdleMovement>2,'Standby visibly moves at the actual compact size');
+  assert.ok(result.compactBeaconPixels>=3,'Standby has a visible moving beacon between its inner and outer rings');
+  assert.equal(result.smallIdleStill,0,'Reduced motion keeps standby still');
+  assert.ok(result.aperturePixels>200,'Quiet listening shows a distinct open listening aperture');
+  for(const [state,delta]of Object.entries(result.stateMotion))assert.ok(delta>.2,state+' must visibly animate');
+  for(const [state,delta]of Object.entries(result.stateStill))assert.equal(delta,0,state+' respects reduced motion');
 });

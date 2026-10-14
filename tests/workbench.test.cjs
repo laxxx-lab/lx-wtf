@@ -1,6 +1,11 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
+test('workbench projects only normalized Orb motion, never private settings',()=>{
+ const {safeSnapshot}=require('../workbench.cjs'),snapshot=safeSnapshot({settings:{orbMotion:'animate',url:'https://private.invalid',token:'secret'}});
+ assert.equal(snapshot.orbMotion,'animate');assert.equal(snapshot.settings,undefined);assert.ok(!JSON.stringify(snapshot).includes('secret'));
+ assert.equal(safeSnapshot({settings:{orbMotion:'unexpected'}}).orbMotion,'system');
+});
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {EventEmitter}=require('node:events');

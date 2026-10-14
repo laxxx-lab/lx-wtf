@@ -6,6 +6,7 @@ const {randomUUID}=require('node:crypto');
 const {createWindowStream}=require('./artcraft-stream.cjs');
 const {pathToFileURL}=require('node:url');
 const {normalizeRoutines}=require('./routines.cjs');
+const {normalizeOrbMotion}=require('./ui/orb.js');
 const {validIntelRequest,validCraftAppRequest}=require('./control-api.cjs');
 const {validCraftInput}=require('./window-input.cjs');
 const TABS=['system','console','browser','context','graph','intel','artcraft'];
@@ -46,7 +47,7 @@ function safeSnapshot(value={}){
   const voiceHealth=health&&typeof health==='object'?{state:text(health.state,40),summary:text(health.summary,240),checks:Array.isArray(health.checks)?health.checks.slice(0,8).map(check=>({key:text(check?.key,40),state:text(check?.state,40),summary:text(check?.summary,240)})):[],repair:['microphone','audio-output','engines','gateway'].includes(health.repair?.kind)?{kind:health.repair.kind,reason:text(health.repair.reason,240)}:null}:null;
   const sourceAttention=!locked&&['window','clipboard'].includes(attention?.kind)&&['pointer','foreground','clipboard','remembered'].includes(attention?.selection)&&Number.isFinite(observed)&&Math.abs(observed)<=8640000000000000?{kind:attention.kind,label:text(attention.label,180),observedAt:new Date(observed).toISOString(),selection:attention.selection,stale:attention.stale===true,summary:text(attention.summary,300)}:null;
   const timing={};for(const key of ['firstAudioMs','transcribeMs','hermesFirstTokenMs','ttsFirstPcmMs','endToEndMs']){const measured=value.voiceTiming?.summary?.[key];if(measured&&Number.isSafeInteger(measured.count)&&measured.count>0&&measured.count<=200&&['p50','p95'].every(name=>Number.isFinite(measured[name])&&measured[name]>=0&&measured[name]<=86400000))timing[key]={count:measured.count,p50:measured.p50,p95:measured.p95};}
-  return {status:text(value.status,40),detail:text(value.detail,200),connected:value.connected===true,busy:value.busy===true,sessionTitle:text(value.session?.title,120),privacyLocked:locked,currentContent:locked?null:projectContent(value.currentContent),voiceHealth,attention:sourceAttention,
+  return {status:text(value.status,40),detail:text(value.detail,200),connected:value.connected===true,busy:value.busy===true,sessionTitle:text(value.session?.title,120),privacyLocked:locked,orbMotion:normalizeOrbMotion(config.orbMotion),currentContent:locked?null:projectContent(value.currentContent),voiceHealth,attention:sourceAttention,
     sample:Object.fromEntries(['cpuPercent','memoryPercent','gpuPercent','gpuTimestamp','diskFreeGiB','diskTotalGiB','timestamp'].map(key=>[key,number(sample[key])])),
     camera:{enabled:!locked&&config.cameraEnabled===true,active:!locked&&value.camera?.active===true,looking:!locked&&value.camera?.looking===true},screen:{enabled:!locked&&config.screenEnabled===true,looking:!locked&&value.screen?.looking===true},
     wake:{enabled:!locked&&config.wakeWord===true,ready:value.wakeReady===true,armed:!locked&&value.wakeArmed===true},voice:{ready:value.voiceReady===true,sttReady:value.sttReady===true},voiceTiming:{summary:timing},

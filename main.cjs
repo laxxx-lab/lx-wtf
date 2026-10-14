@@ -19,7 +19,7 @@ const {transcribeAudio}=require('./transcription.cjs');
 const {CameraService,cameraPrompt,needsCameraLook,validateFrame}=require('./camera-service.cjs');
 const {CameraPresence}=require('./camera-presence.cjs');
 const {wakeDecision}=require('./wake-flow.cjs');
-const {normalizeOrbColors,normalizeOrbIntensity}=require('./ui/orb.js');
+const {normalizeOrbColors,normalizeOrbIntensity,normalizeOrbMotion}=require('./ui/orb.js');
 const {voicePrompt,canStreamVoiceAnswer,isLocalConversationRequest,localAnswerAllowed,taskAcknowledgement}=require('./ui/voice-interaction.js');
 const {HudActivity}=require('./hud-activity.cjs');
 const {normalizeModes,modeIntent,runMode,validateFolderPath,validateSiteUrl}=require('./modes.cjs');
@@ -73,6 +73,7 @@ config.standbyCameraEnabled=config.standbyActive&&config.standbyCameraEnabled===
 if(config.standbyActive)config.cameraEnabled=false;
 config.orbColors=normalizeOrbColors(config.orbColors);
 config.orbIntensity=normalizeOrbIntensity(config.orbIntensity);
+config.orbMotion=normalizeOrbMotion(config.orbMotion);
 config.hudEnabled=typeof config.hudEnabled==='boolean'?config.hudEnabled:true;
 config.screenEnabled=config.screenEnabled===true&&!process.argv.includes('--smoke');
 config.screenSourceId=typeof config.screenSourceId==='string'?config.screenSourceId:'current-monitor';
@@ -1563,6 +1564,7 @@ function registerHandlers(){
       if(validVoice(values?.voice))config.voice=values.voice;
       if(values?.orbColors&&typeof values.orbColors==='object')config.orbColors=normalizeOrbColors(values.orbColors);
       if(Number.isFinite(values?.orbIntensity))config.orbIntensity=normalizeOrbIntensity(values.orbIntensity);
+      if(values?.orbMotion!==undefined)config.orbMotion=normalizeOrbMotion(values.orbMotion);
       if(nextModes)config.modes=nextModes;
       if(nextDictionary)config.speechDictionary=nextDictionary;
       config.idleStandbyMinutes=nextIdle;if(!standbyTransition)idleStandby.activity();

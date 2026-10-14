@@ -17,6 +17,9 @@ async function run(){
   await win.webContents.executeJavaScript(`document.getElementById('command').value='Bitte diesen Text erklären';document.getElementById('command-form').requestSubmit();`);await pause();
   assert.ok(calls.some(call=>call.method==='submit'&&call.value.text==='Bitte diesen Text erklären'&&call.value.captured.sessionId==='linux-runtime'&&call.value.captured.generation===2));
   assert.equal(await win.webContents.executeJavaScript(`document.getElementById('idle-standby-minutes').value`),'15');
+  await win.webContents.executeJavaScript(`document.getElementById('orb-motion-mode').value='animate';document.getElementById('orb-motion-mode').dispatchEvent(new Event('change'));`);await pause();
+  assert.ok(calls.some(call=>call.method==='settings'&&call.value.orbMotion==='animate'));assert.equal(state.settings.orbMotion,'animate');
+  await win.webContents.executeJavaScript(`document.getElementById('orb-motion-mode').value='reduce';document.getElementById('orb-motion-mode').dispatchEvent(new Event('change'));`);await pause();assert.equal(state.settings.orbMotion,'reduce');
   await win.webContents.executeJavaScript(`const field=document.getElementById('idle-standby-minutes');field.value='0';field.dispatchEvent(new Event('change'));`);await pause();assert.ok(calls.some(call=>call.method==='settings'&&call.value.idleStandbyMinutes===0));
   await update({status:'thinking',busy:true});assert.equal(await win.webContents.executeJavaScript(`document.getElementById('phase').textContent`),'Ich denke nach.');
   await update({status:'working'});assert.equal(await win.webContents.executeJavaScript(`document.getElementById('phase').textContent`),'Ich kümmere mich.');

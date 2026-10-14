@@ -6,6 +6,32 @@ Beim Verkleinern dockt der Orb mit12Pixel Abstand unten rechts in der Arbeitsfl�
 
 Im Standby zieht sich die gesamte Darstellung auf 62 Prozent zusammen; die inneren Ringe und Partikel rücken zusätzlich zum Kern. Die Ringe behalten ihre ursprüngliche sichtbare Grundbewegung, und der Kern pulsiert weiterhin. Beim Wakeword öffnet sich der Orb weich wieder und bewegt sich stärker. Beim Sprechen steuert der echte Wiedergabepegel die Größe des gesamten Orbs und die Ausdehnung der Ringe, Kern und Sprachbänder. Die native Prüfung bestätigte die unterschiedlichen Größen und Bewegungen ohne Rendererfehler, auch während echter Wiedergabe einer gespeicherten lokalen Ansage.
 
+Seit 14.10.2026 dreht sich im Standby zusätzlich die gesamte Struktur langsam;
+ein heller Lichtpunkt mit kurzem Schweif wandert zwischen inneren Ringen und
+äußeren Skalen. Ein weicher Kernpuls und eine kleine auslaufende Welle zeigen
+Bereitschaft auch in der kompakten Größe. Standby reagiert nicht auf
+Mikrofonpeaks und verändert keine Sensor- oder Ruhepräferenz.
+
+Zuhören zeigt zwei offene seitliche Bögen mit langsam bewegten inneren Akzenten.
+Die Pegelbänder und der Kern folgen dem echten Mikrofonpegel; bei Stille gibt
+es keine künstlichen Sprachpeaks. Sprechen ergänzt diese Darstellung mit
+silbenabhängigen Bögen, ohne zusätzliche künstliche Sprachpulse. Arbeiten
+zeigt umlaufende Lichtsegmente; Kamerablick einen Scan mit Eckmarken; Erfolg
+eine einmal auslaufende Welle. Amber-Hinweise atmen sanft, Fehler verwenden
+engere doppelte Warnbögen. Offline bewegt sich langsamer und bleibt gedämpft.
+Der Farbverlauf der Denkphase bleibt erhalten. Eigene Farben und Stärke gelten
+weiterhin für alle Zustände. Bei reduzierter Bewegung bleiben alle zehn
+Darstellungen nach dem Zustandsübergang still; echte Sprachpegel werden nicht
+zu künstlicher Bewegung umgewandelt.
+
+**Orb-Animation** bietet auf beiden Clients **Systemstandard**, **Animiert ·
+auch über Remote** und **Reduziert**. Systemstandard folgt der lokalen
+Einstellung für reduzierte Bewegung, die Windows auch in Remote-Sitzungen
+melden kann. Animiert erlaubt ausdrücklich die Orb-Bewegung unabhängig davon;
+Reduziert hält sie still. Das ändert ausschließlich Liliths Darstellung und
+keine Betriebssystemeinstellung. Windows übernimmt die Auswahl mit
+**Einstellungen speichern**, das Notebook direkt bei Auswahl.
+
 Sprachsilben dehnen den gesamten Orb zwischen 76 und 100 Prozent aus; die inneren Ringe öffnen sich zusätzlich zwischen 78 und 100 Prozent. Auch leise Silben verändern die Größe sichtbar. Der gemessene Wiedergabepegel wird mit kurzer Anstiegszeit und sanfter Abklingzeit geglättet, damit Sprachpeaks und Pausen erkennbar bleiben. Während der Sprachausgabe folgen Kernpuls und Sprachbänder diesem Pegel; es gibt keinen zusätzlichen zeit- oder textgesteuerten Sprachpuls. Die äußeren Skalen bleiben innerhalb der Zeichenfläche. Bei reduzierter Bewegung bleiben Größe, Ringausdehnung und Kern ruhig; die Helligkeit reagiert weiterhin auf den Wiedergabepegel.
 
 Unter **Einstellungen → ORB / REACTOR** kannst du für Bereit, Zuhören, Sprechen, Denken, Arbeiten, Kamerablick, Erfolg, Warnung/Freigabe, Fehler und Offline eigene Farben wählen. Ein Klick auf den Zustandsnamen spielt ihn 3,5 Sekunden als visuelle Vorschau ab. Die kleinere Vorschau bleibt beim Einstellen sichtbar. Änderungen mit **Einstellungen speichern** dauerhaft übernehmen; **Standardfarben** setzt Farben und Bewegungsstärke in der Vorschau zurück.

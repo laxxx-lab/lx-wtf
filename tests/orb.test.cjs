@@ -1,5 +1,11 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {normalizeOrbColors,orbState,ORB_DEFAULTS,orbDynamics,OrbRenderer}=require('../ui/orb.js');
+test('explicit Orb animation works during remote reduced motion without changing system preferences',()=>{
+  const {orbReducedMotion}=require('../ui/orb.js');
+  assert.equal(orbReducedMotion('animate',true),false);assert.equal(orbReducedMotion('reduce',false),true);
+  assert.equal(orbReducedMotion('system',true),true);assert.equal(orbReducedMotion('system',false),false);
+  assert.equal(orbReducedMotion('unknown',true),true);
+});
 test('state colors preserve valid preferences, reject invalid CSS and fill newly added states',()=>{
   const colors=normalizeOrbColors({idle:'#abcdef',thinking:'url(secret)',alert:'red',unknown:'#123456'});
   assert.equal(colors.idle,'#abcdef');assert.equal(colors.thinking,ORB_DEFAULTS.thinking);assert.equal(colors.alert,ORB_DEFAULTS.alert);
@@ -53,14 +59,25 @@ test('quiet speech expands the whole orb and inner rings without saturating loud
 });
 
 function drawingOrb(options){
-  const gradients=[];let extent=0;
+  const gradients=[];let extent=0,firstRotation=null;
   const point=(x,y,r=0)=>{extent=Math.max(extent,Math.hypot(x,y)+r);};
-  const ctx={clearRect(){extent=0;},save(){},restore(){},scale(){},translate(){},rotate(){},fillRect(){},beginPath(){},arc:point,stroke(){},moveTo:point,lineTo:point,fill(){},bezierCurveTo(){},closePath(){},clip(){},
+  const ctx={clearRect(){extent=0;firstRotation=null;},save(){},restore(){},scale(){},translate(){},rotate(angle){firstRotation??=angle;},fillRect(){},beginPath(){},arc:point,stroke(){},moveTo:point,lineTo:point,fill(){},bezierCurveTo(){},closePath(){},clip(){},
     createRadialGradient(...args){gradients.push(args);return {addColorStop(){}};},createLinearGradient(){return {addColorStop(){}};}};
   const orb=new OrbRenderer({width:400,height:400,getContext:()=>ctx},options);
   let now=0;
-  return {orb,get extent(){return extent;},draw(amplitude,frames=1,intensity=1){for(let i=0;i<frames;i++){gradients.length=0;orb.draw(now,{state:'speaking',amplitude,intensity});now+=16;}return gradients[1][5]/2.7;}};
+  return {orb,get extent(){return extent;},get firstRotation(){return firstRotation;},draw(amplitude,frames=1,intensity=1,state='speaking'){for(let i=0;i<frames;i++){gradients.length=0;orb.draw(now,{state,amplitude,intensity});now+=16;}return gradients[1][5]/2.7;}};
 }
+
+test('waking after a long standby preserves the reactor orientation instead of snapping',()=>{
+  const view=drawingOrb();view.draw(0,640,1,'idle');const before=view.firstRotation;
+  view.draw(0,1,1,'listening');assert.ok(Math.abs(view.firstRotation-before)<.05,'Global orientation remains continuous on wake');
+});
+
+test('listening core follows real microphone energy without inventing speech peaks in silence',()=>{
+  const {draw}=drawingOrb();const quiet=draw(0,160,1,'listening');
+  assert.ok(Math.abs(draw(0,40,1,'listening')-quiet)<.001,'Quiet listening keeps its core steady while the outer aperture moves');
+  assert.ok(draw(.8,20,1,'listening')-quiet>15,'Real microphone energy expands the listening core');
+});
 
 test('real speech peaks expand quickly and pauses release without a clock-driven core pulse',()=>{
   const {orb,draw}=drawingOrb();

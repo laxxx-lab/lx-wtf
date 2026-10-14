@@ -18,6 +18,11 @@ keine allgemeinen Windows-Adminrechte.
 Die Standardfarben zeigen die Tätigkeit: Zuhören Türkis, Sprechen helles Cyan,
 Arbeiten Blau, Kamerablick Violett, Erfolg Grün, Freigabe/Rückfrage Amber,
 Fehler Rot und Offline Blaugrau. Eigene Farbpräferenzen bleiben maßgeblich.
+Standby dreht die kompakte Struktur langsam, mit Lichtpunkt und weichem Puls;
+Zuhören zeigt offene Bögen und echte Mikrofonpegel statt künstlicher Peaks.
+Orb-Animation ist lokal auf Animiert, Systemstandard oder Reduziert einstellbar.
+Alle Zustände respektieren die gewählte Bewegung. Dies schaltet keine Sensoren
+ein und ist kein Nachweis einer erfolgreichen Aktion. Details: `docs/orb.md`.
 
 Windows-Zwischenablage ausdrücklich lesen:
 `control.ps1 -Action clipboard -Operation read -MaxChars 20000`.

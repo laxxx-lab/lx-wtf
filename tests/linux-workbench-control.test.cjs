@@ -53,6 +53,11 @@ test('Linux browser results are rejected after privacy or session ownership chan
   f.workbench.controlBrowser=async()=>{f.run('config.privacyLocked=true;');return {...f.browser};};const locked=await request(f,'browser',{action:'reload'});assert.equal(locked.status,423);assert.ok(!JSON.stringify(locked.body).includes('example.org'));
  }finally{await f.close();}
 });
+test('a visual-only Linux Orb preference preserves live capture and playback even during a task',async()=>{
+ const f=fixture();try{f.run('conversation.busy=true;rendererInput={capturing:true,speaking:true,live:true,microphoneOpen:true};globalThis.beforeGeneration=generation;');
+  await f.run("actions.settings({orbMotion:'animate'})");assert.equal(f.run('config.orbMotion'),'animate');assert.equal(f.run('generation'),f.run('beforeGeneration'));assert.equal(f.run('rendererInput.live'),true);assert.equal(f.events.some(e=>e.type==='audio-stop'),false);
+ }finally{await f.close();}
+});
 test('Linux API shutdown closes its own listener and removes only its matching private connection file',async()=>{
  const f=fixture();try{await f.run('startLinuxControlApi()');const file=path.join(f.root,'.local/linux-control.json');assert.equal(fs.existsSync(file),true);f.run('stopLinuxControlApi()');assert.equal(f.api.listening,false);assert.equal(fs.existsSync(file),false);}finally{await f.close();}
 });
