@@ -5,7 +5,7 @@ const dns=require('node:dns'),{isIP}=require('node:net');
 const {validateGatewayUrl}=require('./gateway.cjs');
 const {validMicrophoneDeviceId,validMicrophoneLabel}=require('./ui/microphone.js');
 const {normalizeIdleStandbyMinutes}=require('./idle-standby.cjs');
-const {normalizeOrbMotion}=require('./ui/orb.js');
+const {normalizeOrbMotion,normalizeOrbTheme}=require('./ui/orb.js');
 function localEngineUrl(value,fallback){
   const url=new URL(value||fallback);
   if(url.protocol!=='http:'||url.hostname!=='127.0.0.1'||url.username||url.password||url.search||url.hash)throw Error('Sprachmodelle müssen lokal über 127.0.0.1 laufen.');
@@ -16,7 +16,7 @@ function validateLinuxSettings(value={}){
   const microphoneDeviceId=value.microphoneDeviceId||'',microphoneDeviceLabel=value.microphoneDeviceLabel||'';
   if(!validMicrophoneDeviceId(microphoneDeviceId)||!validMicrophoneLabel(microphoneDeviceLabel))throw Error('Ungültiges Mikrofon.');
   const voice=typeof value.voice==='string'&&/^[a-z][a-z0-9-]{0,63}$/.test(value.voice)?value.voice:'reference';
-  return {url:validateGatewayUrl(value.url||'https://hermes.invalid'),voice,microphoneDeviceId,microphoneDeviceLabel,privacyLocked:value.privacyLocked===true,idleStandbyMinutes:normalizeIdleStandbyMinutes(value.idleStandbyMinutes),orbMotion:normalizeOrbMotion(value.orbMotion),
+  return {url:validateGatewayUrl(value.url||'https://hermes.invalid'),voice,microphoneDeviceId,microphoneDeviceLabel,privacyLocked:value.privacyLocked===true,idleStandbyMinutes:normalizeIdleStandbyMinutes(value.idleStandbyMinutes),orbMotion:normalizeOrbMotion(value.orbMotion),orbTheme:normalizeOrbTheme(value.orbTheme),
     sttUrl:localEngineUrl(value.sttUrl,'http://127.0.0.1:8871/inference'),ttsUrl:localEngineUrl(value.ttsUrl,'http://127.0.0.1:8870')};
 }
 function linuxProjectPrompt(library,value,device='lx-gaming-nb'){

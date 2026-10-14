@@ -13,13 +13,19 @@ gehen lokal an die vorhandene Gesprächsübergabe. Füllwörter und persönliche
 Gerätebezüge dürfen variieren. Kein bestimmtes Zauberwort oder SSH-Auftrag
 nötig; Bedingungen, Verneinungen und Zitate bleiben gesperrt.
 
-Die Orb-Mitte zeigt die rotierende Kugel aus 1.700 Lichtpunkten der Vorlage
-„Particle Core“: langsames Standby, ein Scan beim Denken und Verformung durch
-echte Sprachpegel. Die Kugel hat wieder die ursprüngliche Kerngröße.
-Die kleine Ansicht zeichnet kräftigere Konturen
-und eine dunkle kreisförmige Unterlegung bei transparenten Fensterecken.
-Eigene Farben und reduzierte Bewegung bleiben maßgeblich; Animation belegt
-keine erledigte Aktion. Der gemeinsame Renderer gilt auch auf dem Notebook.
+**Einstellungen** öffnet die größere Ansicht mit Navigation für Verbindung,
+Sprache, Geräte, Orb, Kamera, Arbeitsplatz und Allgemein. **Zurück zum Gespräch**
+oder Escape stellt das vorige Fenster wieder her, ohne Sprache oder Arbeit
+anzuhalten. Bestehende Formwerte bleiben erhalten; **Einstellungen speichern**
+bleibt unten erreichbar. Vertrag: `docs/settings-view.md`.
+
+Der ganze Orb ist unter **Einstellungen → Orb → Orb-Design** sofort
+umschaltbar: **Lilith Classic** (ursprünglicher Kern, Standard), **Voice Orb**,
+**AI Interface**, **Particle Core** und **HUD Core**. Die Auswahl wird pro Gerät
+gespeichert. Ein Theme-Wechsel stoppt keine Aufnahme/Ausgabe und ändert keine
+Session. **Standardfarben** behält das Theme. Eigene Farben, echte Zustände und
+Sprachpegel sowie reduzierte Bewegung bleiben maßgeblich; Animation belegt
+keine erledigte Aktion. Vertrag: `docs/orb-themes.md`; auch am Notebook verfügbar.
 
 Gesprächsübergaben dürfen mit „Lilith“, „Hey Lilith“ oder „Hermes“ beginnen,
 zum Beispiel „Lilith, ich will wieder am Gaming-PC arbeiten“. Dafür den

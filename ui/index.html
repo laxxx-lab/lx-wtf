@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; media-src 'self' blob:; object-src 'none'">
-<title>Hermes Voice</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="speech-dictionary.css"></head>
+<title>Hermes Voice</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="speech-dictionary.css"><link rel="stylesheet" href="settings-view.css"></head>
 <body>
 <main id="companion">
   <header id="header"><div class="wordmark">HERMES<span>LOCAL VOICE / 01</span></div><div class="local-controls"><button id="privacy-toggle" title="Sensoren und Kontext sperren">Datenschutz</button><button id="emergency-stop" class="emergency-stop" title="Sensoren sperren und aktuellen Auftrag unterbrechen">■ Not-Aus</button><button id="collapse" aria-label="Anzeige verkleinern">−</button></div></header>
@@ -107,6 +107,7 @@
       </section>
       <section class="orb-settings" aria-label="Orb-Darstellung">
         <div class="orb-settings-heading"><span>ORB / REACTOR</span><button id="orb-reset" type="button">Standardfarben</button></div>
+        <label>Orb-Design<select id="orb-theme" aria-label="Orb-Design"></select></label>
         <div class="orb-preview-stage"><canvas id="orb-preview" width="400" height="400" aria-label="Vorschau der Orb-Animation"></canvas><small id="orb-preview-name">LIVE / BEREIT</small></div>
         <p>Farbe wählen · Zustand anklicken zum Ausprobieren</p>
         <div class="orb-colors">
@@ -146,4 +147,4 @@
     </section>
     <div id="notice" role="status" hidden></div>
   </div>
-</main><script src="../speech-dictionary.cjs"></script><script src="speech-dictionary.js"></script><script src="gesture-controller.js"></script><script src="gesture-loader.js"></script><script src="microphone.js"></script><script src="speech-activity.js"></script><script src="voice-interaction.js"></script><script src="camera.js"></script><script src="camera-controls.js"></script><script src="screen-capture.js"></script><script src="workstation.js"></script><script src="orb.js"></script><script src="app.js"></script></body></html>
+</main><script src="../speech-dictionary.cjs"></script><script src="speech-dictionary.js"></script><script src="gesture-controller.js"></script><script src="gesture-loader.js"></script><script src="microphone.js"></script><script src="speech-activity.js"></script><script src="voice-interaction.js"></script><script src="camera.js"></script><script src="camera-controls.js"></script><script src="screen-capture.js"></script><script src="workstation.js"></script><script src="settings-view.js"></script><script src="orb-reference-themes.js"></script><script src="orb.js"></script><script src="app.js"></script></body></html>

@@ -19,7 +19,8 @@ const {transcribeAudio}=require('./transcription.cjs');
 const {CameraService,cameraPrompt,needsCameraLook,validateFrame}=require('./camera-service.cjs');
 const {CameraPresence}=require('./camera-presence.cjs');
 const {wakeDecision}=require('./wake-flow.cjs');
-const {normalizeOrbColors,normalizeOrbIntensity,normalizeOrbMotion}=require('./ui/orb.js');
+const {normalizeOrbColors,normalizeOrbIntensity,normalizeOrbMotion,normalizeOrbTheme}=require('./ui/orb.js');
+const {createSettingsWindowView}=require('./settings-window.cjs');
 const {voicePrompt,canStreamVoiceAnswer,isLocalConversationRequest,localAnswerAllowed,taskAcknowledgement}=require('./ui/voice-interaction.js');
 const {HudActivity}=require('./hud-activity.cjs');
 const {normalizeModes,modeIntent,runMode,validateFolderPath,validateSiteUrl}=require('./modes.cjs');
@@ -74,6 +75,7 @@ if(config.standbyActive)config.cameraEnabled=false;
 config.orbColors=normalizeOrbColors(config.orbColors);
 config.orbIntensity=normalizeOrbIntensity(config.orbIntensity);
 config.orbMotion=normalizeOrbMotion(config.orbMotion);
+config.orbTheme=normalizeOrbTheme(config.orbTheme);
 config.hudEnabled=typeof config.hudEnabled==='boolean'?config.hudEnabled:true;
 config.screenEnabled=config.screenEnabled===true&&!process.argv.includes('--smoke');
 config.screenSourceId=typeof config.screenSourceId==='string'?config.screenSourceId:'current-monitor';
@@ -756,7 +758,7 @@ function drainCameraGreetings(){
   const [name]=cameraGreetings.splice(index,1);idleStandby.activity();
   const text=`Willkommen zurück, ${name}. Ich bin hier, wenn du mich brauchst.`;emit('camera-greeting',{text});speak(text);
 }
-let win,tray,authSession,gateway,conversation,loginWindow,interval,clarification=null;
+let win,tray,authSession,gateway,conversation,loginWindow,interval,clarification=null,settingsWindowView;
 let actionHandlers=null,controlApi=null,controlSequence=0,suppressedRemoteSession=null;
 const safety=new LocalSafety({initialLocked:config.privacyLocked,onChange:value=>{
   if(config.privacyLocked!==value.locked){taskWaitFeedback.finish();safetyGeneration++;controlApi?.invalidateControls?.();}
@@ -1293,6 +1295,7 @@ async function resumeStandby({sessionId}={}){
 }
 function expand(open){
   if(!win)return;
+  if(settingsWindowView?.active){if(open){emit('expanded',{expanded:true});return;}settingsWindowView.set(false);}
   const bounds=win.getBounds(),area=screen.getDisplayMatching(bounds).workArea;
   const width=open?460:190,height=open?740:230;
   const x=open?Math.max(area.x,Math.min(bounds.x,area.x+area.width-width)):Math.max(area.x,area.x+area.width-width-12);
@@ -1539,6 +1542,9 @@ function registerHandlers(){
     'job-amend':(_e,value)=>amendJob(value),
     audition:(_e,value)=>{const voice=typeof value==='string'?value:value?.voice,delivery=value?.delivery||config.delivery;if(!validVoice(voice)||!validVoiceDelivery(voice,delivery))throw new Error('Unbekannte Stimme oder nicht installierte Sprechweise.');stopSpeech();speak('Ich bin Lilith. Sag mir, was anliegt, Boss.',voice,delivery);},
     settings:async(_e,values,standbyTransition=false)=>{
+      if(values&&typeof values==='object'&&!Array.isArray(values)&&Object.keys(values).length===1&&Object.hasOwn(values,'orbTheme')){
+        const previous=config.orbTheme;config.orbTheme=normalizeOrbTheme(values.orbTheme);try{saveConfig();}catch(error){config.orbTheme=previous;throw error;}emit('orb-theme-config',{orbTheme:config.orbTheme});return snapshot();
+      }
       const nextIdle=values?.idleStandbyMinutes===undefined?config.idleStandbyMinutes:normalizeIdleStandbyMinutes(values.idleStandbyMinutes);
       if(values?.microphoneDeviceId!==undefined&&!validMicrophoneDeviceId(values.microphoneDeviceId))throw Error('Ungültiges Mikrofon.');
       if(values?.microphoneDeviceLabel!==undefined&&!validMicrophoneLabel(values.microphoneDeviceLabel))throw Error('Ungültiger Mikrofonname.');
@@ -1568,6 +1574,7 @@ function registerHandlers(){
       if(values?.orbColors&&typeof values.orbColors==='object')config.orbColors=normalizeOrbColors(values.orbColors);
       if(Number.isFinite(values?.orbIntensity))config.orbIntensity=normalizeOrbIntensity(values.orbIntensity);
       if(values?.orbMotion!==undefined)config.orbMotion=normalizeOrbMotion(values.orbMotion);
+      if(values?.orbTheme!==undefined)config.orbTheme=normalizeOrbTheme(values.orbTheme);
       if(nextModes)config.modes=nextModes;
       if(nextDictionary)config.speechDictionary=nextDictionary;
       config.idleStandbyMinutes=nextIdle;if(!standbyTransition)idleStandby.activity();
@@ -1668,6 +1675,7 @@ function registerHandlers(){
       for(const q of clarification.questions){const value=answers?.[q.qid];if(typeof value!=='string'||value.length>10000)throw new Error('Bitte alle Rückfragen beantworten.');result[q.qid]=value;}
       gateway.respond(clarification.id,{answers:result});clarification=null;state('working','Hermes setzt fort');
     },
+    'settings-view':(_e,open)=>{if(typeof open!=='boolean')throw Error('Ungültige Ansicht.');if(!win)throw Error('Fenster nicht verfügbar.');settingsWindowView||=createSettingsWindowView(win,screen,value=>emit('settings-view-state',{open:value}));return settingsWindowView.set(open);},
     expand:(_e,open)=>expand(!!open),
     move:(_e,point)=>{if(!Number.isFinite(point?.x)||!Number.isFinite(point?.y))return;const area=screen.getDisplayNearestPoint(point).workArea,b=win.getBounds();win.setPosition(Math.round(Math.max(area.x,Math.min(point.x,area.x+area.width-b.width))),Math.round(Math.max(area.y,Math.min(point.y,area.y+area.height-b.height))));positionHud();},
     quit:()=>app.quit()

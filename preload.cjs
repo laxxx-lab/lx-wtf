@@ -10,6 +10,7 @@ methods.push('job-reconcile','job-resume');
 methods.push('current-content-intent','current-content-read','stop-intent','stop-task','mode-folder-pick');
 methods.push('handoff','recall');
 methods.push('activity');
+methods.push('settings-view');
 contextBridge.exposeInMainWorld('hermes',{
   invoke:(method,payload)=>{
     if(!methods.includes(method)) return Promise.reject(new Error('Unbekannte Aktion.'));

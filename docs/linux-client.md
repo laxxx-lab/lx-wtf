@@ -193,14 +193,16 @@ bleibt über anderen normalen Fenstern, das aufgeklappte Gespräch verhält sich
 wie ein normales Arbeitsfenster. Bei Monitorwechsel bleiben beide innerhalb
 des vorhandenen Arbeitsbereichs. `--panel` startet direkt mit dem Gespräch.
 
-Die Mitte verwendet die Partikelkugel der Vorlage **Particle Core** mit 1.700
-Punkten in der ursprünglichen Kerngröße: Standby dreht langsam, Denken und
-Arbeiten führen einen hellen Scan
-über die Kugel, Zuhören und Sprechen verformen sie anhand der echten lokalen
-Audiopegel. Die gemeinsame Windows-/Linux-Darstellung bewahrt Zustandsfarben,
-reduzierte Bewegung und transparente Fensterecken. Die HTML-Demosteuerung und
-deren simulierte Sprachpegel werden nicht übernommen; es gibt keinen zweiten
-Mikrofonzugriff oder zusätzlichen Animationsloop.
+**Einstellungen** öffnet eine größere Ansicht mit eigener Navigation und
+bewahrt denselben Renderer, Sprachkanal und Formwerte. Zurück oder Escape
+stellt die vorherige Fenstergröße wieder her. Details: [Einstellungen](settings-view.md).
+
+Unter **Einstellungen → Orb → Orb-Design** ersetzt die sofort gespeicherte Auswahl
+den ganzen Orb: **Lilith Classic** ist wieder Standard; dazu stehen **Voice Orb**,
+**AI Interface**, **Particle Core** und **HUD Core** bereit. Die Darstellung folgt
+echten Zuständen und Audiopegeln. Theme-Wechsel halten weder Sprache noch Arbeit
+an und ändern keine Session oder Generation. Reduzierte Bewegung und transparente
+Fensterecken bleiben erhalten. Details: [Orb-Themes](orb-themes.md).
 
 **Sprechen** öffnet das gewählte Notebook-Mikrofon. Nochmals klicken beendet
 die Aufnahme und sendet den erkannten deutschen Text. Der Renderer verwendet

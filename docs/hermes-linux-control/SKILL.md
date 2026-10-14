@@ -13,13 +13,18 @@ gehen lokal an die vorhandene Gesprächsübergabe. Füllwörter und persönliche
 Gerätebezüge dürfen variieren. Kein bestimmtes Zauberwort, Modell- oder
 SSH-Auftrag nötig; Bedingungen, Verneinungen und Zitate bleiben gesperrt.
 
-Die Orb-Mitte zeigt die rotierende Kugel aus 1.700 Lichtpunkten der Vorlage
-„Particle Core“: langsames Standby, ein Scan beim Denken und Verformung durch
-echte Sprachpegel. Die Kugel hat wieder die ursprüngliche Kerngröße.
-Der kleine Orb hat kräftigere Konturen und eine dunkle kreisförmige Unterlegung;
-seine Fensterecken bleiben transparent. Sprechen folgt dem echten lokalen
-Wiedergabepegel, Zuhören dem Mikrofonpegel. Eigene Farben und reduzierte Bewegung
-bleiben erhalten; die Darstellung ist kein Nachweis einer ausgeführten Aktion.
+**Einstellungen** öffnet die größere Ansicht mit Verbindung, Audio & Mikrofon,
+Orb und Allgemein. **Zurück zum Gespräch** oder Escape stellt das vorige
+Fenster wieder her, ohne Sprache oder Arbeit anzuhalten. Bestehende Formwerte
+bleiben erhalten. Vertrag: `docs/settings-view.md`.
+
+Der ganze Orb ist unter **Einstellungen → Orb → Orb-Design** sofort umschaltbar:
+**Lilith Classic** (ursprünglicher Kern, Standard), **Voice Orb**, **AI Interface**,
+**Particle Core** und **HUD Core**. Die Auswahl wird pro Gerät gespeichert;
+sie stoppt keine Aufnahme/Ausgabe und ändert keine Session oder Generation.
+Echte Sprachpegel, Statusfarben und reduzierte Bewegung bleiben maßgeblich.
+Fensterecken bleiben transparent; die Darstellung bestätigt keine ausgeführte
+Aktion. Vertrag: `docs/orb-themes.md`.
 
 Notebook-Standby ist direkt über den **Standby**-Knopf oder „Lilith, geh bitte
 in den Standby“ verfügbar. Das pausiert die lokale Aufnahme/Ausgabe; ein

@@ -1,6 +1,8 @@
 (function(root){
   'use strict';
   const ORB_DEFAULTS=Object.freeze({idle:'#39dcff',listening:'#35e6c5',speaking:'#85dcff',thinking:'#ffc078',working:'#568bff',looking:'#b28aff',success:'#53e696',alert:'#ffc45b',error:'#ff5757',offline:'#657887'});
+  const ORB_THEMES=Object.freeze({classic:'Lilith Classic','voice-orb':'Voice Orb','ai-interface':'AI Interface','particle-core':'Particle Core','hud-core':'HUD Core'});
+  function normalizeOrbTheme(value){return typeof value==='string'&&Object.hasOwn(ORB_THEMES,value)?value:'classic';}
   function normalizeOrbColors(value){const result={...ORB_DEFAULTS};for(const key of Object.keys(result))if(typeof value?.[key]==='string'&&/^#[0-9a-f]{6}$/i.test(value[key]))result[key]=value[key].toLowerCase();return result;}
   function backgroundOrbState(value){
     const jobs=(value?.jobs||[]).filter(j=>['preparing','running','stopping','outcome-unknown'].includes(j.status));
@@ -40,14 +42,12 @@
       this.canvas=canvas;this.ctx=canvas.getContext('2d');this.reducedMotion=reducedMotion;
       this.colors=normalizeOrbColors();this.color=rgb(this.colors.idle);this.rotation=0;this.speed=.65;this.lastTime=null;this.level=0;this.size=.62;this.spread=.7;this.state='idle';this.stateTime=0;this.groupRotation=0;this.groupSpeed=0;
       this.pointer={x:0,y:0};this.tilt={x:0,y:0};this.pulses=[];
+      this.theme='classic';this.themeTime=0;
       // Deterministic particles: no per-frame randomness or new animation timers.
       this.particles=Array.from({length:160},(_,i)=>({a:i*2.399963,y:1-2*(i+.5)/160,r:128+(i%9)*4,seed:i*.731}));
-      // Fibonacci sphere from the supplied Particle Core. Deterministic seeds
-      // retain its texture while avoiding random rebuilds on every frame.
-      this.coreParticles=Array.from({length:1700},(_,i)=>{const y=1-i/1699*2,r=Math.sqrt(1-y*y),a=i*2.39996,seed=Math.sin(i*12.9898+4)*43758.5453;return {x:Math.cos(a)*r,y,z:Math.sin(a)*r,seed:seed-Math.floor(seed)};});
-      this.coreAngle=0;this.coreTime=0;this.coreSpin=.12;this.coreWeights={listen:0,think:0,speak:0};
     }
     setColors(value){this.colors=normalizeOrbColors(value);}
+    setTheme(value){this.theme=normalizeOrbTheme(value);}
     setPointer(x,y){this.pointer={x:clamp(x,-1,1),y:clamp(y,-1,1)};}
     pulse(x=0,y=0,now=performance.now()){this.pulses.push({x:x*110,y:y*110,start:now});if(this.pulses.length>6)this.pulses.shift();}
     draw(now,{state='idle',amplitude=0,intensity=1}={}){
@@ -65,11 +65,16 @@
       this.size+=(dynamics.scale-this.size)*sizeSmooth;this.spread+=(dynamics.spread-this.spread)*sizeSmooth;
       this.speed+=(dynamics.speed-this.speed)*smooth;
       const motion=normalizeOrbIntensity(intensity);
-      if(!this.reducedMotion)this.rotation+=dt*this.speed*motion;
+      if(!this.reducedMotion){this.rotation+=dt*this.speed*motion;this.themeTime+=dt*motion;}
       const t=this.rotation,rest=state==='idle'||state==='offline',breathe=this.reducedMotion||speaking||listening?0:Math.sin(now*(rest?.0016:.0038))*(rest?.07:thinking?.025:.045)*motion,energy=rest||this.reducedMotion&&(speaking||listening)?0:this.level,excitation=this.reducedMotion?0:['thinking','working'].includes(state)?(.5+.5*Math.sin(t*2.8))*motion:0;
       const color=this.color.map(Math.round).join(','),ink=(alpha=1)=>`rgba(${color},${clamp(alpha*(state==='idle'?1.25:1),0,1)})`;
       const compact=(this.canvas.clientWidth||this.canvas.width)<240,drawScale=compact?Math.min(1,this.size*1.14):this.size;
       ctx.clearRect(0,0,this.canvas.width,this.canvas.height);ctx.save();ctx.scale(this.canvas.width/400,this.canvas.height/400);ctx.translate(200,200);ctx.scale(drawScale,drawScale);
+      if(this.theme!=='classic'){
+        const themes=typeof module==='object'&&module.exports?require('./orb-reference-themes.js'):root.HermesOrbReferenceThemes;
+        themes.drawReferenceTheme(ctx,this.theme,{time:this.themeTime,angle:this.rotation,state,amplitude:this.reducedMotion?0:energy,color:this.color,reducedMotion:this.reducedMotion,intensity:motion,compact});
+        ctx.restore();return;
+      }
       // The compact sleeping reactor has a visibly turning silhouette, not just
       // subpixel movement inside its rings. Keep all motion on the existing clock.
       this.groupSpeed+=((rest?(state==='idle'?.28:.14):0)-this.groupSpeed)*smooth;
@@ -153,36 +158,19 @@
         if(i%13===0&&i+8<particles.length)line(p,particles[i+8],.6,.1+front*.11);
         ctx.fillStyle=spectrum||ink((.2+front*.55)*flicker);ctx.globalAlpha=spectrum?(.2+front*.55)*flicker:1;ctx.beginPath();ctx.arc(p.x,p.y,.6+front*1.35,0,TAU);ctx.fill();ctx.globalAlpha=1;
       }
-      const core=28+breathe*95+energy*(speaking?34:24)+excitation*9;
-      const bloom=ctx.createRadialGradient(0,0,2,0,0,core*2.7);bloom.addColorStop(0,ink(.06+energy*.12));bloom.addColorStop(.42,ink(.04));bloom.addColorStop(1,ink(0));ctx.fillStyle=bloom;ctx.beginPath();ctx.arc(0,0,core*2.7,0,TAU);ctx.fill();
-      // Use the actual reference sphere, not a filled approximation. Only its
-      // demo clock, theme buttons and synthetic/microphone input are replaced by
-      // our existing clock, status palette and measured microphone/playback level.
-      const [cr,cg,cb]=this.color.map(Math.round),maximum=Math.max(cr,cg,cb),minimum=Math.min(cr,cg,cb),delta=maximum-minimum;
-      const bodyHue=delta?((maximum===cr?(cg-cb)/delta:maximum===cg?2+(cb-cr)/delta:4+(cr-cg)/delta)*60+360)%360:0;
-      const saturation=delta?clamp(delta/maximum*100,0,100):0,w=this.coreWeights;
-      for(const [key,active]of [['listen',listening],['think',thinking||working],['speak',speaking]]){w[key]+=(Number(active)-w[key])*smooth;if(Math.abs(Number(active)-w[key])<1e-6)w[key]=Number(active);}
-      const coreSpeed={idle:.12,offline:.06,listening:.25,thinking:1.1,working:.8,speaking:.4,looking:.3,success:.18,alert:.22,error:.16}[state]||.12;
-      this.coreSpin+=(coreSpeed-this.coreSpin)*smooth;
-      if(!this.reducedMotion){this.coreAngle+=dt*this.coreSpin*motion;this.coreTime+=dt*motion;}
-      const ct=Math.cos(.35),st=Math.sin(.35),ca=Math.cos(this.coreAngle),sa=Math.sin(this.coreAngle),time=this.coreTime;
-      const radius=28*(1+energy*.07)*(1-w.think*.1+w.listen*.05),sweep=Math.sin(time*1.6);
-      const particleInk=(light,alpha)=>`hsla(${bodyHue},${saturation}%,${light}%,${alpha})`;
-      const aura=ctx.createRadialGradient(0,0,radius*.2,0,0,radius*2);
-      aura.addColorStop(0,particleInk(60,.12+energy*.12));aura.addColorStop(.45,particleInk(50,.035));aura.addColorStop(1,ink(0));ctx.fillStyle=aura;ctx.beginPath();ctx.arc(0,0,radius*2,0,TAU);ctx.fill();
-      // Source-over keeps custom hues intact over the existing luminous rings;
-      // additive blending on those rings can clip RGB channels into another hue.
-      ctx.save();
-      for(const p of this.coreParticles){
-        const sd=p.seed,x1=p.x*ca+p.z*sa,z1=-p.x*sa+p.z*ca,y2=p.y*ct-z1*st,z2=p.y*st+z1*ct,d=(z2+1)/2;
-        const lobe=Math.sin(p.y*3.2+time*1.9)*Math.sin(Math.atan2(p.z,p.x)*2-time*1.4)+.4*Math.sin(p.y*7-time*3+sd);
-        const ring=w.listen*Math.max(0,lobe)*(.2+energy*1.1),q=(p.y-sweep)*4,boost=ring+Math.exp(-q*q)*w.think;
-        const disp=1+.03*Math.sin(sd*20+time*2)+w.listen*(.04+energy*.28)*lobe+w.speak*energy*.5*Math.max(0,Math.sin(sd*40+time*8))+w.think*.05*Math.sin(sd*70+time*10);
-        const rr=radius*disp,s=(.7+d*1.9+boost*1.5+(disp-1)*3)*28/86;
-        ctx.fillStyle=particleInk(Math.min(92,52+d*28+boost*40),Math.min(1,.1+d*.8+boost*.6));
-        ctx.fillRect(x1*rr-s/2,y2*rr-s/2,s,s);
+      // Three moving magnetic filaments run through the reactor, visibly alive at idle.
+      for(let i=0;i<3;i++){
+        ctx.save();ctx.rotate(t*.43+i*TAU/3);ctx.strokeStyle=spectrum||ink(.3+energy*.25);ctx.globalAlpha=spectrum?(listening?.2:.65):1;ctx.lineWidth=thinking?1.7:listening?.6:.9;
+        const bend=this.reducedMotion?18:18+Math.sin(t*1.1+i)*24*motion+energy*35+excitation*9;
+        ctx.beginPath();ctx.moveTo(-106,0);ctx.bezierCurveTo(-46,-bend,39,bend,106,0);ctx.stroke();ctx.restore();
       }
-      ctx.restore();
+      const core=28+breathe*95+energy*(speaking?34:24)+excitation*9;
+      const bloom=ctx.createRadialGradient(0,0,2,0,0,core*2.7);bloom.addColorStop(0,thinking?`hsla(${hue},100%,94%,.9)`:'rgba(229,251,255,.9)');bloom.addColorStop(.15,ink(.75));bloom.addColorStop(.42,ink(.16));bloom.addColorStop(1,ink(0));ctx.fillStyle=bloom;ctx.beginPath();ctx.arc(0,0,core*2.7,0,TAU);ctx.fill();
+      for(let i=0;i<6;i++)arc(core+7,i*TAU/6-t*.65,i*TAU/6-t*.65+.65,3.2,.67);
+      arc(core-2,0,TAU,.8,.62);arc(58+energy*7,t, t+1.8,1.2,.72);arc(64,-t*.7,-t*.7+.8,.8,.4);
+      ctx.save();ctx.rotate(-t*.33);ctx.strokeStyle=ink(.72);ctx.lineWidth=1.1;ctx.beginPath();
+      for(let i=0;i<=6;i++){const a=i*TAU/6-Math.PI/2;const x=Math.cos(a)*20,y=Math.sin(a)*20;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();ctx.restore();
+      ctx.shadowColor=ink(1);ctx.shadowBlur=15+energy*12;ctx.fillStyle=thinking?`hsla(${hue},100%,96%,.95)`:'rgba(226,251,255,.95)';ctx.beginPath();ctx.arc(0,0,6+energy*5,0,TAU);ctx.fill();ctx.shadowBlur=0;
       // State signatures, beyond a color change.
       if(['thinking','working'].includes(state)){
         for(let i=0;i<6;i++){const a=t*(i%2?-.8:1.1)+i;arc(89+i*4+excitation*3,a,a+.45,1.5,.65+excitation*.12);}
@@ -239,6 +227,6 @@
       ctx.restore();
     }
   }
-  const api={ORB_DEFAULTS,normalizeOrbColors,normalizeOrbIntensity,normalizeOrbMotion,orbReducedMotion,orbCountdown,backgroundOrbState,orbState,orbDynamics,OrbRenderer};
+  const api={ORB_DEFAULTS,ORB_THEMES,normalizeOrbTheme,normalizeOrbColors,normalizeOrbIntensity,normalizeOrbMotion,orbReducedMotion,orbCountdown,backgroundOrbState,orbState,orbDynamics,OrbRenderer};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.HermesOrb=api;
 })(typeof window==='object'?window:globalThis);

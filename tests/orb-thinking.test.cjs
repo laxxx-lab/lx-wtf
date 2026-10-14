@@ -8,9 +8,9 @@ const electron=path.join(process.env.LOCALAPPDATA||'','hermes','hermes-agent','a
 function checkCanvas(){
   const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d');
   const preview=()=>{const image=document.createElement('canvas');image.width=image.height=400;const paint=image.getContext('2d');paint.fillStyle='#06121b';paint.fillRect(0,0,400,400);paint.drawImage(canvas,0,0);return image.toDataURL('image/png');};
-  const frame=(state,{reducedMotion=false,color,intensity=1,at=0,amplitude=0}={})=>{
+  const frame=(state,{reducedMotion=false,color,intensity=1,at=0,amplitude=0,theme='classic'}={})=>{
     const orb=new HermesOrb.OrbRenderer(canvas,{reducedMotion});
-    if(color)orb.setColors({[state]:color});
+    orb.setTheme(theme);if(color)orb.setColors({[state]:color});
     orb.setPointer(.7,-.6);
     for(let i=0;i<=80;i++)orb.draw(at+i*50,{state,intensity,amplitude});
     return {orb,pixels:ctx.getImageData(0,0,400,400).data.slice(),image:preview(),now:at+80*50};
@@ -55,7 +55,7 @@ function checkCanvas(){
   let aperturePixels=0;for(let y=110;y<290;y++)for(let x=290;x<305;x++)if(points[(y*400+x)*4+3]>100)aperturePixels++;
   const stateMotion={},stateStill={};for(const state of Object.keys(HermesOrb.ORB_DEFAULTS)){const f=frame(state);for(let i=1;i<=45;i++)f.orb.draw(f.now+i*16,{state});stateMotion[state]=difference(f.pixels,ctx.getImageData(0,0,400,400).data);const quiet=frame(state,{reducedMotion:true});for(let i=1;i<=60;i++)quiet.orb.draw(quiet.now+i*16,{state});stateStill[state]=difference(quiet.pixels,ctx.getImageData(0,0,400,400).data);}
   const filledCore={},particleTexture={};for(const state of ['idle','thinking','listening','speaking']){
-    const f=frame(state);let filled=0;for(let y=174;y<226;y++)for(let x=174;x<226;x++){
+    const f=frame(state,{theme:'particle-core'});let filled=0;for(let y=174;y<226;y++)for(let x=174;x<226;x++){
       if(Math.hypot(x-200,y-200)>26)continue;const i=(y*400+x)*4,max=Math.max(...f.pixels.slice(i,i+3)),min=Math.min(...f.pixels.slice(i,i+3));
       if(f.pixels[i+3]>=210&&max>90&&max-min>max*.2)filled++;
     }filledCore[state]=filled;
@@ -78,7 +78,7 @@ function checkCanvas(){
 test('native thinking reactor renders a moving palette, preserves color and motion preferences, and stays bounded',{skip:!fs.existsSync(electron),timeout:60000},async t=>{
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'lilith-orb-thinking-')),output=path.join(dir,'result.json'),entry=path.join(dir,'main.cjs'),html=path.join(dir,'view.html');
   t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
-  fs.writeFileSync(html,'<!doctype html><meta charset="utf-8"><canvas width="400" height="400"></canvas><script src="'+pathToFileURL(path.join(__dirname,'../ui/orb.js')).href+'"></script>');
+  fs.writeFileSync(html,'<!doctype html><meta charset="utf-8"><canvas width="400" height="400"></canvas><script src="'+pathToFileURL(path.join(__dirname,'../ui/orb-reference-themes.js')).href+'"></script><script src="'+pathToFileURL(path.join(__dirname,'../ui/orb.js')).href+'"></script>');
   fs.writeFileSync(entry,`
     const {app,BrowserWindow,session}=require('electron'),fs=require('node:fs'),path=require('node:path');
     app.setPath('userData',path.join(${JSON.stringify(dir)},'profile'));
