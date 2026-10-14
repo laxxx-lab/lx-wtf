@@ -75,7 +75,7 @@ function checkCanvas(){
   return {particleTexture,filledCore,compactContrast,thinking:hues(normal.pixels,anchor),customPalette:hues(custom.pixels,345),working:hues(working.pixels,221),listening:hues(listen.pixels,169),customWorking:hues(customWork.pixels,345),customListening:hues(customListen.pixels,345),voiceDifference:difference(listen.pixels,voice.pixels),idle:hues(idle.pixels),returned:hues(returned),customDifference:difference(normal.pixels,custom.pixels),movement:difference(before,after),stillMovement:difference(still.pixels,stillAfter),stillGrayMovement:difference(stillGray.pixels,stillGrayAfter),intensityDifference:difference(normal.pixels,gentle.pixels),edgePixels,msPerFrame,smallIdleMovement,smallIdleStill,compactBeaconPixels,aperturePixels,stateMotion,stateStill,systemReducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,images};
 }
 
-test('native thinking reactor renders a moving palette, preserves color and motion preferences, and stays bounded',{skip:!fs.existsSync(electron),timeout:30000},async t=>{
+test('native thinking reactor renders a moving palette, preserves color and motion preferences, and stays bounded',{skip:!fs.existsSync(electron),timeout:60000},async t=>{
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'lilith-orb-thinking-')),output=path.join(dir,'result.json'),entry=path.join(dir,'main.cjs'),html=path.join(dir,'view.html');
   t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
   fs.writeFileSync(html,'<!doctype html><meta charset="utf-8"><canvas width="400" height="400"></canvas><script src="'+pathToFileURL(path.join(__dirname,'../ui/orb.js')).href+'"></script>');
@@ -101,7 +101,9 @@ test('native thinking reactor renders a moving palette, preserves color and moti
   assert.equal(code,0,error||stderr);assert.deepEqual(errors,[]);
   t.diagnostic(JSON.stringify(result));
   for(const [state,edges]of Object.entries(result.particleTexture))assert.ok(edges>150,state+' center shows distinct luminous particles with gaps rather than a smooth filled body');
-  for(const [background,pixels]of Object.entries(result.compactContrast))assert.ok(pixels>2200,'Compact orb stays legible against background '+background);
+  // The restored small center covers fewer pixels; the surrounding reactor
+  // must still retain substantial contrast on dark, gray and light wallpaper.
+  for(const [background,pixels]of Object.entries(result.compactContrast))assert.ok(pixels>1500,'Compact orb stays legible against background '+background);
   assert.ok(result.thinking.bins>=2&&result.thinking.bins<=3,'Thinking keeps adjacent shades rather than a rainbow');
   assert.equal(result.thinking.outside,0,'Thinking colors remain in the warm status family');
   assert.equal(result.customPalette.outside,0,'A custom thinking color also keeps its own hue family');

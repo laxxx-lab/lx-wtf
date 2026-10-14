@@ -15,7 +15,8 @@ nötig; Bedingungen, Verneinungen und Zitate bleiben gesperrt.
 
 Die Orb-Mitte zeigt die rotierende Kugel aus 1.700 Lichtpunkten der Vorlage
 „Particle Core“: langsames Standby, ein Scan beim Denken und Verformung durch
-echte Sprachpegel. Die kleine Ansicht zeichnet kräftigere Konturen
+echte Sprachpegel. Die Kugel hat wieder die ursprüngliche Kerngröße.
+Die kleine Ansicht zeichnet kräftigere Konturen
 und eine dunkle kreisförmige Unterlegung bei transparenten Fensterecken.
 Eigene Farben und reduzierte Bewegung bleiben maßgeblich; Animation belegt
 keine erledigte Aktion. Der gemeinsame Renderer gilt auch auf dem Notebook.

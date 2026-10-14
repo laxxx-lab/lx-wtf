@@ -15,7 +15,7 @@ SSH-Auftrag nötig; Bedingungen, Verneinungen und Zitate bleiben gesperrt.
 
 Die Orb-Mitte zeigt die rotierende Kugel aus 1.700 Lichtpunkten der Vorlage
 „Particle Core“: langsames Standby, ein Scan beim Denken und Verformung durch
-echte Sprachpegel.
+echte Sprachpegel. Die Kugel hat wieder die ursprüngliche Kerngröße.
 Der kleine Orb hat kräftigere Konturen und eine dunkle kreisförmige Unterlegung;
 seine Fensterecken bleiben transparent. Sprechen folgt dem echten lokalen
 Wiedergabepegel, Zuhören dem Mikrofonpegel. Eigene Farben und reduzierte Bewegung

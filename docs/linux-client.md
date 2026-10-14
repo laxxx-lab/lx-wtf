@@ -194,7 +194,8 @@ wie ein normales Arbeitsfenster. Bei Monitorwechsel bleiben beide innerhalb
 des vorhandenen Arbeitsbereichs. `--panel` startet direkt mit dem Gespräch.
 
 Die Mitte verwendet die Partikelkugel der Vorlage **Particle Core** mit 1.700
-Punkten: Standby dreht langsam, Denken und Arbeiten führen einen hellen Scan
+Punkten in der ursprünglichen Kerngröße: Standby dreht langsam, Denken und
+Arbeiten führen einen hellen Scan
 über die Kugel, Zuhören und Sprechen verformen sie anhand der echten lokalen
 Audiopegel. Die gemeinsame Windows-/Linux-Darstellung bewahrt Zustandsfarben,
 reduzierte Bewegung und transparente Fensterecken. Die HTML-Demosteuerung und

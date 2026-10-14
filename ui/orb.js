@@ -166,7 +166,7 @@
       this.coreSpin+=(coreSpeed-this.coreSpin)*smooth;
       if(!this.reducedMotion){this.coreAngle+=dt*this.coreSpin*motion;this.coreTime+=dt*motion;}
       const ct=Math.cos(.35),st=Math.sin(.35),ca=Math.cos(this.coreAngle),sa=Math.sin(this.coreAngle),time=this.coreTime;
-      const radius=86*(1+energy*.07)*(1-w.think*.1+w.listen*.05),sweep=Math.sin(time*1.6);
+      const radius=28*(1+energy*.07)*(1-w.think*.1+w.listen*.05),sweep=Math.sin(time*1.6);
       const particleInk=(light,alpha)=>`hsla(${bodyHue},${saturation}%,${light}%,${alpha})`;
       const aura=ctx.createRadialGradient(0,0,radius*.2,0,0,radius*2);
       aura.addColorStop(0,particleInk(60,.12+energy*.12));aura.addColorStop(.45,particleInk(50,.035));aura.addColorStop(1,ink(0));ctx.fillStyle=aura;ctx.beginPath();ctx.arc(0,0,radius*2,0,TAU);ctx.fill();
@@ -178,7 +178,7 @@
         const lobe=Math.sin(p.y*3.2+time*1.9)*Math.sin(Math.atan2(p.z,p.x)*2-time*1.4)+.4*Math.sin(p.y*7-time*3+sd);
         const ring=w.listen*Math.max(0,lobe)*(.2+energy*1.1),q=(p.y-sweep)*4,boost=ring+Math.exp(-q*q)*w.think;
         const disp=1+.03*Math.sin(sd*20+time*2)+w.listen*(.04+energy*.28)*lobe+w.speak*energy*.5*Math.max(0,Math.sin(sd*40+time*8))+w.think*.05*Math.sin(sd*70+time*10);
-        const rr=radius*disp,s=.7+d*1.9+boost*1.5+(disp-1)*3;
+        const rr=radius*disp,s=(.7+d*1.9+boost*1.5+(disp-1)*3)*28/86;
         ctx.fillStyle=particleInk(Math.min(92,52+d*28+boost*40),Math.min(1,.1+d*.8+boost*.6));
         ctx.fillRect(x1*rr-s/2,y2*rr-s/2,s,s);
       }
