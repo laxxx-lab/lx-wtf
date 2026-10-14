@@ -22,6 +22,10 @@ test('invalid calendar dates and impossible start times cannot create a countdow
  const {createActivityCards}=require('../activity-cards.cjs'),cards=createActivityCards({now:()=>current});
  for(const patch of [{deadline:'2026-02-30T10:00:00+02:00'},{deadline:'2026-10-14T24:00:00+02:00'},{startedAt:'2026-10-14T10:00:10+02:00'},{startedAt:'2026-10-14T10:00:06+02:00'}])assert.throws(()=>cards.execute(input(patch)));
 });
+test('Home Assistant microseconds and PowerShell round-trip ISO timestamps normalize without rejection',()=>{
+ const {createActivityCards}=require('../activity-cards.cjs'),cards=createActivityCards({now:()=>current});
+ cards.execute(input({observedAt:'2026-10-14T10:00:00.000000+02:00',deadline:'2026-10-14T10:00:10.1234567+02:00'}));assert.equal(cards.read().cards[0].dueAt,current+10123);assert.equal(cards.read().cards[0].observedAt,'2026-10-14T08:00:00.000Z');
+});
 test('read snapshots cannot mutate stored cards and write failures preserve existing state',()=>{
  const {createActivityCards}=require('../activity-cards.cjs'),folder=fs.mkdtempSync(path.join(os.tmpdir(),'lilith-cards-')),file=path.join(folder,'cards.json');let changes=0;
  try{const cards=createActivityCards({file,now:()=>current,onChange:()=>changes++});cards.execute(input());cards.read().cards[0].title='Mutated';assert.equal(cards.read().cards[0].title,'Backofen');fs.unlinkSync(file);fs.mkdirSync(file);assert.throws(()=>cards.execute(input({title:'New',observedAt:'2026-10-14T10:00:01+02:00'})));assert.equal(cards.read().cards[0].title,'Backofen');assert.equal(changes,1);assert.throws(()=>cards.execute({action:'dismiss',id:'oven'}));assert.equal(cards.read().cards.length,1);}finally{fs.rmSync(folder,{recursive:true,force:true});}

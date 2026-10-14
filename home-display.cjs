@@ -7,7 +7,7 @@ function createHomeDisplay({BrowserWindow,screen,url,onState=()=>{}}){
  const origin=homeDisplayUrl(url),partition='persist:lilith-home-'+crypto.createHash('sha256').update(origin).digest('hex').slice(0,12);
  let win=null,entity=null,pending=null,ready=false,cameraOpened=false;
  async function cameraState(){if(!win||win.isDestroyed())return {configured:true,connected:false};
-  const result=await win.webContents.executeJavaScript(`(()=>{const ha=document.querySelector('home-assistant'),h=ha?.hass;let playing=false;const visit=root=>{for(const n of root.querySelectorAll('*')){if(n.tagName==='VIDEO'&&n.readyState>=2&&!n.paused)playing=true;if(n.shadowRoot)visit(n.shadowRoot);}};if(h)visit(document);return {connected:!!h,playing};})()`);ready=result.connected;return {configured:true,...result,cameraEntity:entity};
+  const result=await win.webContents.executeJavaScript(`(()=>{const ha=document.querySelector('home-assistant'),h=ha?.hass,id=${JSON.stringify(entity)};let playing=false;const visit=(root,selected=false)=>{for(const n of root.querySelectorAll('*')){const owns=selected||n.tagName==='MORE-INFO-CAMERA'&&n.stateObj?.entity_id===id;if(owns&&n.tagName==='VIDEO'&&n.readyState>=2&&!n.paused)playing=true;if(n.shadowRoot)visit(n.shadowRoot,owns);}};if(h&&id)visit(document);return {connected:!!h,playing};})()`);ready=result.connected;return {configured:true,...result,cameraEntity:entity};
  }
  async function openCamera(cameraEntity){
   if(cameraEntity!==undefined&&!/^camera\.[a-z0-9_]{1,120}$/.test(cameraEntity))throw Error('Ungültige Kamera-Entität.');entity=cameraEntity||null;cameraOpened=false;

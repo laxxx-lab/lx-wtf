@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),{randomUUID}=require('node
 const MAX_CARDS=6,MAX_DISMISSED=128,FRESH_MS=120000,MAX_FUTURE_MS=7*86400000;
 const validId=value=>typeof value==='string'&&/^[a-z0-9][a-z0-9_-]{0,63}$/.test(value);
 function timestamp(value,name){
- if(typeof value!=='string'||value.length>40||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value))throw Error(name+' braucht einen ISO-Zeitpunkt mit Zeitzone.');
+ if(typeof value!=='string'||value.length>40||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(value))throw Error(name+' braucht einen ISO-Zeitpunkt mit Zeitzone.');
  const [year,month,day,hour,minute,second]=value.slice(0,19).split(/[-T:]/).map(Number);if(month<1||month>12||day<1||day>new Date(Date.UTC(year,month,0)).getUTCDate()||hour>23||minute>59||second>59)throw Error(name+' ist ungültig.');
  const time=Date.parse(value);if(!Number.isFinite(time))throw Error(name+' ist ungültig.');return time;
 }
