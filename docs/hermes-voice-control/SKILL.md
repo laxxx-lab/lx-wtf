@@ -11,6 +11,8 @@ Die tatsächliche Denkphase zeigt einen rotierenden Farbverlauf und
 gegenläufige Plasmabänder auf dem gemeinsamen Windows-/Linux-Orb.
 Status und Verlauf passen zusammen: benachbarte Farbtöne derselben Familie,
 standardmäßig Amber, Gold und Kupfer mit warmen hellen Akzenten.
+Arbeiten zeigt blaue Lichtpakete mit Schweifen; Zuhören eine türkisfarbene,
+pegelabhängige Welle. Diese Effekte zeigen den Zustand, keinen Auftragsfortschritt.
 Eigene Denkfarbe, Bewegungsregler und reduzierte Bewegung bleiben erhalten. Die Animation belegt
 keine Werkzeugausführung. Für ausdrücklich beauftragte Root-Aufgaben auf dem
 Notebook den Skill `hermes-linux-control` und dessen eigenes

@@ -12,11 +12,19 @@ ein heller Lichtpunkt mit kurzem Schweif wandert zwischen inneren Ringen und
 Bereitschaft auch in der kompakten Größe. Standby reagiert nicht auf
 Mikrofonpeaks und verändert keine Sensor- oder Ruhepräferenz.
 
-Zuhören zeigt zwei offene seitliche Bögen mit langsam bewegten inneren Akzenten.
+Zuhören zeigt zwei offene seitliche Bögen mit langsam bewegten inneren Akzenten,
+einem türkisfarbenen Verlauf bis zu hellen Cyan-Akzenten und einer leuchtenden
+Welle zwischen zwei Fokuspunkten. Die Wellenhöhe folgt ausschließlich dem
+gemessenen Mikrofonpegel; es ist eine stilisierte Pegeldarstellung, keine
+exakte Audio-Wellenform. Bei Stille bleibt sie flach, die Raumbewegung der
+Ringe läuft weiter. Dezente innere Linien und weniger Pegelbänder halten den
+Fokus auf der Stimme.
 Die Pegelbänder und der Kern folgen dem echten Mikrofonpegel; bei Stille gibt
 es keine künstlichen Sprachpeaks. Sprechen ergänzt diese Darstellung mit
 silbenabhängigen Bögen, ohne zusätzliche künstliche Sprachpulse. Arbeiten
-zeigt umlaufende Lichtsegmente; Kamerablick einen Scan mit Eckmarken; Erfolg
+zeigt umlaufende Lichtsegmente und drei räumlich wandernde Lichtpakete mit
+Schweifen in benachbarten Blautönen. Sie zeigen Aktivität, keinen geschätzten
+Fortschritt oder bestätigten Erfolg. Kamerablick zeigt einen Scan mit Eckmarken; Erfolg
 eine einmal auslaufende Welle. Amber-Hinweise atmen sanft, Fehler verwenden
 engere doppelte Warnbögen. Offline bewegt sich langsamer und bleibt gedämpft.
 Der Farbverlauf der Denkphase bleibt erhalten. Eigene Farben und Stärke gelten
@@ -53,7 +61,7 @@ Denkfarbe bleibt die Grundfarbe; der Verlauf verwendet ausschließlich nahe
 Farbtöne und Helligkeitsabstufungen. Standardmäßig sind das Amber, Gold und
 Kupfer mit warmen hellen Akzenten, ohne Grün-, Blau- oder Violettanteile. Auch
 die Plasmabänder und der Kern bleiben in dieser Status-Farbfamilie. Der
-Bewegungsregler steuert Rotation und Verformung. Der Verlauf erscheint nur im
+Bewegungsregler steuert Rotation und Verformung. Der warme Denkverlauf erscheint nur im
 Zustand **Denken** und verschwindet beim Wechsel zu Arbeiten, Zuhören oder
 Sprechen. Bei reduzierter Bewegung bleibt die farbige Darstellung nach dem
 Zustandsübergang still. Windows, Notebook und Werkstatt verwenden denselben

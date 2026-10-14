@@ -8,11 +8,11 @@ const electron=path.join(process.env.LOCALAPPDATA||'','hermes','hermes-agent','a
 function checkCanvas(){
   const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d');
   const preview=()=>{const image=document.createElement('canvas');image.width=image.height=400;const paint=image.getContext('2d');paint.fillStyle='#06121b';paint.fillRect(0,0,400,400);paint.drawImage(canvas,0,0);return image.toDataURL('image/png');};
-  const frame=(state,{reducedMotion=false,color,intensity=1,at=0}={})=>{
+  const frame=(state,{reducedMotion=false,color,intensity=1,at=0,amplitude=0}={})=>{
     const orb=new HermesOrb.OrbRenderer(canvas,{reducedMotion});
-    if(color)orb.setColors({thinking:color});
+    if(color)orb.setColors({[state]:color});
     orb.setPointer(.7,-.6);
-    for(let i=0;i<=240;i++)orb.draw(at+i*16,{state,intensity});
+    for(let i=0;i<=240;i++)orb.draw(at+i*16,{state,intensity,amplitude});
     return {orb,pixels:ctx.getImageData(0,0,400,400).data.slice(),image:preview(),now:at+240*16};
   };
   const hues=(pixels,anchor)=>{
@@ -28,6 +28,7 @@ function checkCanvas(){
   };
   const difference=(a,b)=>{let sum=0;for(let i=0;i<a.length;i++)sum+=Math.abs(a[i]-b[i]);return sum/a.length;};
   const normal=frame('thinking'),working=frame('working'),idle=frame('idle'),custom=frame('thinking',{color:'#ff3366'});
+  const listen=frame('listening'),voice=frame('listening',{amplitude:.75}),customWork=frame('working',{color:'#ff3366'}),customListen=frame('listening',{color:'#ff3366'});
   const before=normal.pixels;for(let i=1;i<=30;i++)normal.orb.draw(normal.now+i*16,{state:'thinking'});
   const after=ctx.getImageData(0,0,400,400).data;
   const still=frame('thinking',{reducedMotion:true});
@@ -43,7 +44,7 @@ function checkCanvas(){
   const changedState=frame('thinking');for(let i=1;i<=240;i++)changedState.orb.draw(changedState.now+i*16,{state:'working'});
   const returned=ctx.getImageData(0,0,400,400).data;
   const start=performance.now();for(let i=1;i<=120;i++)pale.orb.draw(pale.now+i*16,{state:'thinking',intensity:2.4});
-  const msPerFrame=(performance.now()-start)/120,images={thinking:normal.image,working:working.image,idle:idle.image,custom:custom.image,reduced:still.image};
+  const msPerFrame=(performance.now()-start)/120,images={thinking:normal.image,working:working.image,idle:idle.image,custom:custom.image,reduced:still.image,listeningVoice:voice.image};
   for(const state of ['listening','speaking','looking','success','alert','error','offline'])images[state]=frame(state).image;
   // A small Orb must visibly move in standby and show a quiet listening aperture.
   let compactBeaconPixels=0;
@@ -54,7 +55,7 @@ function checkCanvas(){
   let aperturePixels=0;for(let y=110;y<290;y++)for(let x=290;x<305;x++)if(points[(y*400+x)*4+3]>100)aperturePixels++;
   const stateMotion={},stateStill={};for(const state of Object.keys(HermesOrb.ORB_DEFAULTS)){const f=frame(state);for(let i=1;i<=45;i++)f.orb.draw(f.now+i*16,{state});stateMotion[state]=difference(f.pixels,ctx.getImageData(0,0,400,400).data);const quiet=frame(state,{reducedMotion:true});for(let i=1;i<=60;i++)quiet.orb.draw(quiet.now+i*16,{state});stateStill[state]=difference(quiet.pixels,ctx.getImageData(0,0,400,400).data);}
   const base=HermesOrb.ORB_DEFAULTS.thinking,[r,g,b]=[1,3,5].map(i=>parseInt(base.slice(i,i+2),16)),max=Math.max(r,g,b),delta=max-Math.min(r,g,b),anchor=((max===r?(g-b)/delta:max===g?2+(b-r)/delta:4+(r-g)/delta)*60+360)%360;
-  return {thinking:hues(normal.pixels,anchor),customPalette:hues(custom.pixels,345),working:hues(working.pixels),idle:hues(idle.pixels),returned:hues(returned),customDifference:difference(normal.pixels,custom.pixels),movement:difference(before,after),stillMovement:difference(still.pixels,stillAfter),stillGrayMovement:difference(stillGray.pixels,stillGrayAfter),intensityDifference:difference(normal.pixels,gentle.pixels),edgePixels,msPerFrame,smallIdleMovement,smallIdleStill,compactBeaconPixels,aperturePixels,stateMotion,stateStill,systemReducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,images};
+  return {thinking:hues(normal.pixels,anchor),customPalette:hues(custom.pixels,345),working:hues(working.pixels,221),listening:hues(listen.pixels,169),customWorking:hues(customWork.pixels,345),customListening:hues(customListen.pixels,345),voiceDifference:difference(listen.pixels,voice.pixels),idle:hues(idle.pixels),returned:hues(returned),customDifference:difference(normal.pixels,custom.pixels),movement:difference(before,after),stillMovement:difference(still.pixels,stillAfter),stillGrayMovement:difference(stillGray.pixels,stillGrayAfter),intensityDifference:difference(normal.pixels,gentle.pixels),edgePixels,msPerFrame,smallIdleMovement,smallIdleStill,compactBeaconPixels,aperturePixels,stateMotion,stateStill,systemReducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,images};
 }
 
 test('native thinking reactor renders a moving palette, preserves color and motion preferences, and stays bounded',{skip:!fs.existsSync(electron),timeout:30000},async t=>{
@@ -86,7 +87,11 @@ test('native thinking reactor renders a moving palette, preserves color and moti
   assert.equal(result.thinking.outside,0,'Thinking colors remain in the warm status family');
   assert.equal(result.customPalette.outside,0,'A custom thinking color also keeps its own hue family');
   assert.ok(result.thinking.colored>1200,'The gradient must illuminate visible reactor geometry');
-  assert.ok(result.working.bins<=2&&result.idle.bins<=2&&result.returned.bins<=2,'Other states retain their own single-color signatures');
+  assert.ok(result.working.bins>=2&&result.working.bins<=3,'Working uses several nearby blue shades');
+  assert.ok(result.listening.bins>=2&&result.listening.bins<=3,'Listening uses several nearby turquoise shades');
+  for(const key of ['working','listening','customWorking','customListening'])assert.equal(result[key].outside,0,key+' stays in its selected color family');
+  assert.ok(result.voiceDifference>2,'Real microphone energy visibly shapes the listening field');
+  assert.ok(result.idle.bins<=2&&result.returned.bins<=3,'Standby remains restrained and working recovers its own palette');
   assert.ok(result.customDifference>2,'Changing the thinking base color must change visible pixels');
   assert.ok(result.movement>2,'Thinking must visibly evolve over half a second');
   assert.equal(result.stillMovement,0,'Reduced motion must keep the complete settled thinking frame still');

@@ -24,6 +24,8 @@ Farbverlauf und gegenläufige Plasmabänder. Denkfarbe, Bewegungsregler und redu
 Bewegung bleiben maßgeblich. Animation ist kein Nachweis einer Werkzeugausführung.
 Der Denkverlauf bleibt in der gewählten Farbfamilie: standardmäßig Amber,
 Gold und Kupfer mit warmen hellen Akzenten, ohne Regenbogenfarben.
+Arbeiten zeigt blaue Lichtpakete mit Schweifen; Zuhören eine türkisfarbene,
+pegelabhängige Welle. Diese Effekte zeigen Aktivität, keinen Auftragsfortschritt.
 Standardfarben: Zuhören Türkis, Sprechen helles Cyan, Arbeiten Blau,
 Kamerablick Violett, Erfolg Grün, Freigabe/Rückfrage Amber, Fehler Rot und
 Offline Blaugrau. Eigene Farben bleiben maßgeblich; Zustände zeigen echte

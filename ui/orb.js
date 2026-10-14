@@ -49,7 +49,7 @@
     draw(now,{state='idle',amplitude=0,intensity=1}={}){
       const ctx=this.ctx;if(!ctx)return;
       const dt=this.lastTime===null?0:clamp((now-this.lastTime)/1000,0,.05);this.lastTime=now;
-      const speaking=state==='speaking',listening=state==='listening',thinking=state==='thinking',smooth=1-Math.exp(-dt*9),target=rgb(this.colors[state]||this.colors.idle);
+      const speaking=state==='speaking',listening=state==='listening',thinking=state==='thinking',working=state==='working',smooth=1-Math.exp(-dt*9),target=rgb(this.colors[state]||this.colors.idle);
       if(state!==this.state){this.state=state;this.stateTime=0;}else if(!this.reducedMotion)this.stateTime+=dt;
       const measured=clamp(Number.isFinite(amplitude)?amplitude:0,0,1),levelSmooth=speaking?1-Math.exp(-dt*(measured>this.level?32:12)):smooth;
       this.color=this.color.map((n,i)=>n+(target[i]-n)*smooth);this.level+=(measured-this.level)*levelSmooth;
@@ -70,16 +70,17 @@
       this.groupSpeed+=((rest?(state==='idle'?.28:.14):0)-this.groupSpeed)*smooth;
       if(!this.reducedMotion)this.groupRotation+=dt*this.speed*motion*this.groupSpeed;
       ctx.rotate(this.groupRotation);
-      // Adjacent shades retain the thinking status color throughout the reactor.
+      // Adjacent shades retain each active status color throughout the reactor.
       // Lightness gives the rolling gradient depth without crossing other states.
       let spectrum=null,hue=0;
-      if(thinking){
+      if(thinking||working||listening){
         const [r,g,b]=target,max=Math.max(r,g,b),delta=max-Math.min(r,g,b);
         hue=delta?((max===r?(g-b)/delta:max===g?2+(b-r)/delta:4+(r-g)/delta)*60+360)%360:210;
-        const angle=t*.7,x=Math.cos(angle)*155,y=Math.sin(angle)*155;
+        const angle=t*(thinking?.7:working?.28:.12),x=Math.cos(angle)*155,y=Math.sin(angle)*155;
         spectrum=ctx.createLinearGradient(-x,-y,x,y);
-        spectrum.addColorStop(0,ink(.95));spectrum.addColorStop(.22,`hsla(${hue-18},88%,58%,.95)`);
-        spectrum.addColorStop(.52,`hsla(${hue+18},92%,74%,.95)`);spectrum.addColorStop(.8,`hsla(${hue+7},90%,64%,.95)`);spectrum.addColorStop(1,ink(.95));
+        const light=(max+Math.min(r,g,b))/510*100,low=thinking?58:clamp(light-14,40,76),high=thinking?74:clamp(light+13,68,89);
+        spectrum.addColorStop(0,ink(.95));spectrum.addColorStop(.22,`hsla(${hue-(listening?0:18)},88%,${low}%,.95)`);
+        spectrum.addColorStop(.52,`hsla(${hue+18},92%,${high}%,.95)`);spectrum.addColorStop(.8,`hsla(${hue+7},90%,${thinking?64:light}%,.95)`);spectrum.addColorStop(1,ink(.95));
       }
       // Transparent atmospheric corona, leaving the desktop visible behind it.
       const corona=ctx.createRadialGradient(0,0,12,0,0,193);
@@ -127,7 +128,7 @@
         for(let i=0;i<96;i++){
           const a=pts[i],b=pts[i+1],front=clamp((a.z+155)/310,0,1);
           if((i+k*7)%19>15)continue;
-          line(a,b,(k===4?.8:1.2)+front,.16+front*.62);
+          line(a,b,(k===4?.8:1.2)+front,(.16+front*.62)*(listening?.65:1));
           if(i%12===0){ctx.fillStyle=spectrum||ink(.4+front*.5);ctx.beginPath();ctx.arc(a.x,a.y,1.1+front*.8,0,TAU);ctx.fill();}
         }
         const marker=pts[Math.floor((t*17+k*13)%96)];ctx.fillStyle=spectrum||ink(.96);ctx.beginPath();ctx.arc(marker.x,marker.y,2.7,0,TAU);ctx.fill();
@@ -144,7 +145,7 @@
       }
       // Three moving magnetic filaments run through the reactor, visibly alive at idle.
       for(let i=0;i<3;i++){
-        ctx.save();ctx.rotate(t*.43+i*TAU/3);ctx.strokeStyle=spectrum||ink(.3+energy*.25);ctx.globalAlpha=spectrum?.65:1;ctx.lineWidth=thinking?1.7:.9;
+        ctx.save();ctx.rotate(t*.43+i*TAU/3);ctx.strokeStyle=spectrum||ink(.3+energy*.25);ctx.globalAlpha=spectrum?(listening?.2:.65):1;ctx.lineWidth=thinking?1.7:listening?.6:.9;
         const bend=this.reducedMotion?18:18+Math.sin(t*1.1+i)*24*motion+energy*35+excitation*9;
         ctx.beginPath();ctx.moveTo(-106,0);ctx.bezierCurveTo(-46,-bend,39,bend,106,0);ctx.stroke();ctx.restore();
       }
@@ -163,15 +164,30 @@
         const a=i*TAU/12-t*.35,lit=this.reducedMotion?.7:.3+.7*(.5+.5*Math.cos(t*2-i*.52));
         arc(122,a,a+.18,2.6,lit*.8);
       }
+      if(working)for(let k=0;k<3;k++){
+        // Travelling light packets visualize activity, never percent completion.
+        const a=t*(k===1?-.85:1.1)+k*TAU/3,point=angle=>project(Math.cos(angle)*141,Math.sin(angle)*90,Math.sin(angle)*38);
+        for(let i=0;i<12;i++)line(point(a-i*.045),point(a-(i+1)*.045),2.4,(1-i/12)*.8);
+        const head=point(a);ctx.shadowColor=ink(.9);ctx.shadowBlur=9;ctx.fillStyle=`hsla(${hue},90%,89%,.98)`;ctx.beginPath();ctx.arc(head.x,head.y,3.7,0,TAU);ctx.fill();ctx.shadowBlur=0;
+      }
       if(['speaking','listening'].includes(state)){
-        for(let i=0;i<40;i++){const a=i*TAU/40;
+        const bands=listening?24:40;
+        for(let i=0;i<bands;i++){const a=i*TAU/bands;
           const r=listening?72:79,end=r+4+energy*(8+Math.sin(i*1.3)**2*23);
           line({x:Math.cos(a)*r,y:Math.sin(a)*r},{x:Math.cos(a)*end,y:Math.sin(a)*end},1.6,.35+energy*.5);
         }
         if(listening){
           const aperture=108+energy*13,widen=this.reducedMotion?0:Math.sin(t*.8)*.1;
-          arc(aperture,-.68-widen,.68+widen,2.7,.85);arc(aperture,Math.PI-.68-widen,Math.PI+.68+widen,2.7,.85);
+          arc(aperture,-.68-widen,.68+widen,3.1,.9);arc(aperture,Math.PI-.68-widen,Math.PI+.68+widen,3.1,.9);
           for(let i=0;i<3;i++){const a=t*.3+i*TAU/3;arc(94+energy*8,a,a+.35,1.2,.48+energy*.35);}
+          // A stylized microphone envelope. Silence stays flat; all wave height
+          // comes from measured energy, without synthesizing speech peaks.
+          for(let band=0;band<3;band++){
+            ctx.strokeStyle=spectrum;ctx.globalAlpha=.75-band*.19;ctx.lineWidth=band===0?2.1:1;ctx.shadowColor=ink(.75);ctx.shadowBlur=band===0?8:0;ctx.beginPath();
+            for(let i=0;i<=64;i++){const u=i/64,x=(u-.5)*176,y=Math.sin(u*TAU*2-t*2.1+band*.45)*Math.sin(u*Math.PI)*(energy*(21-band*5));i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+            ctx.stroke();ctx.globalAlpha=1;ctx.shadowBlur=0;
+          }
+          for(const side of [-1,1]){const x=side*(86-energy*12);ctx.fillStyle=`hsla(${hue},95%,88%,.9)`;ctx.beginPath();ctx.arc(x,0,2.5+energy*1.5,0,TAU);ctx.fill();}
         }else{
           arc(69+energy*23,-.75,.75,2,.25+energy*.55);arc(69+energy*23,Math.PI-.75,Math.PI+.75,2,.25+energy*.55);
         }
