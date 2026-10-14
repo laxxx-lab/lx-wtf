@@ -32,7 +32,7 @@ function validEverydayRequest(action,v){
  if(action==='reminders')return exact(['action','id'])&&v.action==='cancel'&&typeof v.id==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(v.id)||exact(['action','kind','text','at'])&&v.action==='create'&&['reminder','alarm'].includes(v.kind)&&typeof v.text==='string'&&v.text.trim().length>0&&v.text.length<=500&&typeof v.at==='string'&&v.at.length<=64&&/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(v.at)&&Number.isFinite(Date.parse(v.at));
  return false;
 }
-async function createControlApi({ port = 8872, token, readStatus, onCommand, onLook, onScreen, onContent, onHighlight, onMode, readModes, onWorkbench,readContext,readTasks,readRoutines,onRoutine,onStop,onStopTask,readGraph,onGraphSearch,onGraphSource,readIntelCatalog,onIntel,onGuide,clearGuide,readArtcraft,onArtcraft,readAudioOutputs,onAudioOutput,readBluetooth,onBluetooth,readMicrophones,onMicrophone,readVolume,onVolume,readApps,onAppOpen,readWindows,onWindowFocus,onWindowPlace,readPower,onPower,readReminders,onReminder,onBrowser,onClipboard,readActivityCards,onActivityCard,onHomeDisplay,enabledActions=null }) {
+async function createControlApi({ port = 8872, token, readStatus, onCommand, onLook, onScreen, onContent, onHighlight, onMode, readModes, onWorkbench,readContext,readTasks,readRoutines,onRoutine,onStop,onStopTask,readGraph,onGraphSearch,onGraphSource,readIntelCatalog,onIntel,onGuide,clearGuide,readArtcraft,onArtcraft,readAudioOutputs,onAudioOutput,readBluetooth,onBluetooth,readMicrophones,onMicrophone,readVolume,onVolume,readApps,onAppOpen,readWindows,onWindowFocus,onWindowPlace,readPower,onPower,readReminders,onReminder,onBrowser,onClipboard,readActivityCards,onActivityCard,onHomeDisplay,onNewSession,enabledActions=null }) {
   if (typeof token !== 'string' || !token || typeof readStatus !== 'function' || typeof onCommand !== 'function') {
     throw new Error('Invalid control API configuration');
   }
@@ -60,7 +60,7 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
       }
       const action = req.url.slice('/v1/'.length);
       if(enabledActions&&!enabledActions.includes(action))return reply(404,{error:'Not found'});
-      if (!['activity-cards','home-display','clipboard','browser','status','look','standby','screen','current-content','highlight','mode','modes','workbench','context','tasks','routines','routine','privacy','stop','emergency-stop','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','window-place','power','reminders'].includes(action) && !ACTIONS.has(action)) return reply(404, { error: 'Not found' });
+      if (!['session-new','activity-cards','home-display','clipboard','browser','status','look','standby','screen','current-content','highlight','mode','modes','workbench','context','tasks','routines','routine','privacy','stop','emergency-stop','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','window-place','power','reminders'].includes(action) && !ACTIONS.has(action)) return reply(404, { error: 'Not found' });
       const bodyLimit=action==='clipboard'?131072:action==='activity-cards'?4096:MAX_BODY_BYTES;
       const dual=['activity-cards','browser','volume','power','reminders'].includes(action);
       if (!dual&&req.method !== (['status','modes','context','tasks','routines','graph','intel-catalog','artcraft','audio-outputs','bluetooth-devices','microphones','apps','windows'].includes(action) ? 'GET' : 'POST')||dual&&!['GET','POST'].includes(req.method)) return reply(405, { error: 'Method not allowed' });
@@ -104,6 +104,12 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
         if(action==='home-display'&&(!payload||typeof payload!=='object'||Array.isArray(payload)||!['open','inventory','camera'].includes(payload.action)||Object.keys(payload).some(k=>!['action','cameraEntity'].includes(k))||(payload.action==='camera'?typeof payload.cameraEntity!=='string'||!/^camera\.[a-z0-9_]{1,120}$/.test(payload.cameraEntity):payload.cameraEntity!==undefined)))return reply(400,{error:'Invalid home display request'});
         const state=await readStatus();if(state?.privacyLocked||state?.privacy?.locked)return reply(423,{error:'Local privacy lock is active'});
         return reply(200,await callback(payload));
+      }
+      if(action==='session-new'){
+        if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.keys(payload).length)return reply(400,{error:'New session requires an empty body'});
+        if(typeof onNewSession!=='function')return reply(503,{error:'New device conversation unavailable'});
+        const state=await readStatus();if(state?.privacyLocked||state?.privacy?.locked)return reply(423,{error:'Local privacy lock is active'});
+        return reply(200,await onNewSession());
       }
       if(action==='clipboard'){
         const plain=payload&&typeof payload==='object'&&!Array.isArray(payload),keys=plain?Object.keys(payload):[];

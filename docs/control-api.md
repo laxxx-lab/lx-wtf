@@ -369,3 +369,7 @@ Datenschutz und aktuellen Gesprächsbesitz.
 `{id,pid,processStartedAt,monitorId,rect:{x,y,width,height}}`, optional passender
 `jobId`. Frische physische WorkArea über windows lesen; Erfolg erst bei
 `result.verified` und tatsächlichem Rechteck. [Vertrag](windows-control.md).
+
+Nur der Notebook-Client unterstützt zusätzlich `POST /v1/session-new` mit
+genau `{}`: separate leere Session erstellen, keine PC-Unterbrechung.
+[Bedienung und Grenzen](linux-client.md).

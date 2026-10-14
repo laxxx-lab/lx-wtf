@@ -7,6 +7,16 @@ description: Linux-Notebook über den verbundenen Lilith-MCP bedienen.
 
 ## Adminaufgaben und lebendige Denkphase · 14.10.2026
 
+**＋ Neues Gespräch hier** erstellt neben der Notebook-Sessionauswahl eine
+separate leere Session. Die laufende PC-Session bleibt dort, ohne Unterbrechung
+oder Übergabe. Eigene Aufnahme/Ausgabe/Arbeit zuerst abschließen oder pausieren;
+Datenschutz und ungeklärte Übergaben bleiben gesperrt. Neues Gespräch und
+„Gespräch an PC übergeben“ sind unterschiedliche Aktionen. Das Wissen und die
+Werkzeuge bleiben beim aktuellen Hermes-Profil, der Verlauf ist separat.
+Keine laufende PC-Session eigenmächtig zurückholen, um am Notebook neu zu starten.
+Vertrag: docs/linux-client.md, docs/session-handoff.md.
+
+
 Kleine Aktivitätskarten sind über die bestehenden authentifizierten Loopback-
 Endpunkte `/v1/activity-cards` (GET/POST) und `/v1/home-display` (POST) am
 Notebook verfügbar. Verbindungskonfiguration bleibt privat in

@@ -330,3 +330,34 @@ Verlaufsdarstellung in einem isolierten echten Chromium-Fenster. Er öffnet
 kein Mikrofon und verwendet kein Modell. Die serverseitige Bereitstellung,
 reale PC-/Notebook-Übergabe, automatische Geräteerkennung, Kamera, Wakeword
 und Pixel-App bleiben gesonderte Prüfungen beziehungsweise offene Schritte.
+
+## Eigenes neues Notebook-Gespräch
+
+Neben der Session-Auswahl steht **＋ Neues Gespräch hier**. Damit wird ein
+leeres, separat gespeichertes Hermes-Gespräch im aktuellen Profil erstellt.
+Ein auf dem PC laufendes Gespräch bleibt dort: kein session.interrupt, kein
+Resume der PC-Session, kein Kopieren des Verlaufs und kein Übergabebefehl.
+Die neue Notebook-Session bekommt ihren eigenen bestätigten Gesprächsbesitz.
+Später lässt sich gerade diese Session über den vorhandenen Übergabeknopf
+an den PC übertragen, sobald dessen bestehende Arbeit abgeschlossen ist.
+
+Eigene laufende Notebook-Arbeit, Aufnahme/Ausgabe, Datenschutz und ungeklärte
+Übergaben sperren die Erstellung. Eine passive, am PC laufende Session sperrt
+sie dagegen nicht. Während Erstellung sind lokale Einsendungen/Transkription
+und weitere Erstellung gesperrt; ein spätes Resultat nach Geräte-/Profil-/
+Gatewaywechsel oder Datenschutz ersetzt die Auswahl nicht.
+
+Der Gateway-Vertrag session.create erzeugt zunächst einen leeren Draft ohne
+Datenbankzeile. Der explizite Knopf persistiert ausschließlich dessen gerade
+bestätigte stored_session_id über die vorhandene sessions/import-Route und
+prüft die gespeicherte leere Session. Nach Neustart ist sie auswählbar.
+Es werden weder alte Aufträge neu gesendet noch Gateway-Dienste neu gestartet.
+Wissen und verfügbare Werkzeuge kommen weiterhin aus demselben Hermes-Profil;
+das neue Gespräch hat einen eigenen Verlauf. Modellkapazität ist weiterhin
+gemeinsam: getrennte Sessions garantieren keine getrennte GPU.
+
+Die private Notebook-Loopback-API bietet POST /v1/session-new mit genau {}.
+Sie erlaubt keine Nachrichten, Clone-/Interrupt-Felder oder freie Zielwahl.
+Die bestehenden Datenschutz-/Auth-/Clientprüfungen bleiben aktiv.
+Prüfungen: device-session.test.cjs, linux-new-session.test.cjs,
+linux-ui.electron.cjs; tatsächliche Auswahl wird am angemeldeten Notebook geprüft.
