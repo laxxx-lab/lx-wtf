@@ -411,6 +411,12 @@ test('a transcribed voice request keeps thinking visible while local dispatch wa
   intent(false);await settle();assert.equal(r.calls.filter(call=>call.method==='submit').length,1);r.run('draw(2090)');assert.equal(r.run("$('phase').textContent"),'BEREIT');assert.equal(r.context.orbStates.at(-1),'idle');
 });
 
+test('an accepted wake command shows thinking during intent routing even without transcription',()=>{
+ const r=renderer();r.run("orbRenderer.draw=()=>{};orbPreviewRenderer.draw=()=>{};live=true;gatewayConnected=true;sessionInfo={id:'selected'};captureTurnId='wake-command';voiceDispatch={turnId:captureTurnId,request:liveRequest,sessionId:'selected',pushToTalk:null};transcribing=false;phase='ready';");
+ r.run('draw(2000)');assert.equal(r.run("$('phase').textContent"),'DENKT');
+ r.run('liveRequest++;draw(2030)');assert.equal(r.run("$('phase').textContent"),'BEREIT');
+});
+
 test('a typed command during a delayed voice check keeps its own input identity',async()=>{
   const r=renderer();preparePushToTalk(r);let intent;
   r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});if(method==='transcribe')return Promise.resolve('Öffne die Datei.');if(method==='system-intent'&&value==='Öffne die Datei.')return new Promise(resolve=>intent=resolve);return method==='snapshot'?new Promise(()=>{}):Promise.resolve();};

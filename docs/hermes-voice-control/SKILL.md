@@ -7,6 +7,12 @@ description: "Bei Steuerung von Liliths Windows-App verwenden."
 
 ## Zuverlässiger Kern · 14.10.2026
 
+Der Denk-Orb umfasst auch die Vorbereitung eines angenommenen freien Auftrags:
+Aufnahme abschließen, lokalen Befehl prüfen und Hermes-Anfrage vorbereiten.
+„Verarbeite deinen Auftrag“ beschreibt diesen Übergang; eine Netzwerkannahme
+ist weiterhin kein Nachweis einer ausgeführten Aktion. Ein aktueller
+Wakeword-Auftrag bleibt während der Befehlsprüfung sichtbar aktiv.
+
 Die tatsächliche Denkphase zeigt einen rotierenden Farbverlauf und
 gegenläufige Plasmabänder auf dem gemeinsamen Windows-/Linux-Orb.
 Status und Verlauf passen zusammen: benachbarte Farbtöne derselben Familie,

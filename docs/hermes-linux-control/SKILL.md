@@ -7,6 +7,10 @@ description: Linux-Notebook über den verbundenen Lilith-MCP bedienen.
 
 ## Adminaufgaben und lebendige Denkphase · 14.10.2026
 
+Die Denkdarstellung beginnt bereits bei der Einsendung („Verarbeite deinen
+Auftrag“), bevor Hermes die Anfrage bestätigt. Eine verspätete Annahme darf
+einen schon abgeschlossenen Gesprächszug nicht wieder als denkend anzeigen.
+
 Patrik hat automatische Root-Ausführung für ausdrücklich beauftragte
 Notebook-Adminaufgaben eingerichtet. Dafür das tatsächliche MCP-Werkzeug
 `mcp__lilith_zorin__admin_shell_run` verwenden, gegebenenfalls zuerst suchen.

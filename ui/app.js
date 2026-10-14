@@ -80,7 +80,7 @@ function syncSpeechSettings(){
   if(speechDictionaryEditor&&signature!==speechDictionarySignature){speechDictionaryEditor.set(entries);speechDictionarySignature=signature;}
 }
 function voiceCaptureCurrent(request,sessionId,held=null){return !privacyLocked&&request===liveRequest&&sessionId===sessionInfo?.id&&(held?gatewayConnected&&settings.pushToTalkEnabled===true&&held.key===settings.pushToTalkKey&&(pushToTalk.held===held||pushToTalk.finishing===held):live);}
-function visibleVoicePhase(){return phase==='ready'&&transcribing&&voiceDispatch&&voiceDispatch.turnId===captureTurnId&&voiceCaptureCurrent(voiceDispatch.request,voiceDispatch.sessionId,voiceDispatch.pushToTalk)?'thinking':phase;}
+function visibleVoicePhase(){return phase==='ready'&&voiceDispatch&&voiceDispatch.turnId===captureTurnId&&voiceCaptureCurrent(voiceDispatch.request,voiceDispatch.sessionId,voiceDispatch.pushToTalk)?'thinking':phase;}
 function clearSpeechCorrection(){const trace=$('speech-correction-trace');if(trace){trace.hidden=true;trace.open=false;}$('speech-correction-original')&&($('speech-correction-original').textContent='');$('speech-correction-text')&&($('speech-correction-text').textContent='');}
 function renderSpeechCorrection(event){
   if(privacyLocked||(event.sessionId&&event.sessionId!==sessionInfo?.id)||(event.turnId&&event.turnId!==captureTurnId))return;

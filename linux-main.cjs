@@ -89,7 +89,7 @@ async function submit(text,{captured,project}={}){
   access(captured);const target=handoffIntent(text);if(recallIntent(text)||target==='notebook')return handoff.requestRecall();if(target)return handoff.requestTransfer(target);if(!handoffCanSubmit()||handoffPendingCurrent())throw Error('Dieses Gespräch wird übergeben oder gehört zum anderen Gerät.');if(conversation.busy)throw Error('Ein Auftrag läuft. Bitte abschließen oder stoppen.');
   const prompt=linuxDeviceContext(device,notebookTools)+'\n\n'+(project?linuxProjectPrompt(projects,{...project,text},device):'Nutzerauftrag: '+text.trim());
   standbyActive=false;idleStandby.activity();
-  activeTools.clear();stopSpeech();reply=new ReplyAccumulator();emit({type:'user',text});await conversation.submit(prompt,{speak:true,sessionId:captured?.sessionId,isCurrent:()=>!config.privacyLocked&&connected&&handoffCanSubmit()&&!handoffPendingCurrent()});update(agentPhase(),'Hermes denkt nach');return {ok:true};
+  activeTools.clear();stopSpeech();reply=new ReplyAccumulator();emit({type:'user',text});const owner=conversation,selected=owner.session,ticket=generation,sending=owner.submit(prompt,{speak:true,sessionId:captured?.sessionId,isCurrent:()=>!config.privacyLocked&&connected&&handoffCanSubmit()&&!handoffPendingCurrent()});update(agentPhase(),'Verarbeite deinen Auftrag');try{await sending;}catch(error){if(owner===conversation&&selected===conversation.session&&ticket===generation&&connected&&!config.privacyLocked&&handoffCanSubmit())update('error','Auftrag konnte nicht gesendet werden');throw error;}return {ok:true};
 }
 function gatewayEvent(event){
   if(!conversation?.receive(event))return;

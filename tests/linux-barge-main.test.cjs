@@ -12,6 +12,24 @@ function fixture(){
  return {context,events,requests,transcriptions,run:code=>vm.runInContext(code,context),close(){fs.rmSync(root,{recursive:true,force:true});}};
 }
 const flush=async()=>{for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));};
+test('Linux publishes thinking while prompt acceptance is pending, with no ready gap',async()=>{
+ const f=fixture();try{f.run("conversation.busy=false;conversation.remoteRunning=false;status='ready';conversation.request=()=>new Promise(resolve=>globalThis.acceptPrompt=resolve);");
+  const pending=f.run("submit('Erkläre Bluetooth',{captured:{sessionId:'runtime',generation:7}})");await flush();assert.equal(f.run('status'),'thinking');assert.equal(f.events.filter(e=>e.type==='state').at(-1).snapshot.busy,true);f.run('acceptPrompt({})');await pending;
+ }finally{f.close();}
+});
+test('Linux late prompt acceptance cannot overwrite a completed turn with thinking',async()=>{
+ const f=fixture();try{f.run("conversation.busy=false;conversation.remoteRunning=false;status='ready';conversation.request=()=>new Promise(resolve=>globalThis.acceptPrompt=resolve);");
+  const pending=f.run("submit('Erkläre Bluetooth',{captured:{sessionId:'runtime',generation:7}})");await flush();f.run("gatewayEvent({type:'message.complete',session_id:'runtime',data:{status:'complete',text:''}});acceptPrompt({});");await pending;assert.equal(f.run('status'),'ready');
+ }finally{f.close();}
+});
+test('Linux failed current submission replaces thinking with an error',async()=>{
+ const f=fixture();try{f.run("conversation.busy=false;conversation.request=async()=>{throw Error('Send failed')};");await assert.rejects(f.run("actions.submit({text:'Erkläre Bluetooth',captured:{sessionId:'runtime',generation:7}})"),/Send failed/);assert.equal(f.run('status'),'error');assert.equal(f.run('conversation.busy'),false);}finally{f.close();}
+});
+test('Linux stale submission failure cannot overwrite offline or privacy state',async()=>{
+ for(const change of ["connected=false;update('offline','Offline')","generation++;config.privacyLocked=true;update('ready','Privat')"]){const f=fixture();try{
+  f.run("conversation.busy=false;conversation.request=()=>new Promise((_resolve,reject)=>globalThis.failPrompt=reject);");const pending=f.run("actions.submit({text:'Erkläre Bluetooth',captured:{sessionId:'runtime',generation:7}})");await flush();f.run(change);const status=f.run('status');f.run("failPrompt(Error('Late failure'))");await assert.rejects(pending,/Late failure/);assert.equal(f.run('status'),status);
+ }finally{f.close();}}
+});
 test('Linux spoken replacement preserves capture generation and waits for actual terminal after stop acceptance',async()=>{
  const f=fixture();try{let resolved=false;const stopping=f.run("actions.interrupt({bargeIn:true,captured:{sessionId:'runtime',generation:7}})").then(value=>{resolved=true;return value;});await flush();assert.equal(resolved,false);assert.equal(f.run('generation'),7);assert.equal(f.requests.filter(r=>r.method==='session.interrupt').length,1);
   f.run("gatewayEvent({type:'message.complete',session_id:'runtime',data:{status:'interrupted'}})");const result=await stopping;assert.equal(result.ready,true);assert.equal(result.busy,false);assert.equal(result.generation,7);assert.equal(f.run('conversation.session.storedId'),'stored');

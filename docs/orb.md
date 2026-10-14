@@ -88,4 +88,12 @@ keine erfundene Restzeit. Der Countdown schaltet keine Sensoren ein.
 
 Der Orb zeigt Denken beim Formulieren einer Antwort, auch bei Rechentiefe none. Tatsächliche Werkzeugaktionen zeigen Arbeiten. Ein noch laufendes zweites Werkzeug hält die Arbeitsdarstellung aufrecht. Aufnahme, tatsächliche Sprachausgabe und Datenschutz behalten Vorrang. Der Weg von Transkription zu Einsendung bleibt durchgehend erkennbar; ein verspätetes ready darf die aktuelle Einsendung nicht überblenden.
 
+Angenommene freie Aufträge zeigen die Denkdarstellung bereits beim Abschließen
+der Aufnahme, Prüfen lokaler Befehle und Vorbereiten der Hermes-Anfrage
+(Detail: „Verarbeite deinen Auftrag“). Sie warten dafür nicht auf die
+Netzwerkbestätigung. Auch ein Wakeword-Auftrag ohne erneute Transkription hält
+die Darstellung während seiner aktuellen Befehlsprüfung. Abgebrochene oder
+zu einer anderen Session gehörende Einsendungen überblenden „Bereit“ nicht.
+Ein weiterer wartender Auftrag überschreibt keine laufende Werkzeuganzeige.
+
 Bei Übergaben erhalten beide Clients ihre aktuelle Fenstergröße und zeigen den Orb ohne Fokusübernahme. Der Nutzer öffnet die Gesprächsansicht bei Bedarf selbst. Ruhezeit: [Standby](idle-standby.md).
