@@ -4,7 +4,7 @@ const api=require('../ui/orb.js');
 test('theme selection defaults to Classic and accepts only installed drawing styles',()=>{
   assert.equal(typeof api.normalizeOrbTheme,'function');
   assert.equal(api.normalizeOrbTheme(), 'classic');
-  for(const key of ['classic','voice-orb','ai-interface','particle-core','hud-core'])assert.equal(api.normalizeOrbTheme(key),key);
+  for(const key of ['classic','voice-orb','ai-interface','particle-core','hud-core','venom'])assert.equal(api.normalizeOrbTheme(key),key);
   for(const value of ['unknown','__proto__','constructor','<script>',{},null])assert.equal(api.normalizeOrbTheme(value),'classic');
 });
 test('switching a drawing theme retains the active renderer clock and measured speech envelope',()=>{

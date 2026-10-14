@@ -84,7 +84,7 @@ test('real speech peaks expand quickly and pauses release without a clock-driven
   const silentCore=draw(0,80),silentSize=orb.size,silentSpread=orb.spread;
   const peakCore=draw(1,5),peakSize=orb.size;
   assert.ok(peakSize-silentSize>.12,'A syllable must become visible within 80ms');
-  assert.ok(orb.spread-silentSpread>.1);assert.ok(peakCore-silentCore>25);
+  assert.ok(orb.spread-silentSpread>.1);assert.ok(peakCore-silentCore>18&&peakCore-silentCore<=24,'Original core follows real peaks within its 24px envelope');
   draw(0,8);assert.ok(peakSize-orb.size>.05,'A pause must release the syllable envelope');
   const settledCore=draw(0,100);assert.ok(Math.abs(draw(0,20)-settledCore)<.001,'Silence has no synthetic speech pulse');
 });

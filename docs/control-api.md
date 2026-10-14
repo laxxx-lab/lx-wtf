@@ -356,3 +356,11 @@ Windows-Timeränderung und kein erzwungenes Schließen. Details:
 Direkte Sprache wie „Wechsle zum Tischmikrofon“, „Erinnere mich in 10 Minuten
 an eine Pause“, „Stelle einen Timer auf 5 Minuten“ und „Fahre den PC in
 10 Minuten herunter“ wird bei eindeutigem Wortlaut lokal ausgeführt.
+
+## Kleine Aktivitätskarten und Home Assistant
+
+`GET/POST /v1/activity-cards` und `POST /v1/home-display` verwenden denselben
+privaten Loopback-Zugang. Status, absolute Countdownzeit und bekannte
+Kameraentity; Typen, Grenzen und Beispiele: [Aktivitätskarten](activity-cards.md).
+Keine frei wählbare URL, Shell oder Medienadresse. Beide Clients prüfen
+Datenschutz und aktuellen Gesprächsbesitz.

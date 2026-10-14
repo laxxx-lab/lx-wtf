@@ -190,7 +190,82 @@
     }
   }
 
-  const themes={'voice-orb':organic,'ai-interface':aiInterface,'particle-core':particleCore,'hud-core':hudCore};
+  function venom(ctx,p){
+    const {t,angle,amp,col,w,stroke,state}=p;
+    const fluidTime=t*(state==='working'?.95:w.think?1.2:.42),turn=angle*.18;
+    const energy=amp*(w.speak+w.listen*.8),R=87+energy*17;
+    const silver=ctx.createLinearGradient(-110,-145,120,145);
+    silver.addColorStop(0,'rgba(242,249,255,.95)');silver.addColorStop(.22,'rgba(150,166,178,.6)');
+    silver.addColorStop(.4,'rgba(56,69,81,.25)');silver.addColorStop(.7,'rgba(185,198,210,.65)');silver.addColorStop(1,'rgba(22,33,45,.4)');
+    const wet=ctx.createRadialGradient(-42,-60,2,8,18,145);
+    wet.addColorStop(0,'#85939e');wet.addColorStop(.1,'#37434d');wet.addColorStop(.25,'#10161d');
+    wet.addColorStop(.53,'#020406');wet.addColorStop(.78,'#111820');wet.addColorStop(1,'#040609');
+    const contour=points=>{
+      ctx.beginPath();for(let i=0;i<points.length;i++){const q=points[i];i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y);}ctx.closePath();
+    };
+    const membrane=points=>{
+      contour(points);ctx.fillStyle=wet;ctx.fill();ctx.strokeStyle=silver;ctx.lineWidth=1.9*stroke;ctx.stroke();
+    };
+    const surface=a=>R*(1+.065*Math.sin(a*3+fluidTime*1.1)+.035*Math.sin(a*5-fluidTime*.9)+energy*.065*Math.sin(a*7-fluidTime*2.8));
+    aura(ctx,col,177,.075+energy*.05);
+    // Tapered, curling membranes join the body under its silhouette. A bulb
+    // stretches at each end before retracting; no detached particle effect.
+    for(let j=0;j<5;j++){
+      const direction=j*TAU/5+turn+.23*Math.sin(fluidTime*.6+j*1.7);
+      const stretch=.5+.5*Math.sin(fluidTime*1.25+j*2.3),length=25+stretch*(40+w.think*22+energy*23);
+      const left=[],right=[];
+      for(let i=0;i<=40;i++){
+        const u=i/40,radial=R*.76+length*u;
+        const curl=(state==='working'?.19:.55+w.think*.4)*Math.sin(fluidTime*.7+j)*u*u;
+        const a=direction+curl,cx=Math.cos(a)*radial,cy=Math.sin(a)*radial;
+        const tangent=a+Math.atan2(2*curl*radial,Math.max(1,length));
+        const width=(14+energy*9)*(1-u)**.75+9*stretch*Math.exp(-(((u-.8)/.16)**2))*Math.sin(Math.PI*u);
+        left.push({x:cx-Math.sin(tangent)*width,y:cy+Math.cos(tangent)*width});
+        right.push({x:cx+Math.sin(tangent)*width,y:cy-Math.cos(tangent)*width});
+      }
+      membrane(left.concat(right.reverse()));
+      // A slender wet glint travels along the bend, distinct from a HUD ring.
+      ctx.beginPath();
+      for(let i=5;i<32;i++){const q=left[i];i===5?ctx.moveTo(q.x+2,q.y+2):ctx.lineTo(q.x+2,q.y+2);}
+      ctx.lineWidth=1.25*stroke;ctx.strokeStyle='rgba(239,246,251,.48)';ctx.stroke();
+    }
+    // Satellites periodically intersect the surface and disappear inside it,
+    // producing the swell/merge rhythm of a liquid rather than an orbit scale.
+    for(let j=0;j<4;j++){
+      const a=j*TAU/4+1.1+turn+fluidTime*.16,release=.5+.5*Math.sin(fluidTime*1.1+j*2.8);
+      const radial=R*.78+release*55,size=9+release*7;
+      const x=Math.cos(a)*radial,y=Math.sin(a)*radial;
+      const drop=ctx.createRadialGradient(x-size*.35,y-size*.4,0,x,y,size);
+      drop.addColorStop(0,'#d3dde4');drop.addColorStop(.18,'#4c5963');drop.addColorStop(.5,'#0d1218');drop.addColorStop(1,'#020406');
+      ctx.fillStyle=drop;ctx.beginPath();ctx.arc(x,y,size,0,TAU);ctx.fill();
+      ctx.strokeStyle=silver;ctx.lineWidth=stroke;ctx.stroke();
+    }
+    const body=[];
+    for(let i=0;i<240;i++){const a=i/240*TAU,r=surface(a);body.push({x:Math.cos(a)*r,y:Math.sin(a)*r});}
+    membrane(body);
+    ctx.save();contour(body);ctx.clip();
+    // Asymmetric curved specular ribbons on a black skin. These are the long
+    // reflections of a soft light source, never paired eyes or a comic face.
+    for(let j=0;j<7;j++){
+      const a0=-2.7+j*.69+turn+Math.sin(fluidTime*.32+j)*.17;
+      const inner=j<3?.83:.37+(j-3)*.105,length=j<3?.6:.8;
+      const bright=j===0||j===3,outer=[],inside=[];
+      for(let i=0;i<=42;i++){
+        const u=i/42,a=a0+u*length,r=surface(a)*inner+Math.sin(u*Math.PI)*Math.sin(fluidTime+j)*7;
+        const width=Math.sin(u*Math.PI)**.7*(bright?5.3:2.1)*(1+energy*.6);
+        outer.push({x:Math.cos(a)*(r+width),y:Math.sin(a)*(r+width)});
+        inside.push({x:Math.cos(a)*(r-width),y:Math.sin(a)*(r-width)});
+      }
+      contour(outer.concat(inside.reverse()));ctx.fillStyle=bright?'rgba(235,244,250,.69)':'rgba(141,162,180,.3)';ctx.fill();
+    }
+    // The user's actual state color appears as a restrained internal sheen.
+    const accent=ctx.createRadialGradient(R*.38,R*.36,0,R*.2,R*.2,R);
+    accent.addColorStop(0,col(50,.22+energy*.12));accent.addColorStop(.48,col(28,.08));accent.addColorStop(1,col(15,0));
+    ctx.fillStyle=accent;ctx.beginPath();ctx.arc(0,0,R*1.25,0,TAU);ctx.fill();ctx.restore();
+    contour(body);ctx.strokeStyle=col(60,.32+energy*.2);ctx.lineWidth=1.1*stroke;ctx.stroke();
+  }
+
+  const themes={'voice-orb':organic,'ai-interface':aiInterface,'particle-core':particleCore,'hud-core':hudCore,venom};
   // Caller supplies the existing clock (seconds/radians), state and real audio
   // envelope. This module owns no session state, input device or animation loop.
   function drawReferenceTheme(ctx,theme,{time=0,angle=0,state='idle',amplitude=0,color=[57,220,255],reducedMotion=false,intensity=1,compact=false}={}){
@@ -209,7 +284,7 @@
     veil.addColorStop(0,'rgba(4,10,17,.8)');veil.addColorStop(.65,'rgba(4,10,17,.72)');
     veil.addColorStop(.9,'rgba(4,10,17,.45)');veil.addColorStop(1,'rgba(4,10,17,0)');
     ctx.fillStyle=veil;ctx.beginPath();ctx.arc(0,0,184,0,TAU);ctx.fill();
-    draw(ctx,{t,angle:a,amp,col,w,stroke:compact?1.2:1});
+    draw(ctx,{t,angle:a,amp,col,w,state,stroke:compact?1.2:1});
     ctx.restore();return true;
   }
   const api={drawReferenceTheme};

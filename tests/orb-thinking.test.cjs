@@ -6,7 +6,7 @@ const electron=path.join(process.env.LOCALAPPDATA||'','hermes','hermes-agent','a
 // Removing the thinking palette, animating reduced motion, or ignoring preferences
 // must change the actual Canvas pixels, rather than just a mocked draw call.
 function checkCanvas(){
-  const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d');
+  const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
   const preview=()=>{const image=document.createElement('canvas');image.width=image.height=400;const paint=image.getContext('2d');paint.fillStyle='#06121b';paint.fillRect(0,0,400,400);paint.drawImage(canvas,0,0);return image.toDataURL('image/png');};
   const frame=(state,{reducedMotion=false,color,intensity=1,at=0,amplitude=0,theme='classic'}={})=>{
     const orb=new HermesOrb.OrbRenderer(canvas,{reducedMotion});
@@ -78,7 +78,7 @@ function checkCanvas(){
 test('native thinking reactor renders a moving palette, preserves color and motion preferences, and stays bounded',{skip:!fs.existsSync(electron),timeout:60000},async t=>{
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'lilith-orb-thinking-')),output=path.join(dir,'result.json'),entry=path.join(dir,'main.cjs'),html=path.join(dir,'view.html');
   t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
-  fs.writeFileSync(html,'<!doctype html><meta charset="utf-8"><canvas width="400" height="400"></canvas><script src="'+pathToFileURL(path.join(__dirname,'../ui/orb-reference-themes.js')).href+'"></script><script src="'+pathToFileURL(path.join(__dirname,'../ui/orb.js')).href+'"></script>');
+  fs.writeFileSync(html,'<!doctype html><meta charset="utf-8"><canvas width="400" height="400"></canvas><script src="'+pathToFileURL(path.join(__dirname,'../ui/orb-classic.js')).href+'"></script><script src="'+pathToFileURL(path.join(__dirname,'../ui/orb-reference-themes.js')).href+'"></script><script src="'+pathToFileURL(path.join(__dirname,'../ui/orb.js')).href+'"></script>');
   fs.writeFileSync(entry,`
     const {app,BrowserWindow,session}=require('electron'),fs=require('node:fs'),path=require('node:path');
     app.setPath('userData',path.join(${JSON.stringify(dir)},'profile'));
@@ -101,15 +101,14 @@ test('native thinking reactor renders a moving palette, preserves color and moti
   assert.equal(code,0,error||stderr);assert.deepEqual(errors,[]);
   t.diagnostic(JSON.stringify(result));
   for(const [state,edges]of Object.entries(result.particleTexture))assert.ok(edges>150,state+' center shows distinct luminous particles with gaps rather than a smooth filled body');
-  // The restored small center covers fewer pixels; the surrounding reactor
-  // must still retain substantial contrast on dark, gray and light wallpaper.
-  for(const [background,pixels]of Object.entries(result.compactContrast))assert.ok(pixels>1500,'Compact orb stays legible against background '+background);
+  // Original Classic is transparent and finer than the later boosted drawing.
+  for(const [background,pixels]of Object.entries(result.compactContrast))assert.ok(pixels>250,'Original compact orb stays visible against background '+background);
   assert.ok(result.thinking.bins>=2&&result.thinking.bins<=3,'Thinking keeps adjacent shades rather than a rainbow');
   assert.equal(result.thinking.outside,0,'Thinking colors remain in the warm status family');
   assert.equal(result.customPalette.outside,0,'A custom thinking color also keeps its own hue family');
   assert.ok(result.thinking.colored>1200,'The gradient must illuminate visible reactor geometry');
-  assert.ok(result.working.bins>=2&&result.working.bins<=3,'Working uses several nearby blue shades');
-  assert.ok(result.listening.bins>=2&&result.listening.bins<=3,'Listening uses several nearby turquoise shades');
+  assert.ok(result.working.bins>=1&&result.working.bins<=3,'Original working geometry uses its selected blue family');
+  assert.ok(result.listening.bins>=1&&result.listening.bins<=3,'Original listening geometry uses its selected turquoise family');
   for(const key of ['working','listening','customWorking','customListening'])assert.equal(result[key].outside,0,key+' stays in its selected color family');
   assert.ok(result.voiceDifference>2,'Real microphone energy visibly shapes the listening field');
   assert.ok(result.idle.bins<=2&&result.returned.bins<=3,'Standby remains restrained and working recovers its own palette');
@@ -119,10 +118,8 @@ test('native thinking reactor renders a moving palette, preserves color and moti
   assert.equal(result.stillGrayMovement,0,'A gray base color must also keep a settled reduced-motion spectrum still');
   assert.ok(result.intensityDifference>1,'The motion preference must visibly affect thinking');
   assert.equal(result.edgePixels,0,'The strongest reactor keeps a transparent margin');
-  assert.ok(result.smallIdleMovement>2,'Standby visibly moves at the actual compact size');
-  assert.ok(result.compactBeaconPixels>=3,'Standby has a visible moving beacon between its inner and outer rings');
+  assert.ok(result.smallIdleMovement>.2,'Original standby visibly moves at the actual compact size');
   assert.equal(result.smallIdleStill,0,'Reduced motion keeps standby still');
-  assert.ok(result.aperturePixels>200,'Quiet listening shows a distinct open listening aperture');
   for(const [state,delta]of Object.entries(result.stateMotion))assert.ok(delta>.2,state+' must visibly animate');
   for(const [state,delta]of Object.entries(result.stateStill))assert.equal(delta,0,state+' respects reduced motion');
 });

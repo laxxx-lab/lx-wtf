@@ -7,6 +7,24 @@ description: "Bei Steuerung von Liliths Windows-App verwenden."
 
 ## Zuverlässiger Kern · 14.10.2026
 
+Kleine Aktivitätsfenster über `control.ps1 -Action activity-cards` lesen;
+mit `-CardJson` eine frische Karte anzeigen/aktualisieren oder schließen.
+Home Assistant: `-Action home-display -Operation open` zur lokalen Anmeldung,
+`-Operation inventory` für begrenzte Entity-Metadaten,
+`-Operation camera -CameraEntity camera.<id>` für eine bekannte Kamera.
+Der vorhandene Home-Assistant-Agent darf damit sinnvoll Status/Countdowns
+anzeigen; keine neue öffentliche Netzwerk-API öffnen.
+
+Vertrag: `docs/activity-cards.md`. Countdown benötigt tatsächlich beobachtete
+absolute Endzeit; eine Schätzung als `estimate` kennzeichnen. Ohne verlässliche
+Vorheiz-Endzeit tatsächliche Temperatur/Status zeigen. Ablauf ist keine
+bestätigte Fertigstellung. Defekte Geräte bleiben `unavailable`. Kameraöffnung
+belegt kein Livebild; `inventory.camera.playing` separat prüfen. Keine Passwörter,
+Tokens, signierten Kamera-URLs oder beliebiges HTML an Karten übergeben.
+Karten öffnen ohne Fokusübernahme; Datenschutz und fremder Gesprächsbesitz
+sperren/schließen die Ansicht.
+
+
 Natürlich formulierte Fortsetzungswünsche wie „Lass uns am PC weiter arbeiten“,
 „Ich würde gern am PC weitermachen“ oder „Ich arbeite jetzt am PC weiter“
 gehen lokal an die vorhandene Gesprächsübergabe. Füllwörter und persönliche
@@ -21,7 +39,7 @@ bleibt unten erreichbar. Vertrag: `docs/settings-view.md`.
 
 Der ganze Orb ist unter **Einstellungen → Orb → Orb-Design** sofort
 umschaltbar: **Lilith Classic** (ursprünglicher Kern, Standard), **Voice Orb**,
-**AI Interface**, **Particle Core** und **HUD Core**. Die Auswahl wird pro Gerät
+**AI Interface**, **Particle Core**, **HUD Core** und **Venom**. Die Auswahl wird pro Gerät
 gespeichert. Ein Theme-Wechsel stoppt keine Aufnahme/Ausgabe und ändert keine
 Session. **Standardfarben** behält das Theme. Eigene Farben, echte Zustände und
 Sprachpegel sowie reduzierte Bewegung bleiben maßgeblich; Animation belegt
@@ -37,14 +55,14 @@ Aufnahme abschließen, lokalen Befehl prüfen und Hermes-Anfrage vorbereiten.
 ist weiterhin kein Nachweis einer ausgeführten Aktion. Ein aktueller
 Wakeword-Auftrag bleibt während der Befehlsprüfung sichtbar aktiv.
 
-Die tatsächliche Denkphase zeigt einen rotierenden Farbverlauf und
-gegenläufige Plasmabänder auf dem gemeinsamen Windows-/Linux-Orb.
-Status und Verlauf passen zusammen: benachbarte Farbtöne derselben Familie,
-standardmäßig Amber, Gold und Kupfer mit warmen hellen Akzenten.
-Arbeiten zeigt blaue Lichtpakete mit Schweifen; Zuhören eine türkisfarbene,
-pegelabhängige Welle. Diese Effekte zeigen den Zustand, keinen Auftragsfortschritt.
-Eigene Denkfarbe, Bewegungsregler und reduzierte Bewegung bleiben erhalten. Die Animation belegt
-keine Werkzeugausführung. Für ausdrücklich beauftragte Root-Aufgaben auf dem
+**Lilith Classic** verwendet wieder das Original aus `c77247d` vom 11.10.2026:
+kleiner Lichtkern, Gyroskopringe, Partikel und transparente Corona. Keine dunkle
+Unterlegung, organischen Zusatzkörper oder kompakte Vergrößerung. Venom zeigt
+schwarze flüssige Formen und silberne Reflexe mit dezentem Statuslicht. Alle
+Themes verwenden echte Zustände und Sprachpegel sowie die lokale Bewegungswahl.
+Eine Animation bestätigt keine Werkzeugausführung.
+
+Für ausdrücklich beauftragte Root-Aufgaben auf dem
 Notebook den Skill `hermes-linux-control` und dessen eigenes
 `mcp__lilith_zorin__admin_shell_run` verwenden; das verleiht diesem Windows-Client
 keine allgemeinen Windows-Adminrechte.
@@ -52,9 +70,8 @@ keine allgemeinen Windows-Adminrechte.
 Die Standardfarben zeigen die Tätigkeit: Zuhören Türkis, Sprechen helles Cyan,
 Arbeiten Blau, Kamerablick Violett, Erfolg Grün, Freigabe/Rückfrage Amber,
 Fehler Rot und Offline Blaugrau. Eigene Farbpräferenzen bleiben maßgeblich.
-Standby dreht die kompakte Struktur langsam, mit Lichtpunkt und weichem Puls;
-Zuhören zeigt offene Bögen und echte Mikrofonpegel statt künstlicher Peaks.
-Orb-Animation ist lokal auf Animiert, Systemstandard oder Reduziert einstellbar.
+Classic-Standby zeigt die ursprünglichen langsam bewegten Ringe und den kleinen
+Kern. Orb-Animation ist lokal auf Animiert, Systemstandard oder Reduziert einstellbar.
 Alle Zustände respektieren die gewählte Bewegung. Dies schaltet keine Sensoren
 ein und ist kein Nachweis einer erfolgreichen Aktion. Details: `docs/orb.md`.
 
