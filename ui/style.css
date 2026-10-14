@@ -25,6 +25,7 @@ body.expanded #companion{margin:8px;height:calc(100vh - 16px);padding:19px 22px 
 .camera-settings>small{display:block;font-size:9px;line-height:1.5;color:var(--muted);margin-top:11px}
 
 :root{--orb-accent:#39dcff}
+body:not(.expanded) .core{height:258px}body:not(.expanded) #orb{width:180px;height:180px}body:not(.expanded) #detail{max-width:208px}
 #handoff-location{color:#b2ebe4;font-size:10px;max-width:170px;min-height:13px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:2px 0 5px}body:not(.expanded) .core:has(#handoff-location:not([hidden])) #detail{display:none}body.expanded .core:has(#handoff-location:not([hidden])){height:315px}#handoff-recall{-webkit-app-region:no-drag;flex-shrink:0}
 #phase{color:var(--orb-accent);transition:color .25s}
 .live.active{color:var(--orb-accent);border-color:var(--orb-accent)}

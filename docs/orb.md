@@ -28,6 +28,12 @@ zum Kern. Mausbewegung neigt die Projektion. Anklicken erzeugt einen Impuls
 und öffnet die Steuerung; Ziehen bewegt das Fenster. Kompakt dockt der Orb
 mit 12 Pixeln Abstand in der Arbeitsfläche des aktuellen Monitors an.
 
+Der kompakte Windows-Orb ist seit 15.10.2026 um 20 Prozent größer:
+180 statt 150 Pixel Zeichenfläche in einem transparenten Fenster von
+228 × 276 Pixeln. Er bleibt über anderen Fenstern, ohne deren Tastaturfokus
+zu übernehmen. Explizites Ausblenden bleibt wirksam; die große Einstellungsansicht
+behält normales Fensterverhalten. Die Notebook-Größe bleibt unverändert.
+
 Die gemeinsame Sprachhülle folgt ausschließlich dem gemessenen Mikrofon- oder
 Wiedergabepegel, mit kurzem Anstieg und sanftem Abklingen. Sprachsilben öffnen
 den gesamten Orb von 76 bis 100 Prozent und die Ringe von 78 bis 100 Prozent.

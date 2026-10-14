@@ -7,6 +7,11 @@ description: "Bei Steuerung von Liliths Windows-App verwenden."
 
 ## Zuverlässiger Kern · 14.10.2026
 
+Der kompakte Windows-Orb bleibt im Vordergrund ohne Fokusübernahme und ist
+um 20 Prozent größer (180 Pixel Zeichenfläche, 228 × 276 Pixel Fenster).
+Explizites Ausblenden bleibt wirksam; Einstellungen verwenden normales
+Fensterverhalten. Dafür keine fremden Fenster fokussieren oder umordnen.
+
 **Fenster anordnen** verwendet Windows-Bordmittel über die laufende Voice-App.
 Zuerst `control.ps1 -Action windows`: `desktop.sessionId` und physische
 `desktop.monitors[].workArea` sind maßgeblich; jedes Fenster enthält sein

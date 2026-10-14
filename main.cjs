@@ -759,7 +759,7 @@ function drainCameraGreetings(){
   const [name]=cameraGreetings.splice(index,1);idleStandby.activity();
   const text=`Willkommen zurück, ${name}. Ich bin hier, wenn du mich brauchst.`;emit('camera-greeting',{text});speak(text);
 }
-let win,tray,authSession,gateway,conversation,loginWindow,interval,clarification=null,settingsWindowView;
+let win,tray,authSession,gateway,conversation,loginWindow,interval,clarification=null,settingsWindowView,orbTopInterval=null;
 let actionHandlers=null,controlApi=null,controlSequence=0,suppressedRemoteSession=null;
 let activityCardsWindow=null;
 const safety=new LocalSafety({initialLocked:config.privacyLocked,onChange:value=>{
@@ -1305,14 +1305,18 @@ async function resumeStandby({sessionId}={}){
     throw error;
   }
 }
+function keepOrbOnTop(){
+  if(!win||win.isDestroyed()||!win.isVisible()||settingsWindowView?.active||win.getBounds().width>228)return;
+  win.setAlwaysOnTop(true,'screen-saver');win.moveTop();
+}
 function expand(open){
   if(!win)return;
   if(settingsWindowView?.active){if(open){emit('expanded',{expanded:true});return;}settingsWindowView.set(false);}
   const bounds=win.getBounds(),area=screen.getDisplayMatching(bounds).workArea;
-  const width=open?460:190,height=open?740:230;
+  const width=Math.min(open?460:228,area.width),height=Math.min(open?740:276,area.height);
   const x=open?Math.max(area.x,Math.min(bounds.x,area.x+area.width-width)):Math.max(area.x,area.x+area.width-width-12);
   const y=open?Math.max(area.y,Math.min(bounds.y,area.y+area.height-height)):Math.max(area.y,area.y+area.height-height-12);
-  win.setBounds({x,y,width,height});emit('expanded',{expanded:open});
+  win.setBounds({x,y,width,height});keepOrbOnTop();emit('expanded',{expanded:open});
   positionHud();
 }
 async function login(){
@@ -1687,7 +1691,7 @@ function registerHandlers(){
       for(const q of clarification.questions){const value=answers?.[q.qid];if(typeof value!=='string'||value.length>10000)throw new Error('Bitte alle Rückfragen beantworten.');result[q.qid]=value;}
       gateway.respond(clarification.id,{answers:result});clarification=null;state('working','Hermes setzt fort');
     },
-    'settings-view':(_e,open)=>{if(typeof open!=='boolean')throw Error('Ungültige Ansicht.');if(!win)throw Error('Fenster nicht verfügbar.');settingsWindowView||=createSettingsWindowView(win,screen,value=>emit('settings-view-state',{open:value}));return settingsWindowView.set(open);},
+    'settings-view':(_e,open)=>{if(typeof open!=='boolean')throw Error('Ungültige Ansicht.');if(!win)throw Error('Fenster nicht verfügbar.');settingsWindowView||=createSettingsWindowView(win,screen,value=>{emit('settings-view-state',{open:value});if(!value)keepOrbOnTop();});return settingsWindowView.set(open);},
     expand:(_e,open)=>expand(!!open),
     move:(_e,point)=>{if(!Number.isFinite(point?.x)||!Number.isFinite(point?.y))return;const area=screen.getDisplayNearestPoint(point).workArea,b=win.getBounds();win.setPosition(Math.round(Math.max(area.x,Math.min(point.x,area.x+area.width-b.width))),Math.round(Math.max(area.y,Math.min(point.y,area.y+area.height-b.height))));positionHud();},
     quit:()=>app.quit()
@@ -1698,7 +1702,7 @@ function registerHandlers(){
   });
   return actions;
 }
-app.on('before-quit',()=>{shuttingDown=true;activityCardsWindow?.hide();clearInterval(idleStandbyTimer);sessionHandoff?.close();cancelLocalConversation({clear:true});turnDetector.stop();taskWaitFeedback.finish();pttHotkey?.close();localCommandAbort?.abort();clearTimeout(jobPumpTimer);for(const timer of missionReleaseTimers.values())clearTimeout(timer);missionReleaseTimers.clear();cancelCurrentContent({clear:true});circleController?.dispose();artcraftController?.dispose();guideController?.dispose();projectGraph.dispose();intelAbort?.abort();resetContextObserver();workbench?.destroy();clearInterval(interval);clearInterval(everydayInterval);clearInterval(voiceHealthInterval);clearInterval(contextInterval);clearInterval(hudInterval);clearTimeout(markerTimer);screenAbort?.abort();hudWindow?.destroy();markerWindow?.destroy();controlApi?.close();for(const pending of pendingControls.values()){clearTimeout(pending.timer);pending.reject(new Error('Voice-App wurde beendet.'));}pendingControls.clear();cameraService?.close();stopSpeech();gateway?.close();if(app.isReady())globalShortcut.unregisterAll();for(const child of children)child.kill();});
+app.on('before-quit',()=>{shuttingDown=true;clearInterval(orbTopInterval);activityCardsWindow?.hide();clearInterval(idleStandbyTimer);sessionHandoff?.close();cancelLocalConversation({clear:true});turnDetector.stop();taskWaitFeedback.finish();pttHotkey?.close();localCommandAbort?.abort();clearTimeout(jobPumpTimer);for(const timer of missionReleaseTimers.values())clearTimeout(timer);missionReleaseTimers.clear();cancelCurrentContent({clear:true});circleController?.dispose();artcraftController?.dispose();guideController?.dispose();projectGraph.dispose();intelAbort?.abort();resetContextObserver();workbench?.destroy();clearInterval(interval);clearInterval(everydayInterval);clearInterval(voiceHealthInterval);clearInterval(contextInterval);clearInterval(hudInterval);clearTimeout(markerTimer);screenAbort?.abort();hudWindow?.destroy();markerWindow?.destroy();controlApi?.close();for(const pending of pendingControls.values()){clearTimeout(pending.timer);pending.reject(new Error('Voice-App wurde beendet.'));}pendingControls.clear();cameraService?.close();stopSpeech();gateway?.close();if(app.isReady())globalShortcut.unregisterAll();for(const child of children)child.kill();});
 if(!app.requestSingleInstanceLock()){app.quit();}else{
   app.on('second-instance',(_event,argv)=>{win?.show();expand(true);if(argv?.includes('--login'))void login().catch(error=>emit('notice',{message:error.message}));});
   app.whenReady().then(async()=>{
@@ -1707,12 +1711,12 @@ if(!app.requestSingleInstanceLock()){app.quit();}else{
     authSession=session.fromPartition('persist:hermes-voice-'+crypto.createHash('sha256').update(config.url).digest('hex').slice(0,12));
     authSession.setPermissionRequestHandler((_web,_permission,callback)=>callback(false));
     const area=screen.getPrimaryDisplay().workArea;
-    win=new BrowserWindow({width:190,height:230,x:Math.max(area.x,area.x+area.width-202),y:Math.max(area.y,area.y+area.height-242),frame:false,transparent:true,alwaysOnTop:true,skipTaskbar:true,resizable:false,hasShadow:false,show:false,webPreferences:{preload:path.join(ROOT,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false,autoplayPolicy:'no-user-gesture-required'}});
+    win=new BrowserWindow({width:Math.min(228,area.width),height:Math.min(276,area.height),x:Math.max(area.x,area.x+area.width-240),y:Math.max(area.y,area.y+area.height-288),frame:false,transparent:true,alwaysOnTop:true,skipTaskbar:true,resizable:false,hasShadow:false,show:false,webPreferences:{preload:path.join(ROOT,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false,autoplayPolicy:'no-user-gesture-required'}});
     session.defaultSession.setPermissionRequestHandler((web,permission,callback,details)=>callback(!config.privacyLocked&&permission==='media'&&web===win.webContents&&web.getURL().startsWith('file://')&&(!details?.mediaTypes?.includes('video')||config.cameraEnabled||(config.screenEnabled&&[...pendingControls.values()].some(value=>value.action==='screen')))));
     win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
     win.webContents.on('will-navigate',event=>event.preventDefault());
     win.on('close',event=>{if(!shuttingDown){event.preventDefault();win.hide();}});
-    actionHandlers=registerHandlers();await win.loadFile(path.join(ROOT,'ui/index.html'));getActivityCards();win.show();
+    actionHandlers=registerHandlers();await win.loadFile(path.join(ROOT,'ui/index.html'));getActivityCards();win.show();keepOrbOnTop();win.on('show',keepOrbOnTop);win.on('blur',keepOrbOnTop);orbTopInterval=setInterval(keepOrbOnTop,1000);orbTopInterval.unref?.();
     idleStandbyTimer=setInterval(()=>void checkIdleStandby(),1000);idleStandbyTimer.unref?.();
     ensureWorkbench();
     if(config.graphProjectRoot&&!config.privacyLocked)projectGraph.restore(config.graphProjectRoot);

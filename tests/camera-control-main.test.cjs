@@ -319,9 +319,9 @@ test('opening an existing app a second time can exit before Electron readiness w
 test('collapsing docks above the taskbar on the current monitor, including negative monitor coordinates',()=>{
   for(const area of [{x:0,y:0,width:1920,height:1040},{x:-1920,y:120,width:1920,height:1040},{x:2560,y:-200,width:1600,height:860}]){
     const f=fixture(),bounds={x:area.x+350,y:area.y+100,width:460,height:740};f.context.fixtureDisplay={workArea:area};
-    f.context.fixtureWindow={getBounds:()=>bounds,setBounds:value=>Object.assign(bounds,value)};
+    f.context.fixtureWindow={getBounds:()=>bounds,setBounds:value=>Object.assign(bounds,value),isDestroyed:()=>false,isVisible:()=>true,setAlwaysOnTop(){},moveTop(){}};
     vm.runInContext('win=fixtureWindow;expand(false);',f.context);
-    assert.deepEqual(bounds,{x:area.x+area.width-190-12,y:area.y+area.height-230-12,width:190,height:230});
+    assert.deepEqual(bounds,{x:area.x+area.width-228-12,y:area.y+area.height-276-12,width:228,height:276});
   }
 });
 
