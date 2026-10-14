@@ -7,6 +7,12 @@ description: Linux-Notebook über den verbundenen Lilith-MCP bedienen.
 
 ## Adminaufgaben und lebendige Denkphase · 14.10.2026
 
+Die Orb-Mitte zeigt drei weiche Lichtschichten mit zustandsabhängigem Fluss.
+Der kleine Orb hat kräftigere Konturen und eine dunkle kreisförmige Unterlegung;
+seine Fensterecken bleiben transparent. Sprechen folgt dem echten lokalen
+Wiedergabepegel, Zuhören dem Mikrofonpegel. Eigene Farben und reduzierte Bewegung
+bleiben erhalten; die Darstellung ist kein Nachweis einer ausgeführten Aktion.
+
 Notebook-Standby ist direkt über den **Standby**-Knopf oder „Lilith, geh bitte
 in den Standby“ verfügbar. Das pausiert die lokale Aufnahme/Ausgabe; ein
 laufender Hermes-Auftrag wird dadurch nicht unterbrochen. Gesprochene Übergaben

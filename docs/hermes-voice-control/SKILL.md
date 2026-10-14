@@ -7,6 +7,12 @@ description: "Bei Steuerung von Liliths Windows-App verwenden."
 
 ## Zuverlässiger Kern · 14.10.2026
 
+Die Orb-Mitte zeigt einen weichen Körper aus drei Lichtschichten, gekoppelt an
+Zustand und echte Sprachpegel. Die kleine Ansicht zeichnet kräftigere Konturen
+und eine dunkle kreisförmige Unterlegung bei transparenten Fensterecken.
+Eigene Farben und reduzierte Bewegung bleiben maßgeblich; Animation belegt
+keine erledigte Aktion. Der gemeinsame Renderer gilt auch auf dem Notebook.
+
 Gesprächsübergaben dürfen mit „Lilith“, „Hey Lilith“ oder „Hermes“ beginnen,
 zum Beispiel „Lilith, ich will wieder am Gaming-PC arbeiten“. Dafür den
 lokalen Übergabeablauf verwenden, keinen Modell-/SSH-Auftrag erzeugen.

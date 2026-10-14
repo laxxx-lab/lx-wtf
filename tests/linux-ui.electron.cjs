@@ -1,5 +1,5 @@
 'use strict';
-// Isolated real Chromium renderer. This never opens a microphone, model or gateway.
+// Isolated real Chromium renderer. No microphone, model or gateway; PCM probes are muted.
 const {app,BrowserWindow,ipcMain,screen}=require('electron'),path=require('node:path'),fs=require('node:fs'),assert=require('node:assert/strict'),{execFileSync}=require('node:child_process');
 const {createLinuxOrbWindow}=require('../linux-window.cjs');
 const root=path.join(__dirname,'..'),output=path.join(root,'.local/linux-ui-qa'),calls=[],errors=[];
@@ -10,14 +10,20 @@ ipcMain.handle('linux:snapshot',()=>state);
 for(const method of ['submit','select','privacy','workbench','answer','interrupt','settings','login','audition','transcribe','panel','handoff','recall','input-state','activity','wake-resume','standby'])ipcMain.handle('linux:'+method,async(_event,value)=>{calls.push({method,value});if(method==='standby'){state={...state,standby:{active:true},generation:state.generation+1};win.webContents.send('linux:event',{type:'standby-state',active:true,generation:state.generation});return state;}if(method==='panel'){state={...state,panelOpen:value===true};win.webContents.send('linux:event',{type:'panel-state',expanded:value===true});return {expanded:value===true};}if(method==='privacy'){state={...state,privacyLocked:value,generation:state.generation+1};win.webContents.send('linux:event',{type:'state',snapshot:state});return state;}if(method==='settings'){state={...state,settings:{...state.settings,...value}};return state;}if(method==='select')return state;return {ok:true};});
 async function update(values){state={...state,...values};win.webContents.send('linux:event',{type:'state',snapshot:state});await pause();}
 async function run(){
-  windowShell=createLinuxOrbWindow({BrowserWindow,screen,root});win=windowShell.win;win.webContents.on('console-message',(_event,level,message)=>{if(level>=3)errors.push(message);});await win.loadFile(path.join(root,'ui/linux.html'));windowShell.setPanel(true);await pause();
+  windowShell=createLinuxOrbWindow({BrowserWindow,screen,root});win=windowShell.win;win.webContents.setAudioMuted(true);win.webContents.on('console-message',(_event,level,message)=>{if(level>=3)errors.push(message);});await win.loadFile(path.join(root,'ui/linux.html'));windowShell.setPanel(true);win.showInactive();await pause();
+  const corePixels=await win.webContents.executeJavaScript(`(()=>{const c=document.getElementById('orb'),p=c.getContext('2d').getImageData(174,174,52,52).data;let count=0;for(let i=3;i<p.length;i+=4)if(p[i]>190)count++;return count;})()`);assert.ok(corePixels>350,'The real Linux renderer paints a visible center');
   assert.equal(await win.webContents.executeJavaScript(`document.getElementById('sessions').value`),'linux-stored');
   assert.equal(await win.webContents.executeJavaScript(`document.getElementById('record').disabled`),false);
   await win.webContents.executeJavaScript(`document.getElementById('standby').click()`);await pause();assert.ok(calls.some(call=>call.method==='standby'));assert.equal(await win.webContents.executeJavaScript(`document.getElementById('phase').textContent`),'Standby');
   await update({standby:{active:false},generation:2});
   // Boundary contract: exact session identity accompanies every text submission.
+  await win.webContents.executeJavaScript(`window.__analysers=[];const create=AudioContext.prototype.createAnalyser;AudioContext.prototype.createAnalyser=function(){const node=create.call(this);window.__analysers.push(node);return node;};true;`);
   await win.webContents.executeJavaScript(`document.getElementById('command').value='Bitte diesen Text erklären';document.getElementById('command-form').requestSubmit();`);await pause();
   assert.ok(calls.some(call=>call.method==='submit'&&call.value.text==='Bitte diesen Text erklären'&&call.value.captured.sessionId==='linux-runtime'&&call.value.captured.generation===2));
+  const probe=Buffer.alloc(24000*2);for(let i=0;i<24000;i++)probe.writeInt16LE(Math.round(Math.sin(i*2*Math.PI*440/24000)*6000),i*2);
+  win.webContents.send('linux:event',{type:'audio-start',generation:100});win.webContents.send('linux:event',{type:'audio-chunk',generation:100,data:probe.toString('base64')});await new Promise(resolve=>setTimeout(resolve,250));
+  const outputRms=await win.webContents.executeJavaScript(`(()=>{const a=window.__analysers[0],v=new Uint8Array(a.fftSize);a.getByteTimeDomainData(v);return Math.sqrt(v.reduce((n,x)=>n+((x-128)/128)**2,0)/v.length);})()`);assert.ok(outputRms>.06,'The actual Web Audio analyser sees muted deterministic playback');
+  win.webContents.send('linux:event',{type:'audio-stop',generation:101});await pause();
   assert.equal(await win.webContents.executeJavaScript(`document.getElementById('idle-standby-minutes').value`),'15');
   await win.webContents.executeJavaScript(`document.getElementById('orb-motion-mode').value='animate';document.getElementById('orb-motion-mode').dispatchEvent(new Event('change'));`);await pause();
   assert.ok(calls.some(call=>call.method==='settings'&&call.value.orbMotion==='animate'));assert.equal(state.settings.orbMotion,'animate');
@@ -78,8 +84,9 @@ async function run(){
     // Inspect only a deliberately blank fixture below our own orb, never the user's desktop contents.
     const area=screen.getPrimaryDisplay().workArea,back=new BrowserWindow({x:area.x+32,y:area.y+32,width:260,height:290,frame:false,alwaysOnTop:true,skipTaskbar:true,backgroundColor:'#174c6b',show:false});
     await back.loadURL('data:text/html,<body style="margin:0;background:%23174c6b"></body>');back.show();back.moveTop();await new Promise(resolve=>setTimeout(resolve,500));const behind=back.getContentBounds();win.setBounds({x:behind.x+30,y:behind.y+30,width:190,height:230});await pause();
-    const bounds=win.getContentBounds(),python='import sys,json;from PIL import ImageGrab; x,y=map(int,sys.argv[1:]); image=ImageGrab.grab(bbox=(x,y,x+2,y+2),xdisplay=None); print(json.dumps(list(image.getpixel((0,0))[:3])))',pixel=()=>JSON.parse(execFileSync(process.env.LILITH_QA_PYTHON,['-c',python,String(bounds.x),String(bounds.y)],{encoding:'utf8'}));
-    const before=pixel();win.show();win.moveTop();await new Promise(resolve=>setTimeout(resolve,500));composite={before,after:pixel(),scaleFactor:screen.getDisplayMatching(bounds).scaleFactor};fs.writeFileSync(path.join(output,'composite.json'),JSON.stringify(composite));assert.deepEqual(composite.after,composite.before,'The real X11 compositor must show the fixture through the transparent orb corner');win.hide();back.destroy();
+    const bounds=win.getContentBounds(),python='import sys,json;from PIL import ImageGrab; x,y=map(int,sys.argv[1:]); image=ImageGrab.grab(bbox=(x,y,x+2,y+2),xdisplay=None); print(json.dumps(list(image.getpixel((0,0))[:3])))',pixel=(x=0,y=0)=>JSON.parse(execFileSync(process.env.LILITH_QA_PYTHON,['-c',python,String(Math.round(bounds.x+x)),String(Math.round(bounds.y+y))],{encoding:'utf8'}));
+    const center=await win.webContents.executeJavaScript(`(()=>{const b=document.getElementById('orb').getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2};})()`);
+    const before=pixel(),coreBefore=pixel(center.x,center.y);win.showInactive();win.moveTop();await new Promise(resolve=>setTimeout(resolve,500));composite={before,after:pixel(),coreBefore,coreAfter:pixel(center.x,center.y),scaleFactor:screen.getDisplayMatching(bounds).scaleFactor};fs.writeFileSync(path.join(output,'composite.json'),JSON.stringify(composite));assert.deepEqual(composite.after,composite.before,'The real X11 compositor must show the fixture through the transparent orb corner');assert.notDeepEqual(composite.coreAfter,composite.coreBefore,'The native desktop must visibly display the orb body');win.hide();back.destroy();
   }
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:true,sizes,errors,composite,calls:calls.map(call=>call.method)},null,2));app.quit();
 }

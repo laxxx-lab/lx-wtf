@@ -2,6 +2,26 @@
 
 Der Orb besteht aus fünf räumlich kreisenden Ringen, feinen HUD-Skalen, Partikeln und einem leuchtenden Reaktorkern. Der Kern und die radialen Sprachbänder reagieren auf die echte Mikrofon- und Sprachausgabe. Mausbewegung neigt die Projektion; Anklicken erzeugt einen Impuls und öffnet wie bisher die Steuerung. Ziehen bewegt weiterhin das Fenster.
 
+Der Mittelpunkt ist seit 14.10.2026 ein weicher Körper aus drei leuchtenden,
+organisch verformten Schichten, angeregt durch Patriks „Voice Orb“-Vorlage.
+Er verwendet den gemeinsamen Zustand und dieselbe Animationsuhr wie die Ringe:
+ruhige Atmung im Standby, pegelabhängige Verformung beim Zuhören und Sprechen,
+schnellerer Fluss beim Denken und Arbeiten. Statusfarben bleiben erhalten,
+einschließlich eigener und grauer Farben. Es gibt keinen automatischen
+Demo-Zustandswechsel und kein zusätzlich geöffnetes Mikrofon.
+
+In Ansichten unter 240 CSS-Pixeln zeichnet der Renderer kräftigere Konturen,
+einen klaren äußeren Rand und die ruhende Struktur etwas größer. Eine dunkle,
+kreisförmig auslaufende Unterlegung innerhalb des Orbs hält ihn auf hellem oder
+unruhigem Desktop sichtbar. Die Fensterecken bleiben transparent; Fenstergröße,
+Position, Session und Audioeinstellungen werden nicht geändert. Reduzierte
+Bewegung hält auch den neuen Körper nach dem Zustandswechsel still.
+
+Der Notebook-Renderer misst während tatsächlicher Ausgabe die Wellenform des
+vorhandenen Wiedergabe-Gains über einen zusätzlichen Analyser-Zweig ohne
+Audioausgang. Der hörbare Pfad bleibt derselbe. Bei Stille entstehen keine
+synthetischen Sprechpeaks; nach Stopp wird keine alte Ausgabe als Pegel verwendet.
+
 Beim Verkleinern dockt der Orb mit12Pixel Abstand unten rechts in der Arbeitsfläche des aktuellen Monitors an. Die Taskleiste bleibt frei, auch auf weiteren Monitoren mit negativen Bildschirmkoordinaten. Die kompakte Startposition nutzt denselben Abstand.
 
 Im Standby zieht sich die gesamte Darstellung auf 62 Prozent zusammen; die inneren Ringe und Partikel rücken zusätzlich zum Kern. Die Ringe behalten ihre ursprüngliche sichtbare Grundbewegung, und der Kern pulsiert weiterhin. Beim Wakeword öffnet sich der Orb weich wieder und bewegt sich stärker. Beim Sprechen steuert der echte Wiedergabepegel die Größe des gesamten Orbs und die Ausdehnung der Ringe, Kern und Sprachbänder. Die native Prüfung bestätigte die unterschiedlichen Größen und Bewegungen ohne Rendererfehler, auch während echter Wiedergabe einer gespeicherten lokalen Ansage.

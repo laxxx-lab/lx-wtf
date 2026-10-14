@@ -65,7 +65,7 @@ function drawingOrb(options){
     createRadialGradient(...args){gradients.push(args);return {addColorStop(){}};},createLinearGradient(){return {addColorStop(){}};}};
   const orb=new OrbRenderer({width:400,height:400,getContext:()=>ctx},options);
   let now=0;
-  return {orb,get extent(){return extent;},get firstRotation(){return firstRotation;},draw(amplitude,frames=1,intensity=1,state='speaking'){for(let i=0;i<frames;i++){gradients.length=0;orb.draw(now,{state,amplitude,intensity});now+=16;}return gradients[1][5]/2.7;}};
+  return {orb,get extent(){return extent;},get firstRotation(){return firstRotation;},draw(amplitude,frames=1,intensity=1,state='speaking'){for(let i=0;i<frames;i++){gradients.length=0;orb.draw(now,{state,amplitude,intensity});now+=16;}return gradients.find(g=>g[0]===0&&g[1]===0&&g[2]===2&&g[3]===0&&g[4]===0)[5]/2.7;}};
 }
 
 test('waking after a long standby preserves the reactor orientation instead of snapping',()=>{

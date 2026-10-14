@@ -64,7 +64,8 @@
       if(!this.reducedMotion)this.rotation+=dt*this.speed*motion;
       const t=this.rotation,rest=state==='idle'||state==='offline',breathe=this.reducedMotion||speaking||listening?0:Math.sin(now*(rest?.0016:.0038))*(rest?.07:thinking?.025:.045)*motion,energy=rest||this.reducedMotion&&(speaking||listening)?0:this.level,excitation=this.reducedMotion?0:['thinking','working'].includes(state)?(.5+.5*Math.sin(t*2.8))*motion:0;
       const color=this.color.map(Math.round).join(','),ink=(alpha=1)=>`rgba(${color},${clamp(alpha*(state==='idle'?1.25:1),0,1)})`;
-      ctx.clearRect(0,0,this.canvas.width,this.canvas.height);ctx.save();ctx.scale(this.canvas.width/400,this.canvas.height/400);ctx.translate(200,200);ctx.scale(this.size,this.size);
+      const compact=(this.canvas.clientWidth||this.canvas.width)<240,drawScale=compact?Math.min(1,this.size*1.14):this.size;
+      ctx.clearRect(0,0,this.canvas.width,this.canvas.height);ctx.save();ctx.scale(this.canvas.width/400,this.canvas.height/400);ctx.translate(200,200);ctx.scale(drawScale,drawScale);
       // The compact sleeping reactor has a visibly turning silhouette, not just
       // subpixel movement inside its rings. Keep all motion on the existing clock.
       this.groupSpeed+=((rest?(state==='idle'?.28:.14):0)-this.groupSpeed)*smooth;
@@ -85,14 +86,19 @@
       // Transparent atmospheric corona, leaving the desktop visible behind it.
       const corona=ctx.createRadialGradient(0,0,12,0,0,193);
       corona.addColorStop(0,ink(.17+this.level*.12));corona.addColorStop(.45,ink(.055+this.level*.05));corona.addColorStop(1,ink(0));ctx.fillStyle=corona;ctx.fillRect(-200,-200,400,400);
-      const arc=(radius,start,end,width=1,alpha=.6)=>{ctx.strokeStyle=spectrum||ink(alpha);ctx.globalAlpha=spectrum?clamp(alpha,0,1):1;ctx.lineWidth=width;ctx.beginPath();ctx.arc(0,0,radius,start,end);ctx.stroke();ctx.globalAlpha=1;};
-      const line=(a,b,width,alpha)=>{ctx.strokeStyle=spectrum||ink(alpha);ctx.globalAlpha=spectrum?clamp(alpha,0,1):1;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.globalAlpha=1;};
+      // A circular dark veil makes fine light edges legible on bright wallpaper.
+      // Only the reactor silhouette is shaded; the window corners stay transparent.
+      const veil=ctx.createRadialGradient(0,0,25,0,0,176);
+      veil.addColorStop(0,'rgba(4,10,17,.8)');veil.addColorStop(.65,'rgba(4,10,17,.72)');veil.addColorStop(.9,'rgba(4,10,17,.56)');veil.addColorStop(1,'rgba(4,10,17,0)');ctx.fillStyle=veil;ctx.beginPath();ctx.arc(0,0,176,0,TAU);ctx.fill();
+      const arc=(radius,start,end,width=1,alpha=.6)=>{ctx.strokeStyle=spectrum||ink(alpha);ctx.globalAlpha=spectrum?clamp(alpha,0,1):1;ctx.lineWidth=width*(compact?1.4:1);ctx.beginPath();ctx.arc(0,0,radius,start,end);ctx.stroke();ctx.globalAlpha=1;};
+      const line=(a,b,width,alpha)=>{ctx.strokeStyle=spectrum||ink(alpha);ctx.globalAlpha=spectrum?clamp(alpha,0,1):1;ctx.lineWidth=width*(compact?1.4:1);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.globalAlpha=1;};
       const project=(x,y,z)=>{
         const rx=.18+this.tilt.y*.18,ry=this.tilt.x*.2;
         const y1=y*Math.cos(rx)-z*Math.sin(rx),z1=y*Math.sin(rx)+z*Math.cos(rx);
         const x1=x*Math.cos(ry)+z1*Math.sin(ry),z2=-x*Math.sin(ry)+z1*Math.cos(ry),p=1/(1-z2/620);
         return {x:x1*p,y:y1*p,z:z2};
       };
+      if(compact)arc(166,0,TAU,2.4,.78);
       // Calibrated outer scale: fine ticks and counter-rotating broken telemetry arcs.
       for(let i=0;i<96;i++){
         const a=i*TAU/96-t*.08,r=i%8===0?175:179;
@@ -151,11 +157,26 @@
       }
       const core=28+breathe*95+energy*(speaking?34:24)+excitation*9;
       const bloom=ctx.createRadialGradient(0,0,2,0,0,core*2.7);bloom.addColorStop(0,thinking?`hsla(${hue},100%,94%,.9)`:'rgba(229,251,255,.9)');bloom.addColorStop(.15,ink(.75));bloom.addColorStop(.42,ink(.16));bloom.addColorStop(1,ink(0));ctx.fillStyle=bloom;ctx.beginPath();ctx.arc(0,0,core*2.7,0,TAU);ctx.fill();
-      for(let i=0;i<6;i++)arc(core+7,i*TAU/6-t*.65,i*TAU/6-t*.65+.65,3.2,.67);
-      arc(core-2,0,TAU,.8,.62);arc(58+energy*7,t, t+1.8,1.2,.72);arc(64,-t*.7,-t*.7+.8,.8,.4);
-      ctx.save();ctx.rotate(-t*.33);ctx.strokeStyle=ink(.72);ctx.lineWidth=1.1;ctx.beginPath();
-      for(let i=0;i<=6;i++){const a=i*TAU/6-Math.PI/2;const x=Math.cos(a)*20,y=Math.sin(a)*20;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();ctx.restore();
-      ctx.shadowColor=ink(1);ctx.shadowBlur=15+energy*12;ctx.fillStyle=thinking?`hsla(${hue},100%,96%,.95)`:'rgba(226,251,255,.95)';ctx.beginPath();ctx.arc(0,0,6+energy*5,0,TAU);ctx.fill();ctx.shadowBlur=0;
+      for(let i=0;i<6;i++)arc(core+23,i*TAU/6-t*.65,i*TAU/6-t*.65+.65,2,.58);
+      arc(58+energy*7,t,t+1.8,1.2,.72);arc(64,-t*.7,-t*.7+.8,.8,.4);
+      // Organic layered body inspired by the supplied Voice Orb reference.
+      // It shares this clock and the measured envelope; no demo microphone,
+      // synthetic syllables, automatic state cycle or independent animation loop.
+      const [cr,cg,cb]=this.color.map(Math.round),maximum=Math.max(cr,cg,cb),minimum=Math.min(cr,cg,cb),delta=maximum-minimum;
+      const bodyHue=delta?((maximum===cr?(cg-cb)/delta:maximum===cg?2+(cb-cr)/delta:4+(cr-cg)/delta)*60+360)%360:0;
+      const saturation=delta?clamp(delta/maximum*100,0,94):0,radius=core+22;
+      const wobble=this.reducedMotion?0:(rest?.06:thinking?.13:working?.1:.055)+energy*(speaking?.14:.085);
+      for(let layer=0;layer<3;layer++){
+        ctx.beginPath();for(let i=0;i<=96;i++){
+          const a=i*TAU/96,o=layer*1.7,wave=Math.sin(a*3+t*1.3+o)*.5+Math.sin(a*5-t*1.7+o*2)*.3+Math.sin(a*2+t*.9-o)*.4;
+          const r=radius*(1-layer*.09)*(1+wobble*wave),x=Math.cos(a)*r,y=Math.sin(a)*r;i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+        }ctx.closePath();
+        const body=ctx.createRadialGradient(-radius*.3,-radius*.35,radius*.08,0,0,radius*1.16);
+        body.addColorStop(0,`hsla(${bodyHue+10},${saturation}%,${83-layer*5}%,${.96-layer*.14})`);
+        body.addColorStop(.54,`hsla(${bodyHue+5},${saturation}%,${58-layer*3}%,${.9-layer*.12})`);
+        body.addColorStop(1,`hsla(${bodyHue-10},${saturation}%,${30-layer*3}%,${.95-layer*.12})`);
+        ctx.fillStyle=body;ctx.fill();ctx.strokeStyle=ink(.42-layer*.1);ctx.lineWidth=.9;ctx.stroke();
+      }
       // State signatures, beyond a color change.
       if(['thinking','working'].includes(state)){
         for(let i=0;i<6;i++){const a=t*(i%2?-.8:1.1)+i;arc(89+i*4+excitation*3,a,a+.45,1.5,.65+excitation*.12);}
