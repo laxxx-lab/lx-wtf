@@ -12,8 +12,8 @@ function checkCanvas(){
     const orb=new HermesOrb.OrbRenderer(canvas,{reducedMotion});
     if(color)orb.setColors({[state]:color});
     orb.setPointer(.7,-.6);
-    for(let i=0;i<=240;i++)orb.draw(at+i*16,{state,intensity,amplitude});
-    return {orb,pixels:ctx.getImageData(0,0,400,400).data.slice(),image:preview(),now:at+240*16};
+    for(let i=0;i<=80;i++)orb.draw(at+i*50,{state,intensity,amplitude});
+    return {orb,pixels:ctx.getImageData(0,0,400,400).data.slice(),image:preview(),now:at+80*50};
   };
   const hues=(pixels,anchor)=>{
     const bins=new Set();let colored=0,outside=0;
@@ -41,24 +41,29 @@ function checkCanvas(){
   let edgePixels=0;
   for(let y=0;y<400;y++)for(let x=0;x<400;x++)if((x<4||y<4||x>=396||y>=396)&&pale.pixels[(y*400+x)*4+3]>20)edgePixels++;
   const gentle=frame('thinking',{intensity:.4});
-  const changedState=frame('thinking');for(let i=1;i<=240;i++)changedState.orb.draw(changedState.now+i*16,{state:'working'});
+  const changedState=frame('thinking');for(let i=1;i<=80;i++)changedState.orb.draw(changedState.now+i*50,{state:'working'});
   const returned=ctx.getImageData(0,0,400,400).data;
   const start=performance.now();for(let i=1;i<=120;i++)pale.orb.draw(pale.now+i*16,{state:'thinking',intensity:2.4});
   const msPerFrame=(performance.now()-start)/120,images={thinking:normal.image,working:working.image,idle:idle.image,custom:custom.image,reduced:still.image,listeningVoice:voice.image};
   for(const state of ['listening','speaking','looking','success','alert','error','offline'])images[state]=frame(state).image;
   // A small Orb must visibly move in standby and show a quiet listening aperture.
   let compactBeaconPixels=0;
-  const compactMovement=(state,reducedMotion=false)=>{canvas.width=canvas.height=190;const renderer=new HermesOrb.OrbRenderer(canvas,{reducedMotion});for(let i=0;i<=240;i++)renderer.draw(i*16,{state});const a=ctx.getImageData(0,0,190,190).data.slice();if(!reducedMotion)for(let y=0;y<190;y++)for(let x=0;x<190;x++){const radius=Math.hypot(x-95,y-95);if(radius>40&&radius<56&&a[(y*190+x)*4+3]>200)compactBeaconPixels++;}for(let i=1;i<=60;i++)renderer.draw(3840+i*16,{state});return difference(a,ctx.getImageData(0,0,190,190).data);};
+  const compactMovement=(state,reducedMotion=false)=>{canvas.width=canvas.height=190;const renderer=new HermesOrb.OrbRenderer(canvas,{reducedMotion});for(let i=0;i<=80;i++)renderer.draw(i*50,{state});const a=ctx.getImageData(0,0,190,190).data.slice();if(!reducedMotion)for(let y=0;y<190;y++)for(let x=0;x<190;x++){const radius=Math.hypot(x-95,y-95);if(radius>40&&radius<56&&a[(y*190+x)*4+3]>200)compactBeaconPixels++;}for(let i=1;i<=60;i++)renderer.draw(4000+i*16,{state});return difference(a,ctx.getImageData(0,0,190,190).data);};
   const smallIdleMovement=compactMovement('idle'),smallIdleStill=compactMovement('idle',true);canvas.width=canvas.height=400;
   const listening=frame('listening',{reducedMotion:true}),points=ctx.getImageData(0,0,400,400).data;
   // At rest, two open side arcs are visible around the quiet microphone bands.
   let aperturePixels=0;for(let y=110;y<290;y++)for(let x=290;x<305;x++)if(points[(y*400+x)*4+3]>100)aperturePixels++;
   const stateMotion={},stateStill={};for(const state of Object.keys(HermesOrb.ORB_DEFAULTS)){const f=frame(state);for(let i=1;i<=45;i++)f.orb.draw(f.now+i*16,{state});stateMotion[state]=difference(f.pixels,ctx.getImageData(0,0,400,400).data);const quiet=frame(state,{reducedMotion:true});for(let i=1;i<=60;i++)quiet.orb.draw(quiet.now+i*16,{state});stateStill[state]=difference(quiet.pixels,ctx.getImageData(0,0,400,400).data);}
-  const filledCore={};for(const state of ['idle','thinking','listening','speaking']){
+  const filledCore={},particleTexture={};for(const state of ['idle','thinking','listening','speaking']){
     const f=frame(state);let filled=0;for(let y=174;y<226;y++)for(let x=174;x<226;x++){
       if(Math.hypot(x-200,y-200)>26)continue;const i=(y*400+x)*4,max=Math.max(...f.pixels.slice(i,i+3)),min=Math.min(...f.pixels.slice(i,i+3));
       if(f.pixels[i+3]>=210&&max>90&&max-min>max*.2)filled++;
     }filledCore[state]=filled;
+    let edges=0;for(let y=175;y<225;y++)for(let x=175;x<225;x++){
+      if(Math.hypot(x-200,y-200)>25)continue;
+      const i=(y*400+x)*4,j=i+8;
+      if(Math.max(...[0,1,2].map(k=>Math.abs(f.pixels[i+k]-f.pixels[j+k])))>40)edges++;
+    }particleTexture[state]=edges;
   }
   const compactContrast={};canvas.width=canvas.height=190;const small=new HermesOrb.OrbRenderer(canvas);for(let i=0;i<=240;i++)small.draw(i*16,{state:'idle'});
   const smallPixels=ctx.getImageData(0,0,190,190).data;
@@ -67,7 +72,7 @@ function checkCanvas(){
     if(contrast>55)visible++;
   }compactContrast[background]=visible;}canvas.width=canvas.height=400;
   const base=HermesOrb.ORB_DEFAULTS.thinking,[r,g,b]=[1,3,5].map(i=>parseInt(base.slice(i,i+2),16)),max=Math.max(r,g,b),delta=max-Math.min(r,g,b),anchor=((max===r?(g-b)/delta:max===g?2+(b-r)/delta:4+(r-g)/delta)*60+360)%360;
-  return {filledCore,compactContrast,thinking:hues(normal.pixels,anchor),customPalette:hues(custom.pixels,345),working:hues(working.pixels,221),listening:hues(listen.pixels,169),customWorking:hues(customWork.pixels,345),customListening:hues(customListen.pixels,345),voiceDifference:difference(listen.pixels,voice.pixels),idle:hues(idle.pixels),returned:hues(returned),customDifference:difference(normal.pixels,custom.pixels),movement:difference(before,after),stillMovement:difference(still.pixels,stillAfter),stillGrayMovement:difference(stillGray.pixels,stillGrayAfter),intensityDifference:difference(normal.pixels,gentle.pixels),edgePixels,msPerFrame,smallIdleMovement,smallIdleStill,compactBeaconPixels,aperturePixels,stateMotion,stateStill,systemReducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,images};
+  return {particleTexture,filledCore,compactContrast,thinking:hues(normal.pixels,anchor),customPalette:hues(custom.pixels,345),working:hues(working.pixels,221),listening:hues(listen.pixels,169),customWorking:hues(customWork.pixels,345),customListening:hues(customListen.pixels,345),voiceDifference:difference(listen.pixels,voice.pixels),idle:hues(idle.pixels),returned:hues(returned),customDifference:difference(normal.pixels,custom.pixels),movement:difference(before,after),stillMovement:difference(still.pixels,stillAfter),stillGrayMovement:difference(stillGray.pixels,stillGrayAfter),intensityDifference:difference(normal.pixels,gentle.pixels),edgePixels,msPerFrame,smallIdleMovement,smallIdleStill,compactBeaconPixels,aperturePixels,stateMotion,stateStill,systemReducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,images};
 }
 
 test('native thinking reactor renders a moving palette, preserves color and motion preferences, and stays bounded',{skip:!fs.existsSync(electron),timeout:30000},async t=>{
@@ -95,7 +100,7 @@ test('native thinking reactor renders a moving palette, preserves color and moti
   const {result,errors,error}=fs.existsSync(output)?JSON.parse(fs.readFileSync(output,'utf8')):{};
   assert.equal(code,0,error||stderr);assert.deepEqual(errors,[]);
   t.diagnostic(JSON.stringify(result));
-  for(const [state,pixels]of Object.entries(result.filledCore))assert.ok(pixels>350,state+' has a substantial luminous body in the middle rather than just a point');
+  for(const [state,edges]of Object.entries(result.particleTexture))assert.ok(edges>150,state+' center shows distinct luminous particles with gaps rather than a smooth filled body');
   for(const [background,pixels]of Object.entries(result.compactContrast))assert.ok(pixels>2200,'Compact orb stays legible against background '+background);
   assert.ok(result.thinking.bins>=2&&result.thinking.bins<=3,'Thinking keeps adjacent shades rather than a rainbow');
   assert.equal(result.thinking.outside,0,'Thinking colors remain in the warm status family');

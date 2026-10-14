@@ -193,6 +193,14 @@ bleibt über anderen normalen Fenstern, das aufgeklappte Gespräch verhält sich
 wie ein normales Arbeitsfenster. Bei Monitorwechsel bleiben beide innerhalb
 des vorhandenen Arbeitsbereichs. `--panel` startet direkt mit dem Gespräch.
 
+Die Mitte verwendet die Partikelkugel der Vorlage **Particle Core** mit 1.700
+Punkten: Standby dreht langsam, Denken und Arbeiten führen einen hellen Scan
+über die Kugel, Zuhören und Sprechen verformen sie anhand der echten lokalen
+Audiopegel. Die gemeinsame Windows-/Linux-Darstellung bewahrt Zustandsfarben,
+reduzierte Bewegung und transparente Fensterecken. Die HTML-Demosteuerung und
+deren simulierte Sprachpegel werden nicht übernommen; es gibt keinen zweiten
+Mikrofonzugriff oder zusätzlichen Animationsloop.
+
 **Sprechen** öffnet das gewählte Notebook-Mikrofon. Nochmals klicken beendet
 die Aufnahme und sendet den erkannten deutschen Text. Der Renderer verwendet
 echtes `getUserMedia`, Mono-PCM16 mit 16 kHz und das vorhandene lokale

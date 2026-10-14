@@ -42,6 +42,10 @@
       this.pointer={x:0,y:0};this.tilt={x:0,y:0};this.pulses=[];
       // Deterministic particles: no per-frame randomness or new animation timers.
       this.particles=Array.from({length:160},(_,i)=>({a:i*2.399963,y:1-2*(i+.5)/160,r:128+(i%9)*4,seed:i*.731}));
+      // Fibonacci sphere from the supplied Particle Core. Deterministic seeds
+      // retain its texture while avoiding random rebuilds on every frame.
+      this.coreParticles=Array.from({length:1700},(_,i)=>{const y=1-i/1699*2,r=Math.sqrt(1-y*y),a=i*2.39996,seed=Math.sin(i*12.9898+4)*43758.5453;return {x:Math.cos(a)*r,y,z:Math.sin(a)*r,seed:seed-Math.floor(seed)};});
+      this.coreAngle=0;this.coreTime=0;this.coreSpin=.12;this.coreWeights={listen:0,think:0,speak:0};
     }
     setColors(value){this.colors=normalizeOrbColors(value);}
     setPointer(x,y){this.pointer={x:clamp(x,-1,1),y:clamp(y,-1,1)};}
@@ -149,34 +153,36 @@
         if(i%13===0&&i+8<particles.length)line(p,particles[i+8],.6,.1+front*.11);
         ctx.fillStyle=spectrum||ink((.2+front*.55)*flicker);ctx.globalAlpha=spectrum?(.2+front*.55)*flicker:1;ctx.beginPath();ctx.arc(p.x,p.y,.6+front*1.35,0,TAU);ctx.fill();ctx.globalAlpha=1;
       }
-      // Three moving magnetic filaments run through the reactor, visibly alive at idle.
-      for(let i=0;i<3;i++){
-        ctx.save();ctx.rotate(t*.43+i*TAU/3);ctx.strokeStyle=spectrum||ink(.3+energy*.25);ctx.globalAlpha=spectrum?(listening?.2:.65):1;ctx.lineWidth=thinking?1.7:listening?.6:.9;
-        const bend=this.reducedMotion?18:18+Math.sin(t*1.1+i)*24*motion+energy*35+excitation*9;
-        ctx.beginPath();ctx.moveTo(-106,0);ctx.bezierCurveTo(-46,-bend,39,bend,106,0);ctx.stroke();ctx.restore();
-      }
       const core=28+breathe*95+energy*(speaking?34:24)+excitation*9;
-      const bloom=ctx.createRadialGradient(0,0,2,0,0,core*2.7);bloom.addColorStop(0,thinking?`hsla(${hue},100%,94%,.9)`:'rgba(229,251,255,.9)');bloom.addColorStop(.15,ink(.75));bloom.addColorStop(.42,ink(.16));bloom.addColorStop(1,ink(0));ctx.fillStyle=bloom;ctx.beginPath();ctx.arc(0,0,core*2.7,0,TAU);ctx.fill();
-      for(let i=0;i<6;i++)arc(core+23,i*TAU/6-t*.65,i*TAU/6-t*.65+.65,2,.58);
-      arc(58+energy*7,t,t+1.8,1.2,.72);arc(64,-t*.7,-t*.7+.8,.8,.4);
-      // Organic layered body inspired by the supplied Voice Orb reference.
-      // It shares this clock and the measured envelope; no demo microphone,
-      // synthetic syllables, automatic state cycle or independent animation loop.
+      const bloom=ctx.createRadialGradient(0,0,2,0,0,core*2.7);bloom.addColorStop(0,ink(.06+energy*.12));bloom.addColorStop(.42,ink(.04));bloom.addColorStop(1,ink(0));ctx.fillStyle=bloom;ctx.beginPath();ctx.arc(0,0,core*2.7,0,TAU);ctx.fill();
+      // Use the actual reference sphere, not a filled approximation. Only its
+      // demo clock, theme buttons and synthetic/microphone input are replaced by
+      // our existing clock, status palette and measured microphone/playback level.
       const [cr,cg,cb]=this.color.map(Math.round),maximum=Math.max(cr,cg,cb),minimum=Math.min(cr,cg,cb),delta=maximum-minimum;
       const bodyHue=delta?((maximum===cr?(cg-cb)/delta:maximum===cg?2+(cb-cr)/delta:4+(cr-cg)/delta)*60+360)%360:0;
-      const saturation=delta?clamp(delta/maximum*100,0,94):0,radius=core+22;
-      const wobble=this.reducedMotion?0:(rest?.06:thinking?.13:working?.1:.055)+energy*(speaking?.14:.085);
-      for(let layer=0;layer<3;layer++){
-        ctx.beginPath();for(let i=0;i<=96;i++){
-          const a=i*TAU/96,o=layer*1.7,wave=Math.sin(a*3+t*1.3+o)*.5+Math.sin(a*5-t*1.7+o*2)*.3+Math.sin(a*2+t*.9-o)*.4;
-          const r=radius*(1-layer*.09)*(1+wobble*wave),x=Math.cos(a)*r,y=Math.sin(a)*r;i?ctx.lineTo(x,y):ctx.moveTo(x,y);
-        }ctx.closePath();
-        const body=ctx.createRadialGradient(-radius*.3,-radius*.35,radius*.08,0,0,radius*1.16);
-        body.addColorStop(0,`hsla(${bodyHue+10},${saturation}%,${83-layer*5}%,${.96-layer*.14})`);
-        body.addColorStop(.54,`hsla(${bodyHue+5},${saturation}%,${58-layer*3}%,${.9-layer*.12})`);
-        body.addColorStop(1,`hsla(${bodyHue-10},${saturation}%,${30-layer*3}%,${.95-layer*.12})`);
-        ctx.fillStyle=body;ctx.fill();ctx.strokeStyle=ink(.42-layer*.1);ctx.lineWidth=.9;ctx.stroke();
+      const saturation=delta?clamp(delta/maximum*100,0,100):0,w=this.coreWeights;
+      for(const [key,active]of [['listen',listening],['think',thinking||working],['speak',speaking]]){w[key]+=(Number(active)-w[key])*smooth;if(Math.abs(Number(active)-w[key])<1e-6)w[key]=Number(active);}
+      const coreSpeed={idle:.12,offline:.06,listening:.25,thinking:1.1,working:.8,speaking:.4,looking:.3,success:.18,alert:.22,error:.16}[state]||.12;
+      this.coreSpin+=(coreSpeed-this.coreSpin)*smooth;
+      if(!this.reducedMotion){this.coreAngle+=dt*this.coreSpin*motion;this.coreTime+=dt*motion;}
+      const ct=Math.cos(.35),st=Math.sin(.35),ca=Math.cos(this.coreAngle),sa=Math.sin(this.coreAngle),time=this.coreTime;
+      const radius=86*(1+energy*.07)*(1-w.think*.1+w.listen*.05),sweep=Math.sin(time*1.6);
+      const particleInk=(light,alpha)=>`hsla(${bodyHue},${saturation}%,${light}%,${alpha})`;
+      const aura=ctx.createRadialGradient(0,0,radius*.2,0,0,radius*2);
+      aura.addColorStop(0,particleInk(60,.12+energy*.12));aura.addColorStop(.45,particleInk(50,.035));aura.addColorStop(1,ink(0));ctx.fillStyle=aura;ctx.beginPath();ctx.arc(0,0,radius*2,0,TAU);ctx.fill();
+      // Source-over keeps custom hues intact over the existing luminous rings;
+      // additive blending on those rings can clip RGB channels into another hue.
+      ctx.save();
+      for(const p of this.coreParticles){
+        const sd=p.seed,x1=p.x*ca+p.z*sa,z1=-p.x*sa+p.z*ca,y2=p.y*ct-z1*st,z2=p.y*st+z1*ct,d=(z2+1)/2;
+        const lobe=Math.sin(p.y*3.2+time*1.9)*Math.sin(Math.atan2(p.z,p.x)*2-time*1.4)+.4*Math.sin(p.y*7-time*3+sd);
+        const ring=w.listen*Math.max(0,lobe)*(.2+energy*1.1),q=(p.y-sweep)*4,boost=ring+Math.exp(-q*q)*w.think;
+        const disp=1+.03*Math.sin(sd*20+time*2)+w.listen*(.04+energy*.28)*lobe+w.speak*energy*.5*Math.max(0,Math.sin(sd*40+time*8))+w.think*.05*Math.sin(sd*70+time*10);
+        const rr=radius*disp,s=.7+d*1.9+boost*1.5+(disp-1)*3;
+        ctx.fillStyle=particleInk(Math.min(92,52+d*28+boost*40),Math.min(1,.1+d*.8+boost*.6));
+        ctx.fillRect(x1*rr-s/2,y2*rr-s/2,s,s);
       }
+      ctx.restore();
       // State signatures, beyond a color change.
       if(['thinking','working'].includes(state)){
         for(let i=0;i<6;i++){const a=t*(i%2?-.8:1.1)+i;arc(89+i*4+excitation*3,a,a+.45,1.5,.65+excitation*.12);}

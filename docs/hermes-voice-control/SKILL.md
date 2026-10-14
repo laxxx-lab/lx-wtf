@@ -13,8 +13,9 @@ gehen lokal an die vorhandene Gesprächsübergabe. Füllwörter und persönliche
 Gerätebezüge dürfen variieren. Kein bestimmtes Zauberwort oder SSH-Auftrag
 nötig; Bedingungen, Verneinungen und Zitate bleiben gesperrt.
 
-Die Orb-Mitte zeigt einen weichen Körper aus drei Lichtschichten, gekoppelt an
-Zustand und echte Sprachpegel. Die kleine Ansicht zeichnet kräftigere Konturen
+Die Orb-Mitte zeigt die rotierende Kugel aus 1.700 Lichtpunkten der Vorlage
+„Particle Core“: langsames Standby, ein Scan beim Denken und Verformung durch
+echte Sprachpegel. Die kleine Ansicht zeichnet kräftigere Konturen
 und eine dunkle kreisförmige Unterlegung bei transparenten Fensterecken.
 Eigene Farben und reduzierte Bewegung bleiben maßgeblich; Animation belegt
 keine erledigte Aktion. Der gemeinsame Renderer gilt auch auf dem Notebook.
