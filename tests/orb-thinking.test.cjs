@@ -15,15 +15,16 @@ function checkCanvas(){
     for(let i=0;i<=240;i++)orb.draw(at+i*16,{state,intensity});
     return {orb,pixels:ctx.getImageData(0,0,400,400).data.slice(),image:preview(),now:at+240*16};
   };
-  const hues=pixels=>{
-    const bins=new Set();let colored=0;
+  const hues=(pixels,anchor)=>{
+    const bins=new Set();let colored=0,outside=0;
     for(let i=0;i<pixels.length;i+=4){
       const r=pixels[i]/255,g=pixels[i+1]/255,b=pixels[i+2]/255,max=Math.max(r,g,b),min=Math.min(r,g,b),delta=max-min;
       if(pixels[i+3]<65||max<.3||delta/max<.35)continue;
       let h=max===r?(g-b)/delta:max===g?2+(b-r)/delta:4+(r-g)/delta;
       h=(h*60+360)%360;bins.add(Math.floor(h/30));colored++;
+      if(anchor!==undefined&&Math.abs((h-anchor+540)%360-180)>35)outside++;
     }
-    return {bins:bins.size,colored};
+    return {bins:bins.size,colored,outside};
   };
   const difference=(a,b)=>{let sum=0;for(let i=0;i<a.length;i++)sum+=Math.abs(a[i]-b[i]);return sum/a.length;};
   const normal=frame('thinking'),working=frame('working'),idle=frame('idle'),custom=frame('thinking',{color:'#ff3366'});
@@ -52,7 +53,8 @@ function checkCanvas(){
   // At rest, two open side arcs are visible around the quiet microphone bands.
   let aperturePixels=0;for(let y=110;y<290;y++)for(let x=290;x<305;x++)if(points[(y*400+x)*4+3]>100)aperturePixels++;
   const stateMotion={},stateStill={};for(const state of Object.keys(HermesOrb.ORB_DEFAULTS)){const f=frame(state);for(let i=1;i<=45;i++)f.orb.draw(f.now+i*16,{state});stateMotion[state]=difference(f.pixels,ctx.getImageData(0,0,400,400).data);const quiet=frame(state,{reducedMotion:true});for(let i=1;i<=60;i++)quiet.orb.draw(quiet.now+i*16,{state});stateStill[state]=difference(quiet.pixels,ctx.getImageData(0,0,400,400).data);}
-  return {thinking:hues(normal.pixels),working:hues(working.pixels),idle:hues(idle.pixels),returned:hues(returned),customDifference:difference(normal.pixels,custom.pixels),movement:difference(before,after),stillMovement:difference(still.pixels,stillAfter),stillGrayMovement:difference(stillGray.pixels,stillGrayAfter),intensityDifference:difference(normal.pixels,gentle.pixels),edgePixels,msPerFrame,smallIdleMovement,smallIdleStill,compactBeaconPixels,aperturePixels,stateMotion,stateStill,systemReducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,images};
+  const base=HermesOrb.ORB_DEFAULTS.thinking,[r,g,b]=[1,3,5].map(i=>parseInt(base.slice(i,i+2),16)),max=Math.max(r,g,b),delta=max-Math.min(r,g,b),anchor=((max===r?(g-b)/delta:max===g?2+(b-r)/delta:4+(r-g)/delta)*60+360)%360;
+  return {thinking:hues(normal.pixels,anchor),customPalette:hues(custom.pixels,345),working:hues(working.pixels),idle:hues(idle.pixels),returned:hues(returned),customDifference:difference(normal.pixels,custom.pixels),movement:difference(before,after),stillMovement:difference(still.pixels,stillAfter),stillGrayMovement:difference(stillGray.pixels,stillGrayAfter),intensityDifference:difference(normal.pixels,gentle.pixels),edgePixels,msPerFrame,smallIdleMovement,smallIdleStill,compactBeaconPixels,aperturePixels,stateMotion,stateStill,systemReducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,images};
 }
 
 test('native thinking reactor renders a moving palette, preserves color and motion preferences, and stays bounded',{skip:!fs.existsSync(electron),timeout:30000},async t=>{
@@ -80,7 +82,9 @@ test('native thinking reactor renders a moving palette, preserves color and moti
   const {result,errors,error}=fs.existsSync(output)?JSON.parse(fs.readFileSync(output,'utf8')):{};
   assert.equal(code,0,error||stderr);assert.deepEqual(errors,[]);
   t.diagnostic(JSON.stringify(result));
-  assert.ok(result.thinking.bins>=4,'Thinking must show several simultaneous hues');
+  assert.ok(result.thinking.bins>=2&&result.thinking.bins<=3,'Thinking keeps adjacent shades rather than a rainbow');
+  assert.equal(result.thinking.outside,0,'Thinking colors remain in the warm status family');
+  assert.equal(result.customPalette.outside,0,'A custom thinking color also keeps its own hue family');
   assert.ok(result.thinking.colored>1200,'The gradient must illuminate visible reactor geometry');
   assert.ok(result.working.bins<=2&&result.idle.bins<=2&&result.returned.bins<=2,'Other states retain their own single-color signatures');
   assert.ok(result.customDifference>2,'Changing the thinking base color must change visible pixels');

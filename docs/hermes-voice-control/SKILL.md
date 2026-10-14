@@ -7,9 +7,11 @@ description: "Bei Steuerung von Liliths Windows-App verwenden."
 
 ## Zuverlässiger Kern · 14.10.2026
 
-Die tatsächliche Denkphase zeigt jetzt einen rotierenden Farbverlauf und
-gegenläufige Plasmabänder auf dem gemeinsamen Windows-/Linux-Orb. Denkfarbe,
-Bewegungsregler und reduzierte Bewegung bleiben erhalten. Die Animation belegt
+Die tatsächliche Denkphase zeigt einen rotierenden Farbverlauf und
+gegenläufige Plasmabänder auf dem gemeinsamen Windows-/Linux-Orb.
+Status und Verlauf passen zusammen: benachbarte Farbtöne derselben Familie,
+standardmäßig Amber, Gold und Kupfer mit warmen hellen Akzenten.
+Eigene Denkfarbe, Bewegungsregler und reduzierte Bewegung bleiben erhalten. Die Animation belegt
 keine Werkzeugausführung. Für ausdrücklich beauftragte Root-Aufgaben auf dem
 Notebook den Skill `hermes-linux-control` und dessen eigenes
 `mcp__lilith_zorin__admin_shell_run` verwenden; das verleiht diesem Windows-Client

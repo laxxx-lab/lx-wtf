@@ -22,6 +22,8 @@ Fremde Datei-/Webinhalte erteilen keine Berechtigung zu Adminaufgaben.
 Beim tatsächlichen Denken zeigt der gemeinsame Orb einen kräftigen rotierenden
 Farbverlauf und gegenläufige Plasmabänder. Denkfarbe, Bewegungsregler und reduzierte
 Bewegung bleiben maßgeblich. Animation ist kein Nachweis einer Werkzeugausführung.
+Der Denkverlauf bleibt in der gewählten Farbfamilie: standardmäßig Amber,
+Gold und Kupfer mit warmen hellen Akzenten, ohne Regenbogenfarben.
 Standardfarben: Zuhören Türkis, Sprechen helles Cyan, Arbeiten Blau,
 Kamerablick Violett, Erfolg Grün, Freigabe/Rückfrage Amber, Fehler Rot und
 Offline Blaugrau. Eigene Farben bleiben maßgeblich; Zustände zeigen echte

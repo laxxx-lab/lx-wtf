@@ -70,16 +70,16 @@
       this.groupSpeed+=((rest?(state==='idle'?.28:.14):0)-this.groupSpeed)*smooth;
       if(!this.reducedMotion)this.groupRotation+=dt*this.speed*motion*this.groupSpeed;
       ctx.rotate(this.groupRotation);
-      // A single rolling spectrum colors the existing geometry; the chosen color
-      // anchors both ends. Reduced motion freezes the same spectrum in place.
+      // Adjacent shades retain the thinking status color throughout the reactor.
+      // Lightness gives the rolling gradient depth without crossing other states.
       let spectrum=null,hue=0;
       if(thinking){
         const [r,g,b]=target,max=Math.max(r,g,b),delta=max-Math.min(r,g,b);
         hue=delta?((max===r?(g-b)/delta:max===g?2+(b-r)/delta:4+(r-g)/delta)*60+360)%360:210;
         const angle=t*.7,x=Math.cos(angle)*155,y=Math.sin(angle)*155;
         spectrum=ctx.createLinearGradient(-x,-y,x,y);
-        spectrum.addColorStop(0,ink(.95));spectrum.addColorStop(.22,`hsla(${hue+65},100%,66%,.95)`);
-        spectrum.addColorStop(.52,`hsla(${hue+175},100%,63%,.95)`);spectrum.addColorStop(.8,`hsla(${hue+265},100%,68%,.95)`);spectrum.addColorStop(1,ink(.95));
+        spectrum.addColorStop(0,ink(.95));spectrum.addColorStop(.22,`hsla(${hue-18},88%,58%,.95)`);
+        spectrum.addColorStop(.52,`hsla(${hue+18},92%,74%,.95)`);spectrum.addColorStop(.8,`hsla(${hue+7},90%,64%,.95)`);spectrum.addColorStop(1,ink(.95));
       }
       // Transparent atmospheric corona, leaving the desktop visible behind it.
       const corona=ctx.createRadialGradient(0,0,12,0,0,193);
@@ -108,7 +108,7 @@
       // Counter-rotating plasma ribbons energize thinking without more particles.
       if(thinking)for(let k=0;k<2;k++){
         ctx.save();ctx.rotate(t*(k?-.85:1.15)+k*1.8);ctx.strokeStyle=spectrum;ctx.lineWidth=2.6;ctx.globalAlpha=.72;
-        ctx.shadowColor=`hsla(${hue+k*175},100%,65%,.7)`;ctx.shadowBlur=10;ctx.beginPath();
+        ctx.shadowColor=`hsla(${hue+(k?14:-12)},90%,65%,.7)`;ctx.shadowBlur=10;ctx.beginPath();
         for(let i=0;i<=72;i++){
           const a=i*TAU/72,r=111+k*19+Math.sin(a*3-t*1.6+k)*7*(this.reducedMotion?1:motion),x=Math.cos(a)*r,y=Math.sin(a)*r*.66;
           i?ctx.lineTo(x,y):ctx.moveTo(x,y);
@@ -149,12 +149,12 @@
         ctx.beginPath();ctx.moveTo(-106,0);ctx.bezierCurveTo(-46,-bend,39,bend,106,0);ctx.stroke();ctx.restore();
       }
       const core=28+breathe*95+energy*(speaking?34:24)+excitation*9;
-      const bloom=ctx.createRadialGradient(0,0,2,0,0,core*2.7);bloom.addColorStop(0,'rgba(229,251,255,.9)');bloom.addColorStop(.15,ink(.75));bloom.addColorStop(.42,ink(.16));bloom.addColorStop(1,ink(0));ctx.fillStyle=bloom;ctx.beginPath();ctx.arc(0,0,core*2.7,0,TAU);ctx.fill();
+      const bloom=ctx.createRadialGradient(0,0,2,0,0,core*2.7);bloom.addColorStop(0,thinking?`hsla(${hue},100%,94%,.9)`:'rgba(229,251,255,.9)');bloom.addColorStop(.15,ink(.75));bloom.addColorStop(.42,ink(.16));bloom.addColorStop(1,ink(0));ctx.fillStyle=bloom;ctx.beginPath();ctx.arc(0,0,core*2.7,0,TAU);ctx.fill();
       for(let i=0;i<6;i++)arc(core+7,i*TAU/6-t*.65,i*TAU/6-t*.65+.65,3.2,.67);
       arc(core-2,0,TAU,.8,.62);arc(58+energy*7,t, t+1.8,1.2,.72);arc(64,-t*.7,-t*.7+.8,.8,.4);
       ctx.save();ctx.rotate(-t*.33);ctx.strokeStyle=ink(.72);ctx.lineWidth=1.1;ctx.beginPath();
       for(let i=0;i<=6;i++){const a=i*TAU/6-Math.PI/2;const x=Math.cos(a)*20,y=Math.sin(a)*20;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();ctx.restore();
-      ctx.shadowColor=ink(1);ctx.shadowBlur=15+energy*12;ctx.fillStyle='rgba(226,251,255,.95)';ctx.beginPath();ctx.arc(0,0,6+energy*5,0,TAU);ctx.fill();ctx.shadowBlur=0;
+      ctx.shadowColor=ink(1);ctx.shadowBlur=15+energy*12;ctx.fillStyle=thinking?`hsla(${hue},100%,96%,.95)`:'rgba(226,251,255,.95)';ctx.beginPath();ctx.arc(0,0,6+energy*5,0,TAU);ctx.fill();ctx.shadowBlur=0;
       // State signatures, beyond a color change.
       if(['thinking','working'].includes(state)){
         for(let i=0;i<6;i++){const a=t*(i%2?-.8:1.1)+i;arc(89+i*4+excitation*3,a,a+.45,1.5,.65+excitation*.12);}

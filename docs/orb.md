@@ -49,7 +49,10 @@ Rotation, Atmung und magnetische Filamente sind stärker; Denken und Arbeiten tr
 
 Beim Denken läuft ein kräftiger Farbverlauf durch Ringe, Partikel und Filamente.
 Zwei leuchtende Plasmabänder kreisen gegeneinander um den Kern. Die gewählte
-Denkfarbe bleibt die Grundfarbe und bestimmt die zusätzlichen Farbtöne; der
+Denkfarbe bleibt die Grundfarbe; der Verlauf verwendet ausschließlich nahe
+Farbtöne und Helligkeitsabstufungen. Standardmäßig sind das Amber, Gold und
+Kupfer mit warmen hellen Akzenten, ohne Grün-, Blau- oder Violettanteile. Auch
+die Plasmabänder und der Kern bleiben in dieser Status-Farbfamilie. Der
 Bewegungsregler steuert Rotation und Verformung. Der Verlauf erscheint nur im
 Zustand **Denken** und verschwindet beim Wechsel zu Arbeiten, Zuhören oder
 Sprechen. Bei reduzierter Bewegung bleibt die farbige Darstellung nach dem
