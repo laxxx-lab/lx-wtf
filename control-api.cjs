@@ -27,11 +27,12 @@ function validEverydayRequest(action,v){
  if(action==='volume')return exact(['action'])&&['up','down','mute','unmute'].includes(v.action)||exact(['action','value'])&&v.action==='set'&&Number.isInteger(v.value)&&v.value>=0&&v.value<=100;
  if(action==='app-open'){if(!optionalJob(['appId']))return false;try{return validateAppReference(v.appId)===v.appId;}catch{return false;}}
  if(action==='window-focus')return optionalJob(['id','pid','processStartedAt'])&&typeof v.id==='string'&&/^[1-9][0-9]{0,19}$/.test(v.id)&&Number.isSafeInteger(v.pid)&&v.pid>0&&typeof v.processStartedAt==='string'&&v.processStartedAt.length<=64&&Number.isFinite(Date.parse(v.processStartedAt));
+ if(action==='window-place'){if(!optionalJob(['id','pid','processStartedAt','monitorId','rect']))return false;const {jobId,...target}=v;return require('./windows-control.cjs').validPlacement(target);}
  if(action==='power')return exact(['action'])&&v.action==='cancel'||exact(['action','delaySeconds'])&&['shutdown','restart'].includes(v.action)&&Number.isInteger(v.delaySeconds)&&v.delaySeconds>=30&&v.delaySeconds<=86400;
  if(action==='reminders')return exact(['action','id'])&&v.action==='cancel'&&typeof v.id==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(v.id)||exact(['action','kind','text','at'])&&v.action==='create'&&['reminder','alarm'].includes(v.kind)&&typeof v.text==='string'&&v.text.trim().length>0&&v.text.length<=500&&typeof v.at==='string'&&v.at.length<=64&&/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(v.at)&&Number.isFinite(Date.parse(v.at));
  return false;
 }
-async function createControlApi({ port = 8872, token, readStatus, onCommand, onLook, onScreen, onContent, onHighlight, onMode, readModes, onWorkbench,readContext,readTasks,readRoutines,onRoutine,onStop,onStopTask,readGraph,onGraphSearch,onGraphSource,readIntelCatalog,onIntel,onGuide,clearGuide,readArtcraft,onArtcraft,readAudioOutputs,onAudioOutput,readBluetooth,onBluetooth,readMicrophones,onMicrophone,readVolume,onVolume,readApps,onAppOpen,readWindows,onWindowFocus,readPower,onPower,readReminders,onReminder,onBrowser,onClipboard,readActivityCards,onActivityCard,onHomeDisplay,enabledActions=null }) {
+async function createControlApi({ port = 8872, token, readStatus, onCommand, onLook, onScreen, onContent, onHighlight, onMode, readModes, onWorkbench,readContext,readTasks,readRoutines,onRoutine,onStop,onStopTask,readGraph,onGraphSearch,onGraphSource,readIntelCatalog,onIntel,onGuide,clearGuide,readArtcraft,onArtcraft,readAudioOutputs,onAudioOutput,readBluetooth,onBluetooth,readMicrophones,onMicrophone,readVolume,onVolume,readApps,onAppOpen,readWindows,onWindowFocus,onWindowPlace,readPower,onPower,readReminders,onReminder,onBrowser,onClipboard,readActivityCards,onActivityCard,onHomeDisplay,enabledActions=null }) {
   if (typeof token !== 'string' || !token || typeof readStatus !== 'function' || typeof onCommand !== 'function') {
     throw new Error('Invalid control API configuration');
   }
@@ -59,7 +60,7 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
       }
       const action = req.url.slice('/v1/'.length);
       if(enabledActions&&!enabledActions.includes(action))return reply(404,{error:'Not found'});
-      if (!['activity-cards','home-display','clipboard','browser','status','look','standby','screen','current-content','highlight','mode','modes','workbench','context','tasks','routines','routine','privacy','stop','emergency-stop','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','power','reminders'].includes(action) && !ACTIONS.has(action)) return reply(404, { error: 'Not found' });
+      if (!['activity-cards','home-display','clipboard','browser','status','look','standby','screen','current-content','highlight','mode','modes','workbench','context','tasks','routines','routine','privacy','stop','emergency-stop','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','window-place','power','reminders'].includes(action) && !ACTIONS.has(action)) return reply(404, { error: 'Not found' });
       const bodyLimit=action==='clipboard'?131072:action==='activity-cards'?4096:MAX_BODY_BYTES;
       const dual=['activity-cards','browser','volume','power','reminders'].includes(action);
       if (!dual&&req.method !== (['status','modes','context','tasks','routines','graph','intel-catalog','artcraft','audio-outputs','bluetooth-devices','microphones','apps','windows'].includes(action) ? 'GET' : 'POST')||dual&&!['GET','POST'].includes(req.method)) return reply(405, { error: 'Method not allowed' });
@@ -114,11 +115,12 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
         return reply(200,await onClipboard(payload));
       }
       if(action==='browser'){try{require('./workbench.cjs').validateWorkbenchBrowserRequest(payload);}catch{return reply(400,{error:'Invalid browser request'});}if(typeof onBrowser!=='function')return reply(503,{error:'Browser unavailable'});const state=await readStatus();if(state?.privacyLocked||state?.privacy?.locked)return reply(423,{error:'Local privacy lock is active'});return reply(200,{ok:true,browser:await onBrowser(payload)});}
-      if(['microphone','volume','app-open','window-focus','power','reminders'].includes(action)){
+      if(['microphone','volume','app-open','window-focus','window-place','power','reminders'].includes(action)){
         if(!validEverydayRequest(action,payload))return reply(400,{error:'Invalid typed control request'});
-        const callback={microphone:onMicrophone,volume:onVolume,'app-open':onAppOpen,'window-focus':onWindowFocus,power:onPower,reminders:onReminder}[action];
+        const callback={microphone:onMicrophone,volume:onVolume,'app-open':onAppOpen,'window-focus':onWindowFocus,'window-place':onWindowPlace,power:onPower,reminders:onReminder}[action];
         if(typeof callback!=='function')return reply(503,{error:'Control unavailable'});
-        req.socket.setTimeout(35000);const epoch=controlEpoch,command=commandChain.then(()=>{if(epoch!==controlEpoch)throw Object.assign(new Error('Stopped'),{status:423});return callback(payload);});commandChain=command.catch(()=>{});
+        if(action==='window-place'){const state=await readStatus();if(state?.privacyLocked||state?.privacy?.locked)return reply(423,{error:'Local privacy lock is active'});}
+        req.socket.setTimeout(35000);const epoch=controlEpoch,command=commandChain.then(async()=>{if(epoch!==controlEpoch)throw Object.assign(new Error('Stopped'),{status:423});if(action==='window-place'){const state=await readStatus();if(state?.privacyLocked||state?.privacy?.locked)throw Object.assign(Error('Privacy locked'),{status:423});}return callback(payload);});commandChain=command.catch(()=>{});
         const result=await command;return reply(200,{ok:['power','reminders'].includes(action)?result.ok===true:result.verified===true,action,result});
       }
       if(action==='bluetooth'){

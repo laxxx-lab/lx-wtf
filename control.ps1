@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('status', 'camera', 'live', 'wakewords', 'look', 'standby', 'screen', 'current-content', 'modes', 'mode', 'highlight', 'workbench','privacy','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','power','reminders','browser','clipboard','activity-cards','home-display')]
+    [ValidateSet('status', 'camera', 'live', 'wakewords', 'look', 'standby', 'screen', 'current-content', 'modes', 'mode', 'highlight', 'workbench','privacy','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','window-place','power','reminders','browser','clipboard','activity-cards','home-display')]
     [string]$Action = 'status',
     [ValidateLength(1,100)][string]$Target,
     [ValidateSet('radio','scan','connect','disconnect','pair','audio','set','up','down','mute','unmute','shutdown','restart','cancel','create','state','navigate','back','forward','reload','read','write','open','inventory','camera')][string]$Operation,
@@ -41,6 +41,7 @@ param(
     [ValidateLength(1,1024)][string]$GuideJson,
     [ValidateLength(1,4096)][string]$CardJson,
     [ValidatePattern('^camera\.[a-z0-9_]{1,120}$')][string]$CameraEntity,
+    [ValidateLength(1,1024)][string]$PlacementJson,
     [ValidateLength(1,400)][string]$NodeId,
     [string]$CapturedAt,
     [ValidateLength(0,800)][string]$Url,
@@ -59,7 +60,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Action = $Action.ToLowerInvariant()
-if ($Action -notin @('status','look','standby','screen','current-content','modes','mode','highlight','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','power','reminders','browser','clipboard','activity-cards','home-display') -and -not $PSBoundParameters.ContainsKey('State')) {
+if ($Action -notin @('status','look','standby','screen','current-content','modes','mode','highlight','stop','emergency-stop','context','tasks','routines','routine','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','window-place','power','reminders','browser','clipboard','activity-cards','home-display') -and -not $PSBoundParameters.ContainsKey('State')) {
     throw 'Camera, live, and wakewords controls require -State on or off.'
 }
 if ($Action -in @('look','screen') -and [string]::IsNullOrWhiteSpace($Question)) { throw 'Look requires -Question with the current visual question.' }
@@ -98,7 +99,11 @@ $request = @{
     MaximumRedirection = 0
     ErrorAction = 'Stop'
 }
-if ($Action -in @('microphone','app-open','window-focus') -or $Action -in @('volume','power','reminders') -and $Operation) {
+if($Action -eq 'window-place'){
+    if(-not $PlacementJson){throw 'Window placement requires -PlacementJson from a fresh window and monitor observation.'}
+    $null=$PlacementJson|ConvertFrom-Json
+    $request.Method='Post';$request.ContentType='application/json; charset=utf-8';$request.Body=[Text.Encoding]::UTF8.GetBytes($PlacementJson)
+} elseif ($Action -in @('microphone','app-open','window-focus') -or $Action -in @('volume','power','reminders') -and $Operation) {
     $data=@{}
     if($Action -eq 'microphone'){if(-not $PSBoundParameters.ContainsKey('DeviceId')){throw 'Microphone requires an exact -DeviceId from microphones.'};$data.deviceId=$DeviceId}
     elseif($Action -eq 'volume'){if($Operation -notin @('set','up','down','mute','unmute')){throw 'Volume requires set/up/down/mute/unmute.'};$data.action=$Operation;if($Operation -eq 'set'){if(-not $PSBoundParameters.ContainsKey('Value')){throw 'Volume set requires -Value.'};$data.value=$Value}}

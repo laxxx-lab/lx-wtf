@@ -364,3 +364,8 @@ privaten Loopback-Zugang. Status, absolute Countdownzeit und bekannte
 Kameraentity; Typen, Grenzen und Beispiele: [Aktivitätskarten](activity-cards.md).
 Keine frei wählbare URL, Shell oder Medienadresse. Beide Clients prüfen
 Datenschutz und aktuellen Gesprächsbesitz.
+
+`POST /v1/window-place` ordnet ein bekanntes Fenster nativ an: genau
+`{id,pid,processStartedAt,monitorId,rect:{x,y,width,height}}`, optional passender
+`jobId`. Frische physische WorkArea über windows lesen; Erfolg erst bei
+`result.verified` und tatsächlichem Rechteck. [Vertrag](windows-control.md).

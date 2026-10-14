@@ -68,3 +68,39 @@ Fokusversuch wurde vom interaktiven Windows-Desktop abgewiesen; die API meldete
 `unverified` mit dem weiterhin fremden Vordergrundfenster. Kein Erfolg wurde
 behauptet. Hermes darf bei Bedarf seinen vorhandenen Windows-MCP-Bedienweg
 verwenden; keine unbegrenzten oder blinden Fokus-Wiederholungen.
+
+## Fenster nativ anordnen
+
+`read()` liefert zusätzlich `desktop:{sessionId,coordinateSpace:'physical',monitors}`.
+Jeder Monitor enthält native `id`, `primary`, `bounds` und `workArea`;
+Fenster enthalten `rect` und `minimized`. Physische Pixel werden mit per-monitor
+DPI-awareness gelesen. Negative Monitor-Ursprünge und Taskleisten sind enthalten.
+Eine SSH-/Dienstsitzung kann 1024×768 und keine Hauptfenster melden; dies belegt
+keinen Monitor-/Treiberzustand. Nur die interaktive App-Beobachtung ist maßgeblich.
+
+`place({id,pid,processStartedAt,monitorId,rect},{signal})` verwendet ausschließlich
+`SetWindowPos`, ohne Mausbewegung oder erzwungenen Vordergrundwechsel. Identität
+und aktiver Desktop werden frisch geprüft; das Zielrechteck muss vollständig
+in der aktuellen Monitor-Arbeitsfläche liegen. Maximierte/minimierte Fenster
+werden lokal wiederhergestellt. Monitorwechsel warten begrenzt auf
+`WM_DPICHANGED`, bevor die endgültige physische Größe gesetzt wird. Keine
+Wiederholung einer ungeklärten Positionierung. Eine erfolgte Wiederherstellung
+bleibt bei anschließendem Fehler als mögliche Wirkung `unverified`.
+
+`verified:true` verlangt native Annahme, unveränderte Identität, aktiven Desktop,
+nicht minimiertes Fenster und exakt zurückgelesenes Rechteck. `accepted` allein
+reicht nicht. Grenzen: Anwendungs-Mindestgrößen, erhöhte Prozesse und Anwendungen
+mit eigener Fensterverwaltung können die Position ablehnen oder ändern.
+
+Agentenweg: `control.ps1 -Action window-place -PlacementJson '<JSON>'`;
+authentifizierte Route `POST /v1/window-place`. Derselbe Datenschutz-/Stopp-
+und Desktop-Auftragsbesitz wie bei window-focus; keine öffentliche GUI-Shell.
+Natürliche Windows-Anordnungsaufträge lesen vor der Hermes-Einsendung frische
+Fensterdaten. Job-Abbruch während dieses Lesens verhindert eine verspätete
+Einsendung. Quelldaten sind als untrusted markiert; es erfolgt keine Deutung
+verkleinerter Screenshots als Inhaltsbeweis.
+
+Prüfung: window-placement.test.cjs, window-placement-cancellation.test.cjs,
+windows-control.test.cjs. Der native Test window-placement.electron.cjs bewegt
+ausschließlich sein eigenes Testfenster und prüft beide tatsächlichen Monitore
+sowie Wiederherstellung nach Maximierung; keine anderen Nutzerfenster.
