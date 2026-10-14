@@ -10,9 +10,27 @@ Sprachsilben dehnen den gesamten Orb zwischen 76 und 100 Prozent aus; die innere
 
 Unter **Einstellungen → ORB / REACTOR** kannst du für Bereit, Zuhören, Sprechen, Denken, Arbeiten, Kamerablick, Erfolg, Warnung/Freigabe, Fehler und Offline eigene Farben wählen. Ein Klick auf den Zustandsnamen spielt ihn 3,5 Sekunden als visuelle Vorschau ab. Die kleinere Vorschau bleibt beim Einstellen sichtbar. Änderungen mit **Einstellungen speichern** dauerhaft übernehmen; **Standardfarben** setzt Farben und Bewegungsstärke in der Vorschau zurück.
 
+Die Standardfarben passen zur Tätigkeit: Bereit leuchtet Cyan, Zuhören Türkis,
+Sprechen helles Cyan, Denken mit warmem Kern und bewegtem Farbverlauf, Arbeiten
+kräftig Blau und Kamerablick Violett. Bestätigter Erfolg ist Grün, Rückfragen und
+Freigaben sind Amber, Fehler klar Rot und Offline gedämpftes Blaugrau. Die
+Formsignaturen bleiben zusätzlich erhalten, damit der Zustand auch ohne
+Farbunterscheidung erkennbar ist. Eigene gespeicherte Farben behalten Vorrang.
+
 Ein aktiver Hintergrundagent hält den Orb groß: echte `subagent.thinking`-Ereignisse zeigen **DENKT IM HINTERGRUND**, Werkzeugarbeit **ARBEITET IM HINTERGRUND**. Das Gespräch bleibt ansprechbar; tatsächliches Zuhören und Sprachausgabe haben Vorrang. Ungeklärte Agenten zeigen einen Hinweis. Erst wenn keine Hintergrundarbeit mehr läuft, zieht sich der Orb zusammen; bei aktivem Standby heißt die Anzeige **STANDBY**. Die Werkstatt verwendet dieselbe Zustandszuordnung.
 
 Rotation, Atmung und magnetische Filamente sind stärker; Denken und Arbeiten treiben zusätzlich den Kernpuls. Der Bewegungsregler reicht von 0,4 bis 2,4 und beeinflusst auch die Verformung. Vorhandene Farben und Bewegungspräferenzen bleiben erhalten; reduzierte Bewegung unterdrückt die Animation weiterhin.
+
+Beim Denken läuft ein kräftiger Farbverlauf durch Ringe, Partikel und Filamente.
+Zwei leuchtende Plasmabänder kreisen gegeneinander um den Kern. Die gewählte
+Denkfarbe bleibt die Grundfarbe und bestimmt die zusätzlichen Farbtöne; der
+Bewegungsregler steuert Rotation und Verformung. Der Verlauf erscheint nur im
+Zustand **Denken** und verschwindet beim Wechsel zu Arbeiten, Zuhören oder
+Sprechen. Bei reduzierter Bewegung bleibt die farbige Darstellung nach dem
+Zustandsübergang still. Windows, Notebook und Werkstatt verwenden denselben
+Canvas-Renderer. Der native isolierte Canvas-Test prüft sichtbare Farbvielfalt,
+Bewegung, eigene Denkfarben, reduzierte Bewegung und den transparenten Rand
+bei maximaler Stärke, ohne Mikrofon, Kamera oder laufende Session zu öffnen.
 
 Erfolg erscheint nur kurz nach einem unabhängig bestätigten erfolgreichen Hermes-Auftrag. Warnungen, Freigaben und Rückfragen haben Vorrang. Während eines Kamerablicks zeigt der Orb einen Scanner, auch wenn Hermes den Blick über die lokale API anfordert. Vorschauzustände verändern keine Sprach-, Kamera- oder Agentenaktionen. Die Einstellung für reduzierte Bewegung von Windows wird berücksichtigt.
 

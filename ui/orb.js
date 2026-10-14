@@ -1,6 +1,6 @@
 (function(root){
   'use strict';
-  const ORB_DEFAULTS=Object.freeze({idle:'#39dcff',listening:'#36efc3',speaking:'#85dcff',thinking:'#ffc078',working:'#659bff',looking:'#aaa9ff',success:'#66f0a6',alert:'#ff9955',error:'#ff5679',offline:'#647d95'});
+  const ORB_DEFAULTS=Object.freeze({idle:'#39dcff',listening:'#35e6c5',speaking:'#85dcff',thinking:'#ffc078',working:'#568bff',looking:'#b28aff',success:'#53e696',alert:'#ffc45b',error:'#ff5757',offline:'#657887'});
   function normalizeOrbColors(value){const result={...ORB_DEFAULTS};for(const key of Object.keys(result))if(typeof value?.[key]==='string'&&/^#[0-9a-f]{6}$/i.test(value[key]))result[key]=value[key].toLowerCase();return result;}
   function backgroundOrbState(value){
     const jobs=(value?.jobs||[]).filter(j=>['preparing','running','stopping','outcome-unknown'].includes(j.status));
@@ -47,7 +47,7 @@
     draw(now,{state='idle',amplitude=0,intensity=1}={}){
       const ctx=this.ctx;if(!ctx)return;
       const dt=this.lastTime===null?0:clamp((now-this.lastTime)/1000,0,.05);this.lastTime=now;
-      const speaking=state==='speaking',smooth=1-Math.exp(-dt*9),target=rgb(this.colors[state]||this.colors.idle);
+      const speaking=state==='speaking',thinking=state==='thinking',smooth=1-Math.exp(-dt*9),target=rgb(this.colors[state]||this.colors.idle);
       const measured=clamp(Number.isFinite(amplitude)?amplitude:0,0,1),levelSmooth=speaking?1-Math.exp(-dt*(measured>this.level?32:12)):smooth;
       this.color=this.color.map((n,i)=>n+(target[i]-n)*smooth);this.level+=(measured-this.level)*levelSmooth;
       this.tilt.x+=(this.pointer.x-this.tilt.x)*smooth;this.tilt.y+=(this.pointer.y-this.tilt.y)*smooth;
@@ -59,14 +59,25 @@
       this.speed+=(dynamics.speed-this.speed)*smooth;
       const motion=normalizeOrbIntensity(intensity);
       if(!this.reducedMotion)this.rotation+=dt*this.speed*motion;
-      const t=this.rotation,rest=state==='idle'||state==='offline',breathe=this.reducedMotion||speaking?0:Math.sin(now*(rest?.0023:.0038))*(rest?.035:.06)*motion,energy=this.reducedMotion&&speaking?0:this.level,excitation=this.reducedMotion?0:['thinking','working'].includes(state)?(.5+.5*Math.sin(t*2.8))*motion:0;
+      const t=this.rotation,rest=state==='idle'||state==='offline',breathe=this.reducedMotion||speaking?0:Math.sin(now*(rest?.0023:.0038))*(rest?.035:thinking?.025:.06)*motion,energy=this.reducedMotion&&speaking?0:this.level,excitation=this.reducedMotion?0:['thinking','working'].includes(state)?(.5+.5*Math.sin(t*2.8))*motion:0;
       const color=this.color.map(Math.round).join(','),ink=(alpha=1)=>`rgba(${color},${clamp(alpha,0,1)})`;
       ctx.clearRect(0,0,this.canvas.width,this.canvas.height);ctx.save();ctx.scale(this.canvas.width/400,this.canvas.height/400);ctx.translate(200,200);ctx.scale(this.size,this.size);
+      // A single rolling spectrum colors the existing geometry; the chosen color
+      // anchors both ends. Reduced motion freezes the same spectrum in place.
+      let spectrum=null,hue=0;
+      if(thinking){
+        const [r,g,b]=target,max=Math.max(r,g,b),delta=max-Math.min(r,g,b);
+        hue=delta?((max===r?(g-b)/delta:max===g?2+(b-r)/delta:4+(r-g)/delta)*60+360)%360:210;
+        const angle=t*.7,x=Math.cos(angle)*155,y=Math.sin(angle)*155;
+        spectrum=ctx.createLinearGradient(-x,-y,x,y);
+        spectrum.addColorStop(0,ink(.95));spectrum.addColorStop(.22,`hsla(${hue+65},100%,66%,.95)`);
+        spectrum.addColorStop(.52,`hsla(${hue+175},100%,63%,.95)`);spectrum.addColorStop(.8,`hsla(${hue+265},100%,68%,.95)`);spectrum.addColorStop(1,ink(.95));
+      }
       // Transparent atmospheric corona, leaving the desktop visible behind it.
       const corona=ctx.createRadialGradient(0,0,12,0,0,193);
       corona.addColorStop(0,ink(.17+this.level*.12));corona.addColorStop(.45,ink(.055+this.level*.05));corona.addColorStop(1,ink(0));ctx.fillStyle=corona;ctx.fillRect(-200,-200,400,400);
-      const arc=(radius,start,end,width=1,alpha=.6)=>{ctx.strokeStyle=ink(alpha);ctx.lineWidth=width;ctx.beginPath();ctx.arc(0,0,radius,start,end);ctx.stroke();};
-      const line=(a,b,width,alpha)=>{ctx.strokeStyle=ink(alpha);ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();};
+      const arc=(radius,start,end,width=1,alpha=.6)=>{ctx.strokeStyle=spectrum||ink(alpha);ctx.globalAlpha=spectrum?clamp(alpha,0,1):1;ctx.lineWidth=width;ctx.beginPath();ctx.arc(0,0,radius,start,end);ctx.stroke();ctx.globalAlpha=1;};
+      const line=(a,b,width,alpha)=>{ctx.strokeStyle=spectrum||ink(alpha);ctx.globalAlpha=spectrum?clamp(alpha,0,1):1;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.globalAlpha=1;};
       const project=(x,y,z)=>{
         const rx=.18+this.tilt.y*.18,ry=this.tilt.x*.2;
         const y1=y*Math.cos(rx)-z*Math.sin(rx),z1=y*Math.sin(rx)+z*Math.cos(rx);
@@ -80,6 +91,16 @@
       }
       for(let j=0;j<3;j++)arc(170,j*TAU/3+t*.22,j*TAU/3+t*.22+1.47,1.5,.48);
       for(let j=0;j<5;j++)arc(161,j*TAU/5-t*.37,j*TAU/5-t*.37+.3,.85,.38);
+      // Counter-rotating plasma ribbons energize thinking without more particles.
+      if(thinking)for(let k=0;k<2;k++){
+        ctx.save();ctx.rotate(t*(k?-.85:1.15)+k*1.8);ctx.strokeStyle=spectrum;ctx.lineWidth=2.6;ctx.globalAlpha=.72;
+        ctx.shadowColor=`hsla(${hue+k*175},100%,65%,.7)`;ctx.shadowBlur=10;ctx.beginPath();
+        for(let i=0;i<=72;i++){
+          const a=i*TAU/72,r=111+k*19+Math.sin(a*3-t*1.6+k)*7*(this.reducedMotion?1:motion),x=Math.cos(a)*r,y=Math.sin(a)*r*.66;
+          i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+        }
+        ctx.stroke();ctx.restore();
+      }
       // Five gyroscopic orbits. Segment depth controls opacity and luminous front edges.
       const rings=[{r:126,x:1.07,y:.36,z:t*.32},{r:133,x:-.65,y:1.15,z:-t*.43},{r:146,x:.5,y:.9,z:t*.27},{r:103,x:1.34,y:-.45,z:-t*.52},{r:150,x:.22,y:.25,z:t*.12}];
       for(let k=0;k<rings.length;k++){
@@ -93,9 +114,9 @@
           const a=pts[i],b=pts[i+1],front=clamp((a.z+155)/310,0,1);
           if((i+k*7)%19>15)continue;
           line(a,b,(k===4?.8:1.2)+front,.16+front*.62);
-          if(i%12===0){ctx.fillStyle=ink(.4+front*.5);ctx.beginPath();ctx.arc(a.x,a.y,1.1+front*.8,0,TAU);ctx.fill();}
+          if(i%12===0){ctx.fillStyle=spectrum||ink(.4+front*.5);ctx.beginPath();ctx.arc(a.x,a.y,1.1+front*.8,0,TAU);ctx.fill();}
         }
-        const marker=pts[Math.floor((t*17+k*13)%96)];ctx.fillStyle=ink(.96);ctx.beginPath();ctx.arc(marker.x,marker.y,2.7,0,TAU);ctx.fill();
+        const marker=pts[Math.floor((t*17+k*13)%96)];ctx.fillStyle=spectrum||ink(.96);ctx.beginPath();ctx.arc(marker.x,marker.y,2.7,0,TAU);ctx.fill();
       }
       // Drifting orbital data particles with a restrained constellation backbone.
       const particles=this.particles.map(p=>{
@@ -105,11 +126,11 @@
       for(let i=0;i<particles.length;i++){
         const p=particles[i],front=clamp((p.z+165)/330,0,1),flicker=this.reducedMotion?1:.7+.3*Math.sin(t+p.seed);
         if(i%13===0&&i+8<particles.length)line(p,particles[i+8],.6,.1+front*.11);
-        ctx.fillStyle=ink((.2+front*.55)*flicker);ctx.beginPath();ctx.arc(p.x,p.y,.6+front*1.35,0,TAU);ctx.fill();
+        ctx.fillStyle=spectrum||ink((.2+front*.55)*flicker);ctx.globalAlpha=spectrum?(.2+front*.55)*flicker:1;ctx.beginPath();ctx.arc(p.x,p.y,.6+front*1.35,0,TAU);ctx.fill();ctx.globalAlpha=1;
       }
       // Three moving magnetic filaments run through the reactor, visibly alive at idle.
       for(let i=0;i<3;i++){
-        ctx.save();ctx.rotate(t*.43+i*TAU/3);ctx.strokeStyle=ink(.3+energy*.25);ctx.lineWidth=.9;
+        ctx.save();ctx.rotate(t*.43+i*TAU/3);ctx.strokeStyle=spectrum||ink(.3+energy*.25);ctx.globalAlpha=spectrum?.65:1;ctx.lineWidth=thinking?1.7:.9;
         const bend=this.reducedMotion?18:18+Math.sin(t*1.1+i)*24*motion+energy*35+excitation*9;
         ctx.beginPath();ctx.moveTo(-106,0);ctx.bezierCurveTo(-46,-bend,39,bend,106,0);ctx.stroke();ctx.restore();
       }

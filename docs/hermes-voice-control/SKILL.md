@@ -7,6 +7,18 @@ description: "Bei Steuerung von Liliths Windows-App verwenden."
 
 ## Zuverlässiger Kern · 14.10.2026
 
+Die tatsächliche Denkphase zeigt jetzt einen rotierenden Farbverlauf und
+gegenläufige Plasmabänder auf dem gemeinsamen Windows-/Linux-Orb. Denkfarbe,
+Bewegungsregler und reduzierte Bewegung bleiben erhalten. Die Animation belegt
+keine Werkzeugausführung. Für ausdrücklich beauftragte Root-Aufgaben auf dem
+Notebook den Skill `hermes-linux-control` und dessen eigenes
+`mcp__lilith_zorin__admin_shell_run` verwenden; das verleiht diesem Windows-Client
+keine allgemeinen Windows-Adminrechte.
+
+Die Standardfarben zeigen die Tätigkeit: Zuhören Türkis, Sprechen helles Cyan,
+Arbeiten Blau, Kamerablick Violett, Erfolg Grün, Freigabe/Rückfrage Amber,
+Fehler Rot und Offline Blaugrau. Eigene Farbpräferenzen bleiben maßgeblich.
+
 Windows-Zwischenablage ausdrücklich lesen:
 `control.ps1 -Action clipboard -Operation read -MaxChars 20000`.
 Gewünschten Text ausdrücklich hineinschreiben:

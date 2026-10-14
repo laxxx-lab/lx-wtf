@@ -1,4 +1,4 @@
-"""Lilith tools on the actual Linux notebook; user account only, no Windows fallback."""
+"""Lilith tools on the actual notebook; explicit admin helper, no Windows fallback."""
 import asyncio
 import base64
 import ctypes as C
@@ -28,7 +28,8 @@ MAX_TEXT = 1_048_576
 desktop_lock = threading.Lock()
 mcp = FastMCP("Lilith Linux", instructions="These tools act on this Linux host as its signed-in user. "
               "Inspect the target before actions. Desktop input uses native full-resolution screenshot coordinates; "
-              "click/key require the focusedWindow from a fresh screenshot. No Windows fallback, no implicit sudo.",
+              "click/key require the focusedWindow from a fresh screenshot. No Windows fallback, no implicit sudo. "
+              "Explicitly requested admin tasks use the separate admin_shell_run tool.",
               stateless_http=True, json_response=True)
 
 
@@ -201,6 +202,57 @@ async def shell_run(command: str, cwd: str = "~", timeout: float = 30, max_outpu
             "stderr": bytes(captured["stderr"][0]).decode("utf-8", "replace"),
             "stderrTruncated": captured["stderr"][1] > max_output}
 
+
+ADMIN_HELPER = Path('/usr/local/libexec/lilith-admin.py')
+
+def admin_helper_ready():
+    try:
+        info=ADMIN_HELPER.lstat();parent=ADMIN_HELPER.parent.stat()
+        return stat.S_ISREG(info.st_mode) and info.st_uid==0 and not info.st_mode & 0o022 and parent.st_uid==0 and not parent.st_mode & 0o022
+    except (OSError,AttributeError):return False
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+async def admin_shell_run(command: str, cwd: str = '~', timeout: float = 30, max_output: int = 16000) -> dict:
+    """Execute an explicitly requested Linux notebook admin task as root using the installed supervisor. Never for ordinary work. No passwords, automatic retries or fallback. Timeout/cancel can leave effects; inspect them before continuing."""
+    if sys.platform!='linux':raise RuntimeError('Admin tools require the Linux notebook')
+    if not isinstance(command,str) or not command.strip() or len(command)>16000 or '\0' in command:raise ValueError('Invalid admin command')
+    if type(timeout) not in (float,int) or type(max_output) is not int:raise ValueError('Invalid admin limits')
+    bounded(timeout,.1,120,'timeout');bounded(max_output,1,64000,'max_output')
+    directory=Path(cwd).expanduser().resolve(strict=True)
+    if not directory.is_dir():raise ValueError('Expected admin working directory')
+    identity={'target':target(),'executor':'root'}
+    if not admin_helper_ready():return {**identity,'ok':False,'executed':False,'error':'Notebook admin helper is not installed'}
+    payload=json.dumps({'command':command,'cwd':str(directory),'timeout':timeout,'max_output':max_output}).encode()+b'\n'
+    process=await asyncio.create_subprocess_exec('/usr/bin/sudo','-n','--','/usr/bin/python3','-I',str(ADMIN_HELPER),
+        stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,start_new_session=True)
+    buffers=[bytearray(),bytearray()]
+    async def collect(stream,buffer,limit):
+        while chunk:=await stream.read(4096):
+            if len(buffer)+len(chunk)>limit:raise ValueError('Invalid admin response')
+            buffer.extend(chunk)
+    completion=None
+    try:
+        process.stdin.write(payload);await process.stdin.drain()
+        completion=asyncio.gather(process.wait(),collect(process.stdout,buffers[0],1048576),collect(process.stderr,buffers[1],4096))
+        await asyncio.wait_for(asyncio.shield(completion),timeout+3)
+        result=json.loads(buffers[0])
+        if isinstance(result,dict) and result.get('outcomeUnknown') is True:
+            return {**identity,'ok':False,'outcomeUnknown':True,'error':'Root action result is unknown; inspect its effect before continuing'}
+        if not isinstance(result,dict) or result.get('effectiveUid')!=0 or result.get('error'):
+            return {**identity,'ok':False,'executed':False,'error':'Root execution was not confirmed; no fallback performed'}
+        return {**identity,**result,'rootVerified':True,'ok':result.get('exitCode')==0 and not result.get('timedOut') and not result.get('cancelled'),
+            'note':'Root process confirmed; verify the requested system effect separately'}
+    except asyncio.CancelledError:raise
+    except (OSError,ValueError,asyncio.TimeoutError):
+        return {**identity,'ok':False,'outcomeUnknown':True,'error':'Admin execution response is unknown; inspect the effect before another attempt'}
+    finally:
+        process.stdin.close()
+        if completion and not completion.done():
+            try:os.killpg(process.pid,signal.SIGKILL)
+            except (ProcessLookupError,PermissionError):pass
+            try:await asyncio.wait_for(asyncio.shield(completion),2)
+            except (asyncio.TimeoutError,ValueError):
+                completion.cancel();await asyncio.gather(completion,return_exceptions=True)
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
 def read_text(path: str, max_chars: int = 16000) -> dict:
@@ -388,7 +440,7 @@ def desktop_input(action: str, x: int = 0, y: int = 0, button: int = 1,
 async def system_status() -> dict:
     """Read this Linux host identity, kernel, CPU load, GPU driver status and interactive desktop availability."""
     gpu = await shell_run("nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader", timeout=5)
-    result = {"target": target(), "kernel": os.uname().release, "cpuCount": os.cpu_count(),
+    result = {"target": target(), "admin":{"mode":"explicit-automatic","helperReady":admin_helper_ready()},"kernel": os.uname().release, "cpuCount": os.cpu_count(),
               "loadAverage": os.getloadavg(), "gpu": gpu, "desktopReady": False}
     try:
         with desktop_lock, X11() as desktop:

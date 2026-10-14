@@ -8,6 +8,7 @@ Plattform und grafische Sitzung. Es gibt keinen automatischen Windows-Rückgriff
 | --- | --- |
 | `system_status` | Host, Kernel, CPU-Last, NVIDIA-Diagnose, X11-Bereitschaft |
 | `shell_run` | Gewünschten Bash-Befehl im angegebenen Verzeichnis ausführen; Zeitlimit 0,1–120 Sekunden, Ausgabe pro Stream auf höchstens 64.000 Bytes begrenzt |
+| `admin_shell_run` | Ausdrücklich beauftragten Notebook-Adminbefehl über den installierten Root-Helfer ausführen; eigener Abbruch und gleiches Zeit-/Ausgabelimit |
 | `read_text` | Angegebene reguläre UTF-8-Datei bis 1 MiB lesen; Antwortlänge begrenzen |
 | `write_text` | Angegebenen UTF-8-Text bis 1 MiB schreiben; vorhandene Dateien nur mit `overwrite=true` ersetzen |
 | `desktop_screenshot` | Ein echtes PNG des X11-Desktops mit nativen Pixelmaßen und `focusedWindow` liefern |
@@ -21,6 +22,32 @@ Plattform und grafische Sitzung. Es gibt keinen automatischen Windows-Rückgriff
 Die Werkzeuge laufen mit den Rechten des Notebook-Benutzers. `shell_run` fügt
 kein `sudo` hinzu. Dateiinhalte und Befehle müssen zum Nutzerauftrag gehören;
 private Dateien und Zugangsdaten werden nicht automatisch gesammelt.
+
+## Ausdrückliche Adminaufgaben
+
+`admin_shell_run(command,cwd='~',timeout=30,max_output=16000)` ist der getrennte
+Root-Weg. Der MCP bleibt unter dem Notebook-Benutzer. Ausschließlich der als
+root installierte, für andere Benutzer nicht schreibbare Helfer
+`/usr/local/libexec/lilith-admin.py` darf über die passende Sudoers-Regel ohne
+Passwort laufen: `/usr/bin/python3 -I /usr/local/libexec/lilith-admin.py`.
+Keine allgemeine `NOPASSWD: ALL`-Regel. Dieser Helfer darf die ausdrücklich
+angeforderten Systembefehle als root ausführen; er ist kein eingeschränktes
+Root-Sandboxwerkzeug. Der bestehende Tailscale-/Bearer-Zugriff bleibt erforderlich.
+
+Der Befehl wird über eine Pipe an den Helfer übergeben, nicht als Passwort oder
+freier Python-Code. Er startet Bash ohne Profilskripte, mit begrenzter Umgebung,
+Ausgabe und eigener Prozessgruppe. Zeitlimit und geschlossene Controller-Pipe
+beenden diese Gruppe im Root-Helfer. Eine vor Ausführung geschlossene Pipe
+verhindert einen verspäteten Start. Abbruch kann bereits ausgeführte Schritte
+hinterlassen: Wirkung prüfen, nicht automatisch erneut senden oder rückgängig
+machen. Absichtlich abgekoppelte Prozesse beziehungsweise gestartete Dienste
+sind eigene Systemwirkungen und müssen gesondert kontrolliert werden.
+
+`effectiveUid:0` und `rootVerified:true` bestätigen den Root-Prozess,
+`exitCode` dessen Abschluss; beides ersetzt keine Prüfung der gewünschten
+Systemwirkung. Ohne passende Installation oder Freigabe wird kein normaler
+Benutzerbefehl als vermeintlicher Adminerfolg ausgeführt. Passwörter werden
+nicht in Chat, Werkzeugparametern, Dateien oder Logs angefordert/gespeichert.
 
 Die Lilith-Werkzeuge verwenden ausschließlich die feste Loopback-API
 `http://127.0.0.1:8874`. Die lokale App schreibt ihre Verbindung nach

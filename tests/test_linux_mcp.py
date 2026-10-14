@@ -25,6 +25,40 @@ else:
     server = None
 
 
+class AdminMcpTests(unittest.IsolatedAsyncioTestCase):
+    async def test_admin_tool_is_separate_explicit_and_does_not_accept_passwords(self):
+        tools={tool.name:tool for tool in await server.mcp.list_tools()}
+        self.assertIn('admin_shell_run',tools)
+        self.assertTrue(tools['admin_shell_run'].annotations.destructiveHint)
+        self.assertNotIn('password',tools['admin_shell_run'].inputSchema['properties'])
+
+    async def test_admin_missing_setup_does_not_run_user_shell_as_a_fallback(self):
+        with patch.object(sys,'platform','linux'),patch.object(server,'admin_helper_ready',return_value=False):
+            result=await server.admin_shell_run('id -u')
+            self.assertFalse(result['ok']);self.assertFalse(result['executed'])
+
+    async def test_admin_request_and_non_root_response_are_rejected(self):
+        with patch.object(sys,'platform','linux'):
+            for command in ['', 'id\x00', 'x'*16001]:
+                with self.assertRaises(ValueError):await server.admin_shell_run(command)
+        stdout=asyncio.StreamReader();stdout.feed_data(b'{"effectiveUid":1000,"exitCode":0}');stdout.feed_eof()
+        stderr=asyncio.StreamReader();stderr.feed_eof()
+        class Input:
+            value=b''
+            def write(self,value):self.value=value
+            async def drain(self):pass
+            def close(self):pass
+        class Process:
+            stdin=Input();pid=999999;returncode=0
+            async def wait(self):return 0
+        process=Process();process.stdout=stdout;process.stderr=stderr;arguments=[]
+        async def launch(*args,**kwargs):arguments.extend(args);return process
+        with tempfile.TemporaryDirectory() as cwd,patch.object(sys,'platform','linux'),patch.object(server,'admin_helper_ready',return_value=True),patch.object(asyncio,'create_subprocess_exec',launch):
+            result=await server.admin_shell_run('id -u',cwd=cwd)
+        self.assertFalse(result['ok']);self.assertEqual(arguments[:4],['/usr/bin/sudo','-n','--','/usr/bin/python3'])
+        self.assertEqual(json.loads(process.stdin.value)['command'],'id -u')
+        self.assertNotIn('id -u',arguments)
+
 class DesktopTypingTests(unittest.IsolatedAsyncioTestCase):
     def native_fixture(self, focuses=(99,), masks=(0,), pointer_ok=True):
         events, positions, states = [], iter(focuses), iter(masks)

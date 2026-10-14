@@ -6,6 +6,14 @@ test('state colors preserve valid preferences, reject invalid CSS and fill newly
   assert.equal(colors.unknown,undefined);assert.ok(colors.success&&colors.speaking&&colors.looking);
 });
 
+test('default state colors separate amber attention, red errors and violet camera observation',()=>{
+  const hue=hex=>{const [r,g,b]=[1,3,5].map(at=>parseInt(hex.slice(at,at+2),16)),max=Math.max(r,g,b),delta=max-Math.min(r,g,b);return ((max===r?(g-b)/delta:max===g?2+(b-r)/delta:4+(r-g)/delta)*60+360)%360;};
+  assert.ok(hue(ORB_DEFAULTS.alert)>=35&&hue(ORB_DEFAULTS.alert)<=50,'Attention uses amber, clearly distinct from red errors');
+  assert.ok(hue(ORB_DEFAULTS.error)<12||hue(ORB_DEFAULTS.error)>350,'Errors use red');
+  assert.ok(hue(ORB_DEFAULTS.looking)>250&&hue(ORB_DEFAULTS.looking)<285,'Camera observation uses violet');
+  assert.equal(normalizeOrbColors({listening:'#99ffe7'}).listening,'#99ffe7','The existing custom listening color survives');
+});
+
 test('standby contracts all layers and moves slower; actual voice amplitude expands the active orb',()=>{
   const idle=orbDynamics('idle',0),active=orbDynamics('listening',0),voice=orbDynamics('speaking',.8);
   assert.ok(idle.scale<active.scale*.8);assert.ok(idle.speed<active.speed);
