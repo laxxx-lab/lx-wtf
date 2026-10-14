@@ -7,6 +7,12 @@ description: "Bei Steuerung von Liliths Windows-App verwenden."
 
 ## Zuverlässiger Kern · 14.10.2026
 
+Natürlich formulierte Fortsetzungswünsche wie „Lass uns am PC weiter arbeiten“,
+„Ich würde gern am PC weitermachen“ oder „Ich arbeite jetzt am PC weiter“
+gehen lokal an die vorhandene Gesprächsübergabe. Füllwörter und persönliche
+Gerätebezüge dürfen variieren. Kein bestimmtes Zauberwort oder SSH-Auftrag
+nötig; Bedingungen, Verneinungen und Zitate bleiben gesperrt.
+
 Die Orb-Mitte zeigt einen weichen Körper aus drei Lichtschichten, gekoppelt an
 Zustand und echte Sprachpegel. Die kleine Ansicht zeichnet kräftigere Konturen
 und eine dunkle kreisförmige Unterlegung bei transparenten Fensterecken.

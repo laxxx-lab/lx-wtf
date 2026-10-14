@@ -13,7 +13,10 @@ function fixture(){
 }
 const flush=async()=>{for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));};
 test('addressed Linux voice handoff uses the coordinator without a model submit while work continues',async()=>{
- const f=fixture();try{f.run("globalThis.transfers=[];handoff={requestTransfer:async target=>transfers.push(target),canSubmit:()=>true,snapshot:()=>({})};");assert.equal(f.run("actions['voice-control-intent']('Lilith, ich will wieder am Gaming-PC arbeiten.')"),true);await f.run("actions.submit({text:'Lilith, ich will wieder am Gaming-PC arbeiten.',captured:{sessionId:'runtime',generation:7}})");assert.equal(f.run('transfers[0]'),'windows');assert.equal(f.requests.length,0);assert.equal(f.run('conversation.busy'),true);}finally{f.close();}
+ const f=fixture();try{f.run("globalThis.transfers=[];handoff={requestTransfer:async target=>transfers.push(target),canSubmit:()=>true,snapshot:()=>({})};");
+  for(const text of ['Lilith, ich will wieder am Gaming-PC arbeiten.','Lass uns am PC weiter arbeiten','Ich würde gern am PC weitermachen.','Lass uns auf meinem PC weitermachen.']){f.context.phrase=text;assert.equal(f.run("actions['voice-control-intent'](phrase)"),true);await f.run("actions.submit({text:phrase,captured:{sessionId:'runtime',generation:7}})");assert.equal(f.run('transfers.at(-1)'),'windows');}
+  assert.equal(f.requests.length,0);assert.equal(f.run('conversation.busy'),true);
+ }finally{f.close();}
 });
 test('Linux publishes thinking while prompt acceptance is pending, with no ready gap',async()=>{
  const f=fixture();try{f.run("conversation.busy=false;conversation.remoteRunning=false;status='ready';conversation.request=()=>new Promise(resolve=>globalThis.acceptPrompt=resolve);");

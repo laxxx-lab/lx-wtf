@@ -2,6 +2,11 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {createSessionHandoff,handoffIntent,recallIntent,handoffRequest}=require('../session-handoff.cjs');
 const session={id:'stored-session',profile:'default',title:'Conversation'};
+test('handoff understands ordinary continuation wishes and word order without a memorized command',()=>{
+ const phrases=['Lass uns am PC weiter arbeiten','Lass uns doch lieber am PC weitermachen.','Ich würde gern am PC weitermachen.','Ich arbeite jetzt am PC weiter.','Lass uns auf meinem PC weitermachen.','Machen wir am PC weiter.','Ich möchte jetzt zum PC wechseln.','Lilith, lass uns jetzt einfach am PC weiterarbeiten.'];
+ for(const text of phrases){assert.equal(handoffIntent(text),'windows',text);assert.equal(handoffIntent(text.replace(/PC/g,'Notebook')),'notebook',text);}
+ for(const text of ['Ich würde am PC weiterarbeiten, wenn ich Zeit hätte.','Ich arbeite nicht am PC weiter.','Machen wir am PC weiter?','Er sagte, ich würde gern am PC weitermachen.','Ich möchte meinen PC einschalten.','Lass uns auf meinem PC weiterarbeiten und starte ein Spiel.'])assert.equal(handoffIntent(text),null,text);
+});
 test('spoken handoff and recall accept a leading assistant address while retaining intent fences',()=>{
  for(const text of ['Lilith, ich will wieder am Gaming-PC arbeiten.','Hey Lilith, ich wechsle zurück an den PC.','Hermes, lass uns mal am PC weiterarbeiten, bitte.'])assert.equal(handoffIntent(text),'windows',text);
  assert.equal(recallIntent('Lilith, hol das Gespräch hierher zurück.'),true);

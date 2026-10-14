@@ -8,16 +8,23 @@ async function handoffRequest(gateway,payload){
  if(!response.ok){const code=typeof result?.error==='string'&&/^[a-z_]{1,64}$/.test(result.error)?result.error:null;const error=Error(code||`Hermes antwortet mit HTTP ${response.status}.`);error.status=response.status;error.code=code;throw error;}
  return result;
 }
+const handoffDevice='(notebook|laptop|pc|gaming[ -]?pc|laxxx-gaming|rechner|computer)';
+const handoffModifiers='(?:(?:jetzt|nun|mal|doch|lieber|einfach|gern|gerne|zurück|wieder) )*';
+const handoffPlace='(?:am|auf (?:dem|meinem|deinem|unserem)|an (?:dem|meinem|deinem|unserem))';
+const handoffTravel='(?:aufs|auf (?:das|den|mein|meinen)|zum|an (?:den|das|mein|meinen)|zu (?:meinem|deinem|unserem))';
+const handoffWish='(?:lass(?:t)? uns|ich (?:möchte|will|würde)|wir (?:möchten|wollen|würden))';
+const handoffPatterns=[
+ new RegExp('^'+handoffWish+' '+handoffModifiers+handoffPlace+' '+handoffDevice+' '+handoffModifiers+'(?:weiter(?:arbeiten| arbeiten|machen| machen)|arbeiten)$'),
+ new RegExp('^'+handoffWish+' '+handoffModifiers+handoffTravel+' '+handoffDevice+' wechseln$'),
+ new RegExp('^(?:ich (?:wechsel(?:e)?|wechsle|switche)|wechsel(?:e)?|wechsle|switche|wir wechseln) '+handoffModifiers+handoffTravel+' '+handoffDevice+'$'),
+ new RegExp('^(?:ich (?:arbeite|mache?)|wir (?:arbeiten|machen)|machen wir) '+handoffModifiers+handoffPlace+' '+handoffDevice+' weiter$')
+];
 function handoffIntent(text){
  if(typeof text!=='string')return null;
  const value=text.trim().toLocaleLowerCase('de-DE').replace(/^(?:hey\s+)?(?:lilith|hermes|lillis)[,\s]+/,'').replace(/[.!]+$/,'').replace(/\bbitte\b/g,' ').replace(/,/g,' ').replace(/\s+/g,' ').trim();
  if(/^(?:ich wechsel(?:e)?|ich wechsle) (?:aufs|auf das) notebook$/.test(value)||/^(?:übergib|übergebe) das gespräch an (?:das )?notebook$/.test(value))return 'notebook';
  if(/^(?:ich wechsel(?:e)?|ich wechsle) (?:zurück )?(?:an den|auf den|zum) pc$/.test(value)||/^(?:übergib|übergebe) das gespräch an (?:den )?pc$/.test(value))return 'windows';
- for(const expression of [
-  /^(?:lass(?:t)? uns(?: (?:mal|doch))?|ich (?:möchte|will)|wir (?:möchten|wollen)) (?:jetzt )?(?:gern(?:e)? )?(?:(?:zurück|wieder) )?(?:auf dem|am|an dem) (notebook|laptop|pc|gaming[ -]?pc|laxxx-gaming|rechner|computer) (?:weiter(?:arbeiten| arbeiten|machen| machen)|arbeiten)$/,
-  /^(?:ich (?:wechsel(?:e)?|wechsle|switche)|wechsel(?:e)?|wechsle|switche|wir wechseln) (?:jetzt )?(?:(?:zurück|wieder) )?(?:aufs|auf das|zum|an den|auf den) (notebook|laptop|pc|gaming[ -]?pc|laxxx-gaming|rechner|computer)$/,
-  /^(?:lass(?:t)? uns(?: (?:mal|doch))?) (?:jetzt )?(?:(?:zurück|wieder) )?(?:aufs|auf das|zum|an den|auf den) (notebook|laptop|pc|gaming[ -]?pc|laxxx-gaming|rechner|computer) wechseln$/
- ]){const match=expression.exec(value);if(match)return ['notebook','laptop'].includes(match[1])?'notebook':'windows';}
+ for(const expression of handoffPatterns){const match=expression.exec(value);if(match)return ['notebook','laptop'].includes(match[1])?'notebook':'windows';}
  return null;
 }
 function recallIntent(text){

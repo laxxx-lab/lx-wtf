@@ -7,6 +7,13 @@ Befehle bleiben gesperrt. Auf Linux werden diese Steuerwünsche nach STT vor
 der normalen Unterbrechung behandelt. Eine Übergabe wartet auf den laufenden
 Hermes-Auftrag, statt ihn für eine vermeintliche neue Frage abzubrechen.
 
+Ein auswendig gelernter Satz ist nicht nötig: „Lass uns am PC weiter arbeiten“,
+„Ich würde gern am PC weitermachen“, „Ich arbeite jetzt am PC weiter“ und
+„Lass uns auf meinem Notebook weitermachen“ werden als Fortsetzungswunsch
+erkannt. Übliche Füllwörter, ihre Reihenfolge, persönliche Gerätebezüge und
+getrenntes „weiter arbeiten“ dürfen variieren. Unklare, verneinte, zitierte
+oder bedingte Aussagen lösen weiterhin keine automatische Übergabe aus.
+
 Stand 13.10.2026: Windows-/Linux-Client und Gateway-Koordination sind
 bereitgestellt. Beide eigenen Clients wurden bei bestätigtem Leerlauf
 aktualisiert; Einstellungen und gespeicherte Gesprächsauswahl blieben erhalten.

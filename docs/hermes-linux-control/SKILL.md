@@ -7,6 +7,12 @@ description: Linux-Notebook über den verbundenen Lilith-MCP bedienen.
 
 ## Adminaufgaben und lebendige Denkphase · 14.10.2026
 
+Natürlich formulierte Fortsetzungswünsche wie „Lass uns am PC weiter arbeiten“,
+„Ich würde gern am PC weitermachen“ oder „Ich arbeite jetzt am PC weiter“
+gehen lokal an die vorhandene Gesprächsübergabe. Füllwörter und persönliche
+Gerätebezüge dürfen variieren. Kein bestimmtes Zauberwort, Modell- oder
+SSH-Auftrag nötig; Bedingungen, Verneinungen und Zitate bleiben gesperrt.
+
 Die Orb-Mitte zeigt drei weiche Lichtschichten mit zustandsabhängigem Fluss.
 Der kleine Orb hat kräftigere Konturen und eine dunkle kreisförmige Unterlegung;
 seine Fensterecken bleiben transparent. Sprechen folgt dem echten lokalen
