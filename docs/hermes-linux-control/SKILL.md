@@ -7,6 +7,13 @@ description: Linux-Notebook über den verbundenen Lilith-MCP bedienen.
 
 ## Adminaufgaben und lebendige Denkphase · 14.10.2026
 
+Notebook-Standby ist direkt über den **Standby**-Knopf oder „Lilith, geh bitte
+in den Standby“ verfügbar. Das pausiert die lokale Aufnahme/Ausgabe; ein
+laufender Hermes-Auftrag wird dadurch nicht unterbrochen. Gesprochene Übergaben
+erkennen eine vorangestellte Anrede „Lilith“/„Hermes“ und warten auf laufende
+Arbeit, statt sie als Dazwischenreden abzubrechen. Kein Modell-/SSH-Auftrag
+für Standby oder Gesprächswechsel. Aufwecken weiterhin durch Orb-Klick.
+
 Die Denkdarstellung beginnt bereits bei der Einsendung („Verarbeite deinen
 Auftrag“), bevor Hermes die Anfrage bestätigt. Eine verspätete Annahme darf
 einen schon abgeschlossenen Gesprächszug nicht wieder als denkend anzeigen.

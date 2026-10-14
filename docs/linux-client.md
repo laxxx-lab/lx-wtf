@@ -283,6 +283,16 @@ aufzuklappen. Eine bestätigte Gesprächsübernahme kann den Standby ebenfalls
 beenden und beginnt nach der einmaligen Begrüßung den bisherigen Live-Ablauf.
 Ein aktiver Datenschutzmodus bleibt dabei gesperrt.
 
+**Standby** ist auch als eigener Knopf im Gespräch verfügbar. „Lilith, geh
+bitte in den Standby“ verwendet die gemeinsame lokale Erkennung für diesen
+Befehl und erzeugt keinen Modellauftrag. Eine ausdrücklich gewünschte Pause
+verwirft lokale Aufnahme und Ausgabe; laufende Hermes-Aufträge, Sessionwechsel
+und Transkription müssen zuerst enden. Aufwecken bleibt ein ausdrücklicher
+Orb-Klick. Eine Anrede wie „Lilith“ oder „Hermes“ vor einem Übergabewunsch ist
+erlaubt. Standby und Übergabe werden nach STT vor der normalen Unterbrechung
+erkannt: eine Übergabe wartet auf laufende Arbeit, statt den Modellauftrag
+als neue Frage zu unterbrechen.
+
 Die Linux-Kamera-Wiedererkennung und automatische Kamerabegrüßung sind noch
 nicht eingerichtet. Der vorhandene Linux-Sprachruntime-Build stellt keine
 Kamera-Erkennungspipeline bereit; auch das Windows-Wakeword läuft hier nicht.

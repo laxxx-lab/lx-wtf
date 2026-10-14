@@ -1,5 +1,12 @@
 # Dasselbe Gespräch auf einem anderen Gerät fortsetzen
 
+Gesprochene Wünsche dürfen mit „Lilith“, „Hey Lilith“ oder „Hermes“ beginnen,
+etwa „Lilith, ich will wieder am Gaming-PC arbeiten“. Die Anrede wird vor
+der gemeinsamen Absichtserkennung entfernt; Fragen, Verneinungen und zitierte
+Befehle bleiben gesperrt. Auf Linux werden diese Steuerwünsche nach STT vor
+der normalen Unterbrechung behandelt. Eine Übergabe wartet auf den laufenden
+Hermes-Auftrag, statt ihn für eine vermeintliche neue Frage abzubrechen.
+
 Stand 13.10.2026: Windows-/Linux-Client und Gateway-Koordination sind
 bereitgestellt. Beide eigenen Clients wurden bei bestätigtem Leerlauf
 aktualisiert; Einstellungen und gespeicherte Gesprächsauswahl blieben erhalten.

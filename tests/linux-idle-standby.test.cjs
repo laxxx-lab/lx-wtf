@@ -17,6 +17,14 @@ test('Linux validates and preserves default fifteen minute idle timeout and expl
  for(const value of [0,1,15,1440])assert.equal(validateLinuxSettings({idleStandbyMinutes:value}).idleStandbyMinutes,value);
  for(const value of [-1,1441,1.5,'15',null])assert.throws(()=>validateLinuxSettings({idleStandbyMinutes:value}));
 });
+test('explicit Linux standby closes local speech without sending a model request',async()=>{
+ const f=fixture();try{f.run("rendererInput={capturing:false,speaking:true,live:true,microphoneOpen:true};speechPending=1;conversation.submit=()=>{throw Error('Must not submit')};");
+  await f.run("submit('Lilith, geh bitte in den Standby.',{captured:{sessionId:'runtime',generation:0}})");assert.equal(f.run('standbyActive'),true);assert.equal(f.run('speechPending'),0);assert.equal(f.run('rendererInput.microphoneOpen'),false);assert.equal(f.run('conversation.session.storedId'),'stored');
+ }finally{f.close();}
+});
+test('manual Linux standby protects a running task and refuses stale captured ownership',async()=>{
+ const f=fixture();try{f.run('conversation.busy=true;');assert.throws(()=>f.run('actions.standby()'),/Auftrag/);assert.equal(f.run('standbyActive'),false);f.run('conversation.busy=false;');await assert.rejects(f.run("submit('Standby',{captured:{sessionId:'other',generation:0}})"),/Aufnahme|Session/);assert.equal(f.run('standbyActive'),false);}finally{f.close();}
+});
 test('Linux idle pauses a silent open live microphone while preserving session and preferences',()=>{
  const f=fixture();try{
   assert.equal(f.run('typeof idleStandbyTick'),'function');

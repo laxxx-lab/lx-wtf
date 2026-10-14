@@ -10,7 +10,7 @@ async function handoffRequest(gateway,payload){
 }
 function handoffIntent(text){
  if(typeof text!=='string')return null;
- const value=text.trim().toLocaleLowerCase('de-DE').replace(/[.!]+$/,'').replace(/\bbitte\b/g,' ').replace(/,/g,' ').replace(/\s+/g,' ').trim();
+ const value=text.trim().toLocaleLowerCase('de-DE').replace(/^(?:hey\s+)?(?:lilith|hermes|lillis)[,\s]+/,'').replace(/[.!]+$/,'').replace(/\bbitte\b/g,' ').replace(/,/g,' ').replace(/\s+/g,' ').trim();
  if(/^(?:ich wechsel(?:e)?|ich wechsle) (?:aufs|auf das) notebook$/.test(value)||/^(?:übergib|übergebe) das gespräch an (?:das )?notebook$/.test(value))return 'notebook';
  if(/^(?:ich wechsel(?:e)?|ich wechsle) (?:zurück )?(?:an den|auf den|zum) pc$/.test(value)||/^(?:übergib|übergebe) das gespräch an (?:den )?pc$/.test(value))return 'windows';
  for(const expression of [
@@ -22,7 +22,7 @@ function handoffIntent(text){
 }
 function recallIntent(text){
  if(typeof text!=='string')return false;
- const value=text.trim().toLocaleLowerCase('de-DE').replace(/[.!]+$/,'').trim();
+ const value=text.trim().toLocaleLowerCase('de-DE').replace(/^(?:hey\s+)?(?:lilith|hermes|lillis)[,\s]+/,'').replace(/[.!]+$/,'').trim();
  return /^(?:hierher zurückholen|(?:hol|hole) (?:lilith|das gespräch) hierher zurück)$/.test(value);
 }
 const same=(a,b)=>!!a&&!!b&&a.id===b.id&&a.profile===b.profile;

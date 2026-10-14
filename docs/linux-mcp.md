@@ -111,6 +111,16 @@ zum Beispiel über `systemctl --user import-environment DISPLAY XAUTHORITY XDG_S
 Keine X11-Anzeige oder fremde Sitzung erraten. Ohne gültige grafische Anmeldung
 bleiben Shell/Dateien verfügbar; Desktopwerkzeuge melden den konkreten Fehler.
 
+Auf Patriks Notebook bewahrt seit 14.10.2026 die eigene Dienst-Ergänzung
+`~/.config/systemd/user/lilith-linux-mcp.service.d/10-lilith-display.conf`
+die bestätigten Werte `DISPLAY`, `XAUTHORITY` und `XDG_SESSION_TYPE` derselben
+grafischen Sitzung wie der Lilith-Client. Der MCP kann vor dem grafischen
+Autostart laufen; ein späteres `import-environment` ändert seine bereits
+laufende Prozessumgebung nicht. Eine fehlende DISPLAY-Variable wurde so
+repariert und mit einem echten Desktop-Screenshot bestätigt. Bei Wechsel der
+grafischen Sitzung die Werte erneut aus dem eigenen aktiven Client prüfen;
+keine Wayland-Sitzung als X11 deklarieren.
+
 ## Desktopaktionen prüfen
 
 Vor einem Klick/Tastenakkord ein neues `desktop_screenshot` lesen. Dessen

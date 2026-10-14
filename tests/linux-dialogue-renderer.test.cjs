@@ -14,6 +14,13 @@ function fixture({failMic=false,delayedMic=false}={}){
  return {context,$,calls,processors,players,gains,track,get opens(){return opens;},releaseMic:()=>resolveMic?.(),event:event=>callback(event),state:patch=>{state={...state,...patch};callback({type:'state',snapshot:state});},listen:()=>callback({type:'handoff-listen',sessionId:'runtime',storedSessionId:'stored',profile:'default',generation:7}),ready:()=>callback({type:'handoff-listen-ready',sessionId:'runtime',storedSessionId:'stored',profile:'default',generation:7}),pcm(amplitude,count){for(let i=0;i<count;i++)processors.at(-1).onaudioprocess?.({inputBuffer:{getChannelData:()=>Float32Array.from({length:4096},(_,at)=>Math.sin(at*.1)*amplitude)},outputBuffer:{getChannelData:()=>new Float32Array(4096)}});}};
 }
 async function answering(f){await flush();f.listen();f.ready();await flush();f.state({busy:true});f.event({type:'audio-queued',generation:2});f.event({type:'audio-start',generation:2});f.event({type:'audio-chunk',generation:2,data:Buffer.alloc(4800,1).toString('base64')});await flush();}
+test('Linux standby button closes live and playback then requests actual local standby',async()=>{
+ const f=fixture();await flush();f.listen();f.ready();await flush();f.event({type:'audio-queued',generation:1});f.event({type:'audio-start',generation:1});f.event({type:'audio-chunk',generation:1,data:'AAAAAA=='});await flush();f.$('standby').click();await flush();assert.equal(f.calls.filter(c=>c.method==='standby').length,1);assert.equal(f.calls.filter(c=>c.method==='input-state').at(-1).value.microphoneOpen,false);assert.equal(f.players.at(-1).stopped,true);assert.equal(f.calls.some(c=>c.method==='submit'||c.method==='interrupt'),false);
+});
+test('spoken handoff during work routes locally without interrupting or queuing a replacement model turn',async()=>{
+ const f=fixture(),original=f.context.window.lilith.invoke;f.context.window.lilith.invoke=(method,value)=>method==='voice-control-intent'?(f.calls.push({method,value}),Promise.resolve(true)):original(method,value);
+ await answering(f);f.pcm(.1,6);f.pcm(0,10);await flush();assert.equal(f.calls.filter(c=>c.method==='submit').length,1);assert.equal(f.calls.some(c=>c.method==='interrupt'),false);assert.notEqual(f.players[0].stopped,true);
+});
 test('Linux live barge listens during a reply and waits for confirmed terminal before replacement',async()=>{
  const f=fixture();let terminal;const original=f.context.window.lilith.invoke;
  f.context.window.lilith.invoke=(method,value)=>{if(method==='interrupt'){f.calls.push({method,value});return new Promise(resolve=>terminal=resolve);}return original(method,value);};
@@ -59,9 +66,9 @@ test('a stopped Linux wake request cannot reopen live from its late IPC reply',a
 });
 
 test('Linux renderer shows transcription then thinking continuously until the submitted turn is accepted',async()=>{
- const f=fixture();await flush();let finishStt,finishSubmit;const original=f.context.window.lilith.invoke;
- f.context.window.lilith.invoke=(method,value)=>method==='transcribe'?new Promise(resolve=>finishStt=()=>resolve('Ein Auftrag')):method==='submit'?new Promise(resolve=>finishSubmit=()=>resolve({ok:true})):original(method,value);
- f.$('record').click();await flush();f.$('record').click();await flush();assert.equal(f.$('phase').textContent,'Ich höre genauer hin.');finishStt();await flush();assert.equal(f.$('phase').textContent,'Ich denke nach.');f.state({status:'thinking',busy:true});finishSubmit();await flush();assert.equal(f.$('phase').textContent,'Ich denke nach.');
+ const f=fixture();await flush();let finishStt,finishControl,finishSubmit;const original=f.context.window.lilith.invoke;
+ f.context.window.lilith.invoke=(method,value)=>method==='transcribe'?new Promise(resolve=>finishStt=()=>resolve('Ein Auftrag')):method==='voice-control-intent'?new Promise(resolve=>finishControl=()=>resolve(false)):method==='submit'?new Promise(resolve=>finishSubmit=()=>resolve({ok:true})):original(method,value);
+ f.$('record').click();await flush();f.$('record').click();await flush();assert.equal(f.$('phase').textContent,'Ich höre genauer hin.');finishStt();await flush();f.state({status:'ready',busy:false});assert.equal(f.$('phase').textContent,'Ich denke nach.');finishControl();await flush();assert.equal(f.$('phase').textContent,'Ich denke nach.');f.state({status:'thinking',busy:true});finishSubmit();await flush();assert.equal(f.$('phase').textContent,'Ich denke nach.');
 });
 test('live captures one utterance then keeps its microphone available across model and TTS playback',async()=>{
  const f=fixture();await flush();f.listen();f.ready();await flush();f.pcm(0,5);f.pcm(.1,6);assert.equal(f.calls.filter(x=>x.method==='input-state').at(-1).value.capturing,true);f.pcm(0,10);await flush();assert.equal(f.calls.filter(x=>x.method==='transcribe').length,1);assert.equal(f.calls.filter(x=>x.method==='submit').length,1);

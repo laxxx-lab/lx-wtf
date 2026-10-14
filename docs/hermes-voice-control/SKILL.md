@@ -7,6 +7,10 @@ description: "Bei Steuerung von Liliths Windows-App verwenden."
 
 ## Zuverlässiger Kern · 14.10.2026
 
+Gesprächsübergaben dürfen mit „Lilith“, „Hey Lilith“ oder „Hermes“ beginnen,
+zum Beispiel „Lilith, ich will wieder am Gaming-PC arbeiten“. Dafür den
+lokalen Übergabeablauf verwenden, keinen Modell-/SSH-Auftrag erzeugen.
+
 Der Denk-Orb umfasst auch die Vorbereitung eines angenommenen freien Auftrags:
 Aufnahme abschließen, lokalen Befehl prüfen und Hermes-Anfrage vorbereiten.
 „Verarbeite deinen Auftrag“ beschreibt diesen Übergang; eine Netzwerkannahme

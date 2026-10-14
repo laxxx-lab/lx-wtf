@@ -12,6 +12,7 @@ const {createLinuxOrbWindow}=require('./linux-window.cjs');
 const {createSessionHandoff,handoffIntent,recallIntent,handoffRequest}=require('./session-handoff.cjs');
 const {createIdleStandby}=require('./idle-standby.cjs');
 const {normalizeOrbMotion}=require('./ui/orb.js');
+const {isStandbyRequest}=require('./ui/voice-interaction.js');
 const ROOT=__dirname,LOCAL=path.join(ROOT,'.local'),settingsFile=path.join(LOCAL,'linux-settings.json'),page=pathToFileURL(path.join(ROOT,'ui/linux.html')).href;
 const sessionFile=path.join(LOCAL,'linux-session.json');
 const controlFile=path.join(LOCAL,'linux-control.json');let controlApi=null,controlToken=null;
@@ -33,10 +34,16 @@ function selectedStoredSession(){const row=conversation?.session;return row?{id:
 function localBusy(){return !!conversation?.busy||!!conversation?.selecting||transcribing||speechPending>0||rendererInput.capturing||rendererInput.speaking;}
 function handoffCanSubmit(){return !handoff||handoff.canSubmit(selectedStoredSession());}
 function handoffPendingCurrent(){const record=handoff?.snapshot().pending,selected=selectedStoredSession();return !!record&&!!selected&&[record.session,record.previous].some(row=>row?.id===selected.id&&row.profile===selected.profile);}
-function enterLinuxStandby(){
- if(config.privacyLocked||standbyActive||localBusy()||!handoffCanSubmit()||handoffPendingCurrent())return snapshot();
+function enterLinuxStandby({explicit=false}={}){
+ if(config.privacyLocked||standbyActive||(explicit?conversation?.busy||conversation?.selecting||transcribing:localBusy())||!handoffCanSubmit()||handoffPendingCurrent())return snapshot();
  standbyActive=true;generation++;rendererInput={capturing:false,speaking:false,live:false,microphoneOpen:false};
  emit({type:'standby-state',active:true,generation});stopSpeech();update(connected?'ready':'offline','Standby · zum Sprechen auf den Orb klicken');return snapshot();
+}
+function requestLinuxStandby(captured){
+ access(captured);
+ if(conversation?.busy||conversation?.selecting||transcribing)throw Error('Ein Auftrag läuft noch. Standby ist danach möglich.');
+ if(!handoffCanSubmit()||handoffPendingCurrent())throw Error('Dieses Gespräch wird übergeben oder gehört zum anderen Gerät.');
+ return enterLinuxStandby({explicit:true});
 }
 function resumeLinuxStandby(){
  access();if(!handoffCanSubmit()||handoffPendingCurrent()||localBusy())throw Error('Das Gespräch ist noch beschäftigt oder gehört zum anderen Gerät.');
@@ -86,6 +93,7 @@ async function submit(text,{captured,project}={}){
   const command=text.trim().toLocaleLowerCase('de-DE');
   if(/^(?:stopp|stop|stoppe alles|alles stoppen|not-aus)[.!]?$/.test(command))return interrupt();
   if(/^(?:datenschutz|privatmodus) (?:an|ein|aktivieren)[.!]?$/.test(command))return setPrivacy(true);
+  if(isStandbyRequest(text))return requestLinuxStandby(captured);
   access(captured);const target=handoffIntent(text);if(recallIntent(text)||target==='notebook')return handoff.requestRecall();if(target)return handoff.requestTransfer(target);if(!handoffCanSubmit()||handoffPendingCurrent())throw Error('Dieses Gespräch wird übergeben oder gehört zum anderen Gerät.');if(conversation.busy)throw Error('Ein Auftrag läuft. Bitte abschließen oder stoppen.');
   const prompt=linuxDeviceContext(device,notebookTools)+'\n\n'+(project?linuxProjectPrompt(projects,{...project,text},device):'Nutzerauftrag: '+text.trim());
   standbyActive=false;idleStandby.activity();
@@ -247,6 +255,8 @@ async function startEngines(){
 const actions={
   activity:()=>{idleStandby.activity();return {ok:true};},
   'wake-resume':resumeLinuxStandby,
+  standby:requestLinuxStandby,
+  'voice-control-intent':text=>isStandbyRequest(text)||!!handoffIntent(text)||recallIntent(text),
   handoff:target=>handoff.requestTransfer(target),
   recall:()=>{access();return handoff.requestRecall();},
   'input-state':value=>{if(!value||typeof value.capturing!=='boolean'||typeof value.speaking!=='boolean'||['live','microphoneOpen'].some(key=>value[key]!==undefined&&typeof value[key]!=='boolean')||value.sessionId!==conversation?.session?.id||value.generation!==generation)throw Error('Ungültiger Aufnahmezustand.');if(!config.privacyLocked&&!standbyActive&&(value.capturing&&!rendererInput.capturing||value.microphoneOpen&&!rendererInput.microphoneOpen))idleStandby.activity();rendererInput={capturing:value.capturing&&!config.privacyLocked&&!standbyActive,speaking:value.speaking&&!config.privacyLocked&&!standbyActive,live:value.live===true&&!config.privacyLocked&&!standbyActive,microphoneOpen:value.microphoneOpen===true&&!config.privacyLocked&&!standbyActive};return {ok:true};},

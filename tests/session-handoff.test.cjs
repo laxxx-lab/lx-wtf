@@ -2,6 +2,11 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {createSessionHandoff,handoffIntent,recallIntent,handoffRequest}=require('../session-handoff.cjs');
 const session={id:'stored-session',profile:'default',title:'Conversation'};
+test('spoken handoff and recall accept a leading assistant address while retaining intent fences',()=>{
+ for(const text of ['Lilith, ich will wieder am Gaming-PC arbeiten.','Hey Lilith, ich wechsle zurück an den PC.','Hermes, lass uns mal am PC weiterarbeiten, bitte.'])assert.equal(handoffIntent(text),'windows',text);
+ assert.equal(recallIntent('Lilith, hol das Gespräch hierher zurück.'),true);
+ for(const text of ['Lilith, ich will nicht am PC arbeiten.','Hermes, ich wechsle zurück an den PC?','Er sagt Lilith ich wechsle zurück an den PC.'])assert.equal(handoffIntent(text),null,text);
+});
 function recallFixture(t){
  let now=0,receipt=null,lost=false;const devices=new Map(),owner={sessionId:session.id,profile:'default',ownerId:'source',revision:4};
  const actors={},calls=[],arrivals=[];
