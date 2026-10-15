@@ -1,5 +1,8 @@
 # Hermes Voice
 
+[Downloads: 0.2.0-preview.3](https://github.com/laxxx-lab/lx-wtf/releases/tag/v0.2.0-preview.3)
+– Windows x64, Zorin/Linux x64 und experimentelles macOS Apple Silicon.
+
 Desktop-Sprachclient für **deinen eigenen kompatiblen Hermes-Gateway**. Der
 Assistentenname ist frei wählbar; „Lilith“ ist eine persönliche Konfiguration.
 Die öffentliche Installation enthält keine privaten Stimmen, Modelle, Zugangsdaten

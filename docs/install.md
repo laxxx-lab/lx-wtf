@@ -64,7 +64,7 @@ speichern. Das Skript vor Ausführung ansehen. Kein Download wird in eine Shell
 gepiped. Auf dem angemeldeten Desktop:
 
 ```bash
-bash install-linux.sh --appimage "$HOME/Downloads/Hermes-Voice-0.2.0-preview.3-linux-x64.AppImage" --install-system
+bash install-linux.sh --appimage "$HOME/Downloads/Hermes-Voice-0.2.0-preview.3-linux-x86_64.AppImage" --install-system
 ```
 
 `--install-system` richtet ausdrücklich ausgewählte Debian-Systemvoraussetzungen
@@ -76,7 +76,7 @@ kann er an die Taskleiste angeheftet werden. `--autostart` ist optional.
 Alternativ löst das deb-Paket Abhängigkeiten über apt auf:
 
 ```bash
-bash install-linux.sh --deb "$HOME/Downloads/Hermes-Voice-0.2.0-preview.3-linux-x64.deb" --install-python
+bash install-linux.sh --deb "$HOME/Downloads/Hermes-Voice-0.2.0-preview.3-linux-amd64.deb" --install-python
 ```
 
 Für einen verifizierten Download kann `--release-url` die konkrete HTTPS-Adresse

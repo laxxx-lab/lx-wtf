@@ -82,5 +82,9 @@ tests/portable-runtime.test.cjs, README.md/docs/install.md and relevant skill do
   map it to a notebook pretending Linux desktop control is supported.
 - [x] Run focused + full Node/Python tests; native Windows package build; isolated
   onboarding and actual public speech model smoke test when possible.
-- [ ] Update operating docs, save source commit, push installer branch; publish
+- [x] Update operating docs, save source commit, push installer branch; publish
   preview artifacts only after verifying they exclude private developer data.
+
+Delivered as v0.2.0-preview.3 after native CI corrections. All three native build
+jobs and the publication job passed; five installer artifacts, scripts, guide and
+SHA256SUMS are available in the GitHub preview release. Android remains separate.
