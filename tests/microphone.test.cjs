@@ -26,7 +26,7 @@ test('concurrent microphone callers share the same acquisition and release',asyn
 test('USB replug resolves only the unique same named input, keeping model and hardware identity in the label',()=>{
  const {resolveMicrophoneDevice}=require('../ui/microphone.js');
  const old={deviceId:'old-input',label:'Speakerphone (Sennheiser SP 20) (1395:003f)'};
- const devices=[{kind:'audioinput',deviceId:'new-input',label:'Speakerphone (2- Sennheiser SP 20) (1395:003f)'},{kind:'audioinput',deviceId:'headset',label:'Corsair VOID'},{kind:'audiooutput',deviceId:'output',label:old.label}];
+ const devices=[{kind:'audioinput',deviceId:'new-input',label:'Speakerphone (2- Sennheiser SP 20) (1395:003f)'},{kind:'audioinput',deviceId:'headset',label:'USB VOID'},{kind:'audiooutput',deviceId:'output',label:old.label}];
  assert.deepEqual(resolveMicrophoneDevice(old,devices),{deviceId:'new-input',label:devices[0].label});
  assert.throws(()=>resolveMicrophoneDevice(old,devices.slice(1)),/nicht verfügbar/);
  assert.throws(()=>resolveMicrophoneDevice(old,[...devices,{...devices[0],deviceId:'second-input',label:'Speakerphone (3- Sennheiser SP 20) (1395:003f)'}]),/Mehrere/);

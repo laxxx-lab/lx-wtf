@@ -43,7 +43,7 @@ Korrektur wurde anschließend auf der aktuellen Fassung vorbereitet. Die lokalen
 Originale, Entwürfe und Nachweise bleiben unter `.local/pc-audit/` ignoriert.
 
 Die neue leere Session **Lilith · PC und Voice** verwendet
-`/home/claw/.hermes` als Arbeitsverzeichnis. Ihr Kontextbericht bestätigt die
+`/srv/example/.hermes` als Arbeitsverzeichnis. Ihr Kontextbericht bestätigt die
 aktuellen AGENTS- und SOUL-Dateien als geladen. Die bisherige Session bleibt
 erhalten. Kamera-, Bildschirm- und Stimmpräferenzen wurden beibehalten.
 

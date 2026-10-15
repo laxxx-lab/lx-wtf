@@ -39,7 +39,7 @@ Auch natürliche Wünsche wie **„Lass uns mal auf dem Notebook weiterarbeiten,
 bitte“**, **„Ich möchte gerne auf dem Laptop weiterarbeiten“** und
 **„Wechsel bitte zum Notebook“** gehen direkt an die Gesprächsübergabe.
 **„Ich will wieder auf dem Gaming PC arbeiten“** wechselt ebenfalls wirklich
-zum PC. Gaming PC, Gaming-PC, GamingPC und LaxXx-Gaming bezeichnen dabei den
+zum PC. Gaming PC, Gaming-PC, GamingPC und desktop-pc bezeichnen dabei den
 Windows-Client; „wieder“ und „arbeiten“ werden direkt verstanden.
 Für die Gegenrichtung funktionieren dieselben Wünsche mit PC, Rechner oder
 Computer. „Bitte“, Kommas und zusätzliche Leerzeichen beeinflussen das Ziel
@@ -100,7 +100,7 @@ spielt bereits abgeschlossene Begrüßungen nicht wieder ab.
 Die Begrüßung wurde in beiden echten Richtungen mit dem gespeicherten Gespräch
 geprüft. Am Notebook bestätigten dessen Output-Monitor und Lilith-Audiostream
 ein Signal, am PC der Windows-Ausgabepegel; kein Mikrofon wurde aufgenommen.
-Patrik bestätigte die Notebook-Begrüßung als einmalig und verständlich hörbar.
+der Nutzer bestätigte die Notebook-Begrüßung als einmalig und verständlich hörbar.
 Die PC-Ausgabe ist technisch gemessen, nicht separat menschlich bestätigt.
 
 ## Gesprächsort und zurückholen
@@ -130,9 +130,9 @@ Am 13.10.2026 in beiden nativen Clients bereitgestellt und geprüft:
 PC → Notebook mit Revision 10, Rückholen am kompakten PC-Orb mit Revision 11,
 Rückholen am Notebook mit Revision 12. Danach wurde ausschließlich der
 bestätigt freie Notebook-Client beendet. Der PC zeigte nach Lease-Ablauf
-**Auf lx-gaming-nb · offline** und holte dieselbe Session samt Verlauf mit
+**Auf notebook · offline** und holte dieselbe Session samt Verlauf mit
 Revision 13 zurück. Der Serverbeleg bestätigt `offlineRecovery:true`.
-Nach Neustart zeigte der Notebook-Orb **Auf LaxXx-Gaming**, blieb passiv und
+Nach Neustart zeigte der Notebook-Orb **Auf desktop-pc**, blieb passiv und
 bot Rückholen an. Dies simuliert den Clientausfall; der Notebook-Akku wurde
 nicht tatsächlich entladen. Beide Clients blieben angemeldet, Einstellungen
 und Gesprächsauswahl erhalten. Kein Modellprompt wurde für die Übergaben
@@ -178,7 +178,7 @@ Die reale Übergabe per Gesprächsknopf wurde auf beiden Geräten mit Anmeldung,
 gleicher Session/Profil, Verlauf und Eingangswechsel bestätigt. Der PC schließt
 bei Übergabe seinen Mikrofoneingang und nimmt nach Rückgabe seinen vorherigen
 Live-Zustand wieder auf. Eine ausdrücklich gesprochene Übergabeformulierung
-ist damit noch nicht separat bestätigt. Die Notebook-Begrüßung hat Patrik
+ist damit noch nicht separat bestätigt. Die Notebook-Begrüßung hat der Nutzer
 als einmalig und verständlich hörbar bestätigt.
 
 ## Eigenes neues Notebook-Gespräch

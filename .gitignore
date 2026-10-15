@@ -20,3 +20,8 @@ dist/
 *.AppImage
 *.dmg
 *.deb
+*.bak
+*.bak-*
+*.backup
+*.key
+*.pem

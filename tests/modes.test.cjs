@@ -173,15 +173,15 @@ test('application list caps at eight validated paths and requires explicit launc
 });
 
 test('workspace folders and named web sites normalize independently and deduplicate', () => {
-  const mode = normalizeModes([{ id: 'work', folders: ['C:\\Users\\Patri\\Documents', 'c:/users/patri/documents', 'D:\\Projects\\'], sites: ['https://example.com', { url: 'https://EXAMPLE.com/', name: 'Duplicate' }, { url: 'https://github.com/org/repo', name: '  Projekt  ' }] }])[1];
-  assert.deepEqual(mode.folders, ['C:\\Users\\Patri\\Documents', 'D:\\Projects']);
+  const mode = normalizeModes([{ id: 'work', folders: ['C:\\Example\\Documents', 'c:/example/documents', 'D:\\Projects\\'], sites: ['https://example.com', { url: 'https://EXAMPLE.com/', name: 'Duplicate' }, { url: 'https://github.com/org/repo', name: '  Projekt  ' }] }])[1];
+  assert.deepEqual(mode.folders, ['C:\\Example\\Documents', 'D:\\Projects']);
   assert.deepEqual(mode.sites, [{ url: 'https://example.com/', name: '' }, { url: 'https://github.com/org/repo', name: 'Projekt' }]);
   assert.deepEqual(normalizeModes()[0].folders, []);
   assert.deepEqual(normalizeModes()[0].sites, []);
 });
 
 test('workspace settings reject paths and URLs that can escape local browsing boundaries', () => {
-  for (const folder of ['relative', 'C:folder', '\\\\server\\share', '\\\\?\\C:\\folder', 'C:\\..\\Users', 'C:\\Users\\.\\Name', 'C:\\Users\\name:stream', 'C:\\NUL', 'C:\\bad\nname', 'C:\\name.', 'C:\\folder\\\\child']) {
+  for (const folder of ['relative', 'C:folder', '\\\\server\\share', '\\\\?\\C:\\folder', 'C:\\..\\Users', 'C:\\Example\\.\\Name', 'C:\\Example\\name:stream', 'C:\\NUL', 'C:\\bad\nname', 'C:\\name.', 'C:\\folder\\\\child']) {
     assert.throws(() => normalizeModes([{ id: 'work', folders: [folder] }]), /folder/i, folder);
   }
   for (const url of ['https:example.com', 'javascript:alert(1)', 'data:text/html,hi', 'ftp://example.com', 'file:///C:/secret', 'https://user:pass@example.com', 'http://user:pass@localhost:8080', 'https://example.com/\u0085hidden', 'https://example.com\n/secret']) {

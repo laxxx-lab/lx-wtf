@@ -1,6 +1,6 @@
 # Artcraft-Werkbank
 
-`Ctrl+Alt+W` öffnet die Werkbank, Reiter **07 Artcraft**. Zwölf installierte native Programme unter `I:\tools\artcraft\apps` sind auswählbar. „App öffnen“ startet ausschließlich den bekannten Editor und richtet bei fehlender lokaler Registrierung einen freien GUI-Control-Kanal ein; „App zeigen“ fokussiert ein eindeutig erkanntes Fenster. Bearbeitungsaufträge laufen über die ausgewählte bestehende Hermes-Session und deren MCP.
+`Ctrl+Alt+W` öffnet die Werkbank, Reiter **07 Artcraft**. Zwölf installierte native Programme unter `C:\Tools\artcraft\apps` sind auswählbar. „App öffnen“ startet ausschließlich den bekannten Editor und richtet bei fehlender lokaler Registrierung einen freien GUI-Control-Kanal ein; „App zeigen“ fokussiert ein eindeutig erkanntes Fenster. Bearbeitungsaufträge laufen über die ausgewählte bestehende Hermes-Session und deren MCP.
 
 **Fensterstream** zeigt echtes lokales Video des ausgewählten nativen Fensters, Ziel 30 fps. Die Erfassung bindet sich an die genaue PID und HWND des bekannten installierten Editors, nicht an einen Fenstertitel oder den gesamten Desktop. Sie verwendet Electron `getDisplayMedia` und benötigt keinen GUI-Control-/MCP-Kanal. Video wird weder gespeichert noch zum VPS gesendet. Audio und Mikrofon werden nicht erfasst. Bei statischem Bild sendet Windows weniger neue Frames; bei Minimierung der Quelle kann die Ausgabe stehen bleiben oder die Quelle verschwinden.
 

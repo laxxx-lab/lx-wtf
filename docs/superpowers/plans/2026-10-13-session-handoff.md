@@ -89,6 +89,6 @@ when its original commitment is first reconciled. No extra model prompt or new
 server route. Both native directions showed a single greeting; Notebook output
 monitor identified the own Lilith stream and Windows default-output meter saw
 audio, without microphone capture. Unit checks cover receipt loss, restart,
-privacy, source ownership and local speech integration. Patrik confirmed the
+privacy, source ownership and local speech integration. der Nutzer confirmed the
 Notebook greeting was heard exactly once and clearly; Windows output is
 technically measured, not separately human-confirmed.

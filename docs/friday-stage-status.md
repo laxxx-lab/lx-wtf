@@ -47,7 +47,7 @@ TTS-/Renderer-Test mit stummem Ausgang bestätigte PCM-Wiedergabe und das
 Verwerfen verspäteter Generationen. Verdeckte Electron-Rendererprüfungen
 bestätigten Layout ohne horizontalen Überlauf sowie Graphaktivität/Pinch und
 Generation-Reset. Die gesamte Mikrofon–Hermes–Lautsprecher-Kette und die Gesten
-mit Patriks eigener Hand sind noch kein abgeschlossener Alltagstest.
+mit des Nutzers eigener Hand sind noch kein abgeschlossener Alltagstest.
 
 Bei der anfänglichen Entwicklung war Datenschutz aktiv. Vor der Aktivierung
 meldete der vorhandene Client bereits `locked:false`; die Tests haben ihn

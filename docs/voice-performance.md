@@ -114,45 +114,7 @@ Starts und PCM derselben Generation verworfen. Eine Stichprobe: erstes PCM
 Modell, kein allgemeines Live-Latenzversprechen. Beleg:
 `.local/friday-voice-native/result.json`.
 
-## Engpassprüfung am 12.10.2026
+## Eigene Messung
 
-Die laufenden lokalen Modelle waren in isolierten Stichproben schnell: Die
-ausgewählte Referenzstimme lieferte erstes PCM nach 44–89 ms, Whisper erkannte
-zwei lokal erzeugte Clips von 1,76 und 3,60 Sekunden in 108 und 124 ms.
-Das belegt warme Synthese-/Erkennungszeiten, keine Mikrofon- oder Raumprüfung.
-
-Zwei native Tests über die bestehende Hermes-Session, mit realer TTS und
-stummgeschaltetem Renderer-Ausgabezeitstrahl, zeigten vorher: erster Modelltext
-nach 2,20–2,43 s; erste Wiedergabe nach 3,02 bzw. 6,22 s ab lokalem Auftrag.
-Die Erklärung wartete zusätzlich 3,40 s zwischen erstem Text und TTS-Einreihung
-auf die vollständige Antwort. Beide Tests nutzten `none` und keine Werkzeuge;
-der vorbereitende Konfigurationsabruf dauerte nur 7–10 ms. Nach Satzende kommen
-beim echten Mikrofon noch VAD-Entscheidung und Transkription hinzu.
-
-Mit erweiterter Gesprächserkennung begannen dieselben zwei Anfragen in einer
-weiteren nativen Stichprobe nach 2,63 und 2,50 s mit Wiedergabe, jeweils vor dem
-Modellabschluss. Zwischen erstem Text und erstem Satz lagen nun 310 bzw. 347 ms.
-Die Modellantworten schwanken in Inhalt, Länge und Ankunftszeit; das ist kein
-kontrollierter Modellgeschwindigkeitstest und kein allgemeiner Prozentgewinn.
-Session und lokale Präferenzen blieben erhalten. Belege bleiben ignoriert unter
-`.local/live-chain-before.json`, `.local/live-chain-after.json`,
-`.local/live-latency-stt.json` und `.local/live-latency-tts.json`.
-
-Frühe Sätze beseitigen die zusätzliche Vollantwort-Wartezeit, nicht die Wartezeit
-auf den ersten Modelltext. Parallelagenten halten den Gesprächsweg frei, machen
-diesen einzelnen Modellaufruf aber nicht schneller. Die Datei-/Satzkette bleibt
-eine verkettete Sprachpipeline, kein durchgehendes Speech-to-Speech-Modell.
-
-Für eine weitere Ausbaustufe ist eine schnelle, ständig ansprechbare
-Gesprächsschicht sinnvoll, während Hermes längere Aktionen ausführt. Sie muss
-Persönlichkeit, zuletzt Gesprochenes und bestätigte Auftragszustände synchron
-halten; aktuelle PC-/Kamera-Informationen kommen aus vorhandenen freigegebenen
-Quellen. Abbruch und Datenschutz gelten für beide Wege. Aufgaben und Ergebnisse
-werden über echte Job-IDs verbunden, keine Erfolgsmeldung aus einer bloßen
-Übergabe. Ein lokales Gesprächsmodell sollte vor einer dauerhaften Einbindung
-mit deutscher Sprache, kurzem Kontext und gleichzeitiger STT/TTS auf Patriks
-Hardware gemessen werden. Die lokale Ausbaustufe ist jetzt eingebaut; siehe [Lokales Live-Gespräch](local-live-conversation.md). Die obigen Hermes-Messungen bleiben Vergleichswerte der bisherigen Pipeline.
-Die [Hermes-Voice-Dokumentation](https://hermes-agent.nousresearch.com/docs/user-guide/features/voice-mode)
-beschreibt ebenfalls die Trennung von Voll-duplex-Gespräch und Hermes-Arbeit;
-deren angebotener Cloud-Modus ist kostenpflichtig und ersetzt nicht automatisch
-die lokal geklonte Stimme. Er wurde hier nicht aktiviert.
+Latenzen hängen von Gerät, Modell und Verbindung ab. Messungen nur im eigenen
+ignorierten Laufzeitverzeichnis speichern; private Sitzungsdaten nicht in Git.

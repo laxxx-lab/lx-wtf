@@ -7,7 +7,7 @@ test('public workspace upgrade preserves settings, models and voices and replace
  }finally{fs.rmSync(tmp,{recursive:true});}
 });
 test('workspace destination uses local user storage and is never the bundled app',()=>{
- const {defaultWorkspace}=require('../workspace-install.cjs');assert.equal(defaultWorkspace({platform:'win32',env:{LOCALAPPDATA:'C:/Local'},home:'C:/Home',appData:'C:/Roaming'}),path.join('C:/Local','Hermes Voice','workspace'));assert.equal(defaultWorkspace({platform:'linux',env:{XDG_DATA_HOME:'/data'},home:'/home/person',appData:'/config'}),path.join('/data','hermes-voice','workspace'));
+ const {defaultWorkspace}=require('../workspace-install.cjs');assert.equal(defaultWorkspace({platform:'win32',env:{LOCALAPPDATA:'C:/Local'},home:'C:/Home',appData:'C:/Roaming'}),path.join('C:/Local','Hermes Voice','workspace'));assert.equal(defaultWorkspace({platform:'linux',env:{XDG_DATA_HOME:'/data'},home:'/srv/example',appData:'/config'}),path.join('/data','hermes-voice','workspace'));
 });
 test('explicit isolated workspace is absolute and not a symlink target',()=>{
  const {defaultWorkspace}=require('../workspace-install.cjs');assert.equal(defaultWorkspace({env:{HERMES_VOICE_HOME:path.resolve('isolated workspace')}}),path.resolve('isolated workspace'));assert.throws(()=>defaultWorkspace({env:{HERMES_VOICE_HOME:'../relative'}}),/absolut/i);

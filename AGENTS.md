@@ -1,8 +1,8 @@
 # Lilith / Hermes Voice: Projektanleitung
 
-Dies ist der Windows-Client von Patriks bestehendem VPS-Hermes, kein eigener
-Ersatzagent. Projektwurzel auf seinem PC:
-`C:\Users\patri\Documents\ChatGPT\Voice`.
+Dies ist der Desktop-Client für einen vorhandenen Hermes-Gateway, kein eigener
+Ersatzagent. Die Projektwurzel ist dieses Verzeichnis; Befehle von dort ausführen.
+Persönliche Pfade, Hosts und Zugänge gehören ausschließlich in lokale Konfiguration.
 Repository: https://github.com/laxxx-lab/lx-wtf.
 
 Bei Bedienung den Skill `hermes-voice-control` verwenden; bei Reparatur oder
@@ -67,7 +67,7 @@ Suche verwenden. Aktuelle Bedienverträge stehen unter `docs/`; alte Entwürfe i
 ## Schnelle Prüfung auf dem PC
 
 ```powershell
-Set-Location -LiteralPath 'C:\Users\patri\Documents\ChatGPT\Voice'
+Set-Location -LiteralPath '.'
 git status --short
 & .\control.ps1 -Action status
 node --test tests/microphone.test.cjs tests/voice-renderer.test.cjs

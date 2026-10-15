@@ -15,7 +15,7 @@ const { Gateway, validateGatewayUrl } = require('../gateway.cjs');
 test('gateway URLs reject embedded credentials and executable schemes', () => {
   assert.throws(() => validateGatewayUrl('file:///C:/Windows'));
   assert.throws(() => validateGatewayUrl('http://user:pass@example.com'));
-  assert.equal(validateGatewayUrl('http://lilith.lx.local/'), 'http://lilith.lx.local');
+  assert.equal(validateGatewayUrl('http://hermes.example/'), 'http://hermes.example');
 });
 
 test('RPC keeps request identity, session scope and streamed event text', async t => {

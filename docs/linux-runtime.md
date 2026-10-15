@@ -16,16 +16,9 @@ Programme und werden nicht wiederverwendet. Modelle und Stimme werden direkt
 auf das eigene Notebook übertragen und bleiben ignoriert; keine Veröffentlichung
 über Git und kein erneuter Download einer abweichenden Modellversion.
 
-| Datei | Größe des vorhandenen Windows-Exemplars |
-| --- | ---: |
-| `runtime/voice/models/qwen-talker-1.7b-base-Q8_0.gguf` | 2.079.448.256 Byte |
-| `runtime/voice/models/qwen-tokenizer-12hz-Q8_0.gguf` | 291.150.624 Byte |
-| `runtime/stt/models/ggml-large-v3-turbo.bin` | 1.624.555.275 Byte |
-| `runtime/stt/models/ggml-silero-v6.2.0.bin` | 885.098 Byte |
-| `voices/fixed/registry.json` | 225.860 Byte |
-
-Die aktuelle Registry enthält 14 Profile mit eingebetteten Sprechervektoren,
-Audio-Codes und Referenztext. Ihre Inhalte gehören nicht in Diagnoseausgaben.
+Die Modell- und Registry-Dateien stammen aus der eigenen ausdrücklich
+gewählten Laufzeit. Sprecherprofile, Referenztext und deren Umfang bleiben
+privat; es wird kein persönlicher Modellbestand vorausgesetzt.
 VoiceDesign-Gewichte und importierte Originalaufnahmen sind für die Wiedergabe
 dieser festen Profile nicht erforderlich. Vorgerenderte Wakeword-Ansagen können
 gezielt ergänzt werden; Wakeword und lokaler Satzenddetektor haben eigene

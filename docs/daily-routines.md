@@ -19,7 +19,7 @@ nicht automatisch ausgewählt.
 
 Ein Modus enthält bis zu acht Apps, acht Ordner und acht Webseiten. Ordner
 werden als absolute lokale Windows-Pfade gespeichert, beispielsweise
-`C:\Users\Patri\Documents\Projekte`. Laufwerkbuchstaben sind erforderlich;
+`C:\Example\Documents\Projekte`. Laufwerkbuchstaben sind erforderlich;
 relative Pfade, UNC-Freigaben, Gerätepfade, `..`, reservierte Windows-Namen
 und Steuerzeichen werden abgewiesen. Ein abschließender Verzeichnistrenner
 ist erlaubt. Das Öffnen eines Ordners verändert oder löscht keine Dateien.
@@ -43,7 +43,7 @@ Seiten eignen sich dauerhafte Adressen ohne Anmelde- oder Freigabetoken.
   "id": "work",
   "name": "Arbeit",
   "apps": ["C:\\Programme\\Editor\\Editor.exe"],
-  "folders": ["C:\\Users\\Patri\\Documents\\Projekte"],
+  "folders": ["C:\\Example\\Documents\\Projekte"],
   "sites": [
     { "name": "Projekt", "url": "https://github.com/example/project" }
   ],

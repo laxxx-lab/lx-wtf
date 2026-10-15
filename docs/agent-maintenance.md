@@ -88,7 +88,7 @@ Eine offene Verbindung belegt nur Transport, keine funktionierende Aktion.
 Für gezielte Suche beispielsweise:
 
 ```powershell
-Set-Location -LiteralPath 'C:\Users\patri\Documents\ChatGPT\Voice'
+Set-Location -LiteralPath '.'
 git status --short
 rg -n 'ensureMic|reconnectMicrophone|microphoneDeviceId' ui/app.js ui/microphone.js main.cjs
 Get-Content -LiteralPath .\ui\microphone.js

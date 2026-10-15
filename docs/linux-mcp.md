@@ -111,7 +111,7 @@ zum Beispiel über `systemctl --user import-environment DISPLAY XAUTHORITY XDG_S
 Keine X11-Anzeige oder fremde Sitzung erraten. Ohne gültige grafische Anmeldung
 bleiben Shell/Dateien verfügbar; Desktopwerkzeuge melden den konkreten Fehler.
 
-Auf Patriks Notebook bewahrt seit 14.10.2026 die eigene Dienst-Ergänzung
+Auf des Nutzers Notebook bewahrt seit 14.10.2026 die eigene Dienst-Ergänzung
 `~/.config/systemd/user/lilith-linux-mcp.service.d/10-lilith-display.conf`
 die bestätigten Werte `DISPLAY`, `XAUTHORITY` und `XDG_SESSION_TYPE` derselben
 grafischen Sitzung wie der Lilith-Client. Der MCP kann vor dem grafischen

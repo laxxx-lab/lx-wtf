@@ -97,7 +97,7 @@ Aktuelle PC-Beobachtungen und persönliche Erinnerung bleiben bei Hermes.
 Spezielle Wissensfragen und lange Analyse haben weiterhin dessen Laufzeit.
 Eine lokale Antwort ist kein Beleg für eine Windows-Aktion oder neue Adminrechte.
 
-Auf Patriks RX 7900 XTX wurden nach Warmup erste vollständige Modellsätze mit
+Auf des Nutzers RX 7900 XTX wurden nach Warmup erste vollständige Modellsätze mit
 156–211 ms gemessen, unter gleichzeitiger TTS-Last 200–283 ms. Ein größerer
 synthetischer Gesprächskontext brauchte 296–796 ms. Das sind reine Modellzeiten,
 keine zugesicherte Dauer vom Sprechen bis zur hörbaren Antwort. Die tatsächliche

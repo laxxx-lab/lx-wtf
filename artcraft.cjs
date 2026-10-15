@@ -86,7 +86,7 @@ async function readNativeProcesses(installRoot,signal){
 }
 async function unusedPort(){const server=net.createServer();const port=await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',()=>resolve(server.address().port));});await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));return port;}
 async function launchNative(exe,args){await new Promise((resolve,reject)=>{const child=spawn(exe,args,{detached:true,stdio:'ignore',windowsHide:false});child.once('error',()=>reject(Error('Artcraft konnte nicht geöffnet werden.')));child.once('spawn',()=>{child.unref();resolve();});});}
-function createArtcraft({installRoot='I:\\tools\\artcraft',cacheRoot,readProcesses,readWindow=readNativeWindow,canInput=()=>true,transport=rawRequest,launcher=launchNative,onUpdate=()=>{},now=Date.now,initialAppId='photo'}={}){
+function createArtcraft({installRoot=process.env.HERMES_VOICE_ARTCRAFT_ROOT||path.join(process.env.LOCALAPPDATA||require('node:os').homedir(),'artcraft'),cacheRoot,readProcesses,readWindow=readNativeWindow,canInput=()=>true,transport=rawRequest,launcher=launchNative,onUpdate=()=>{},now=Date.now,initialAppId='photo'}={}){
   installRoot=localPath(installRoot);cacheRoot=localPath(cacheRoot);fs.mkdirSync(cacheRoot,{recursive:true});
   const configPath=path.join(cacheRoot,'artcraft-connections.json'),registrations={},details=new Map(),activities=new Map(),launching=new Map();
   let selectedAppId=ARTCRAFT_APPS.some(app=>app.id===initialAppId)?initialAppId:'photo',preview=null,disposed=false,generation=0,controller=null,apps=[],lastData={processes:[],listeners:[]};

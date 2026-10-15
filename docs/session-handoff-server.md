@@ -1,32 +1,8 @@
 # Session-Übergabe am bestehenden Hermes-Dashboard
 
-Stand 13.10.2026: auf dem bestehenden VPS-Dashboard bereitgestellt. Die eigene
-Integration ergänzt `hermes_cli/lilith_handoff/` und bindet die Route vor der
-SPA ein; vorhandene fremde Änderungen wurden erhalten. Der tatsächliche
-Dashboard-Code wurde zuvor privat gesichert und vor Ersetzung verglichen.
-Importprüfung bestätigt genau eine Route. Der laufende Server weist einen
-nicht angemeldeten POST mit HTTP 401 ab. Das Dashboard wurde im bestätigten
-Leerlauf neu geladen; der getrennte Hermes-Gatewaydienst blieb aktiv.
-Die reale PC-/Notebook-Übergabe ist über beide nativen Oberflächen mit
-produktiver Anmeldung bestätigt. Drei vollständige Rundläufe verwendeten
-dieselbe gespeicherte Session/Profil und Besitzrevisionen 1 → 2 → 3 → 4 → 5 → 6 → 7.
-Nach bestätigter Übernahme wurde jeweils genau die Quelle passiv. Der zweite
-Rundlauf prüfte auch die bereinigte Verlaufdarstellung und Wiederverbindung.
-Der dritte bestätigt das automatische Öffnen aus dem Orb auf beiden Geräten.
-
-Die Rückholerweiterung wurde im bestätigten Dashboard-Leerlauf geladen;
-der getrennte Messaging-Gatewayprozess blieb unverändert. Produktive Belege
-bestätigen Online-Rückholung in beiden Richtungen (Revisionen 11/12) und
-Offline-Rückholung nach beendetem Notebook-Client (Revision 13 mit
-`recall:true, offlineRecovery:true`). Nach dessen Rückkehr blieb der PC
-Besitzer; beide Clients verwendeten dieselbe gespeicherte Session und dasselbe
-Profil. Private Datenbank und Journale wurden erhalten, keine Authdaten geändert.
-
-Die vorhandene Basic-Anmeldung hatte keinen dauerhaften Signaturschlüssel,
-wodurch ihre Cookies bei jedem Dashboardneustart ungültig wurden. Ein eigener
-Systemd-Drop-in lädt nun einen dauerhaften Schlüssel aus einer privaten
-Datei (0600) außerhalb des Checkouts. Passwort, Benutzer und Provider wurden
-nicht geändert; der Schlüssel steht weder in Ausgaben noch im Repository.
+Diese Anleitung beschreibt die Integration am eigenen kompatiblen Dashboard.
+Persönliche Bereitstellungsprotokolle und Authentifizierungseinstellungen gehören
+nicht ins Repository. Server, Zugang und Berechtigungen vor Ort prüfen.
 
 ## Integration nach geprüftem Serverzugang
 
@@ -233,7 +209,7 @@ Die produktive Übergabe und Rückgabe per Gesprächsknopf, native Verlaufanzeig
 und lokale Eingangsumschaltung sind bestätigt. Die ausdrücklich gesprochene
 Übergabeformulierung ist noch nicht separat bestätigt. Die lokale
 Ankunftsbegrüßung wurde zusätzlich in beiden Richtungen angezeigt und an den
-echten Audioausgängen gemessen, ohne Mikrofonaufnahme. Patrik bestätigte die
+echten Audioausgängen gemessen, ohne Mikrofonaufnahme. der Nutzer bestätigte die
 Notebook-Begrüßung als einmalig und verständlich hörbar. Die menschliche
 PC-Hörbestätigung bleibt getrennt. Lokale HTTP-/SQLite-Ergebnisse allein sind
 kein Live-Gerätenachweis.

@@ -2,7 +2,7 @@
 
 Recherche vom 13.10.2026. Referenz sind Tonys Assistenten im Marvel Cinematic Universe; Comicvarianten haben teilweise andere Rollen. Das ist ein Produktentwurf, keine Behauptung, dass Lilith bereits alle beschriebenen Funktionen besitzt.
 
-Zielgerät des Nutzers: **Google Pixel 9 Pro**. Die installierte Android-Version ist noch nicht am Gerät geprüft. Google nennt für dieses Modell 16 GB RAM und sieben Jahre Updates; daraus folgt keine getestete Lilith-/MCP-Kompatibilität. Quelle: [Google zur Pixel-9-Familie](https://blog.google/products-and-platforms/devices/pixel/google-pixel-9-pro-xl/).
+Zielgerät des Nutzers: **Google Android-Smartphone**. Die installierte Android-Version ist noch nicht am Gerät geprüft. Google nennt für dieses Modell 16 GB RAM und sieben Jahre Updates; daraus folgt keine getestete Lilith-/MCP-Kompatibilität. Quelle: [Google zur Pixel-9-Familie](https://blog.google/products-and-platforms/devices/pixel/google-pixel-9-pro-xl/).
 
 ## Was die Film-Assistenten leisten
 
@@ -16,7 +16,7 @@ In *Civil War* meldet FRIDAY Tonys Nachteil im Nahkampf; Tony beauftragt sie mit
 
 Diese Übertragung ist unsere Produktentscheidung, keine Aussage der Filmquellen:
 
-| Filmprinzip | Nützlicher Alltag bei Patrik | Prüfkriterium |
+| Filmprinzip | Nützlicher Alltag bei der Nutzer | Prüfkriterium |
 | --- | --- | --- |
 | Gemeinsame Aufmerksamkeit | „Das hier“ bindet Mauspunkt, ausgewählte Datei oder markierten Bereich | Richtige Quelle sichtbar, Wechsel verwirft veraltetes Ziel |
 | Kurze kontextbezogene Aufträge | „Kürzer“, „Weiter“, „Nur dieses Foto“ | Bezug eindeutig, erledigte Schritte werden berücksichtigt |
@@ -39,7 +39,7 @@ Android bietet dafür [AccessibilityService](https://developer.android.com/refer
 
 ## Empfehlung: eine kleine native Lilith-App
 
-Patrik ergänzt ein Zorin-Notebook mit eigenem Client und Linux-MCP. Der gemeinsame Geräte-/Auftragsvertrag und die bisher geprüften Zugangsgrenzen stehen im [Mehrgeräte-Entwurf](lilith-multiple-devices.md). Jeder Client soll sein eigenes Mikrofon verwenden; RDP-Mikrofonweitergabe ist ausdrücklich nicht gewünscht.
+der Nutzer ergänzt ein Zorin-Notebook mit eigenem Client und Linux-MCP. Der gemeinsame Geräte-/Auftragsvertrag und die bisher geprüften Zugangsgrenzen stehen im [Mehrgeräte-Entwurf](lilith-multiple-devices.md). Jeder Client soll sein eigenes Mikrofon verwenden; RDP-Mikrofonweitergabe ist ausdrücklich nicht gewünscht.
 
 Drei Aufgaben für Version 1:
 

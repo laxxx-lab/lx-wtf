@@ -16,7 +16,7 @@ Abonnementgebühren; bestehende Kosten für Hermes, VPS und Strom bleiben.
 - Laut Nutzer erreicht der VPS den vorhandenen Windows-MCP bereits über eine
   private Verbindung oder einen Tunnel.
 - Auf diesem PC ist Hermes Desktop installiert. Eine Remote-Verbindung zu
-  `http://lilith.lx.local` ist gespeichert. Erreichbarkeit, Authentifizierung und
+  `http://hermes.example` ist gespeichert. Erreichbarkeit, Authentifizierung und
   serverseitige Version wurden noch nicht geprüft.
 - Der lokale Desktop-Quellcode enthält den Betrieb im Infobereich, ein
   schwebendes HUD, transparente Overlay-Fenster und Sprachfunktionen.

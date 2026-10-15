@@ -5,7 +5,7 @@ Prüfung und Anpassung am 09.10.2026 auf ausdrücklichen Nutzerwunsch. Untersuch
 ## Befund
 
 - `SOUL.md` verlangte kurze Antworten, aber gleichzeitig Belege und Grenzen in jeder Antwort. Es fehlte eine klare Trennung zwischen knapper Sprachausgabe und technischen Textberichten.
-- `/home/claw/.hermes/AGENTS.md` enthielt hauptsächlich B2B-, Team-, Telegram- und Hostregeln, ohne konkreten PC-/Spotify-Ablauf. Die aktuelle Session hatte Arbeitsverzeichnis `/`; ihr tatsächlicher Kontextbericht listete nur `SOUL.md` als geladen. Die AGENTS-Datei im Hermes-Home war dort nicht automatisch im Projektkontext geladen.
+- `/srv/example/.hermes/AGENTS.md` enthielt hauptsächlich B2B-, Team-, Telegram- und Hostregeln, ohne konkreten PC-/Spotify-Ablauf. Die aktuelle Session hatte Arbeitsverzeichnis `/`; ihr tatsächlicher Kontextbericht listete nur `SOUL.md` als geladen. Die AGENTS-Datei im Hermes-Home war dort nicht automatisch im Projektkontext geladen.
 - Die Voice-App behandelte nur erkennbare Handlungsverben als kurze Antwortfälle. Rückfragen und Einwände aus dem Beispiel wurden deshalb als längere Gespräche mit gesprochenen Zwischenberichten behandelt.
 - Aus dem Gespräch lässt sich eine fehlende Zustandsprüfung erkennen. Die Ursache des Spotify-Problems selbst wurde hier nicht live untersucht. Ein angenommener Play-Befehl, eine Geräte- oder Fensterliste allein belegen keinen bestimmten Liedwechsel und keine fehlenden Schreibrechte.
 

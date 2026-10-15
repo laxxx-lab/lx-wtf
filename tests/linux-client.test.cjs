@@ -15,7 +15,7 @@ test('Linux project prompt binds the selected root and redacted file before late
   try{const a=path.join(folder,'one'),b=path.join(folder,'two');fs.mkdirSync(a);fs.mkdirSync(b);fs.writeFileSync(path.join(a,'note.md'),'token=supersecret\nUntrusted note');
     const library=createProjectLibrary({file:path.join(folder,'projects.json')});const id=library.add(a).activeId;
     const prompt=linuxProjectPrompt(library,{id,path:'note.md',text:'Fasse zusammen'});library.add(b);
-    assert.ok(prompt.includes(a));assert.ok(prompt.includes('note.md'));assert.ok(prompt.includes('[redacted]'));assert.ok(!prompt.includes('supersecret'));assert.ok(!prompt.includes(b));assert.ok(prompt.includes('lx-gaming-nb'));assert.throws(()=>linuxProjectPrompt(library,{id,path:'../bad',text:'test'}));
+    assert.ok(prompt.includes(a));assert.ok(prompt.includes('note.md'));assert.ok(prompt.includes('[redacted]'));assert.ok(!prompt.includes('supersecret'));assert.ok(!prompt.includes(b));assert.ok(prompt.includes('notebook'));assert.throws(()=>linuxProjectPrompt(library,{id,path:'../bad',text:'test'}));
   }finally{fs.rmSync(folder,{recursive:true,force:true});}
 });
 test('Linux voice registry changes only local reference paths, preserving embedded reference audio',()=>{
@@ -64,10 +64,10 @@ test('Notebook prompts cannot present VPS terminal facts as local capabilities w
   const available=linuxDeviceContext('my-notebook',{configured:true,connected:true});assert.match(available,/system_status.*lilith-zorin/i);assert.match(available,/frisch/i);assert.match(available,/keine.*VPS.*Notebook/i);
 });
 test('Connected notebook context points the model to actual device tools and verified Lilith browser state',()=>{
-  const context=linuxDeviceContext('lx-gaming-nb',{configured:true,connected:true});
+  const context=linuxDeviceContext('notebook',{configured:true,connected:true});
   for(const tool of ['system_status','shell_run','desktop_screenshot','desktop_input','lilith_status','lilith_workbench','lilith_browser','lilith_clipboard_read','lilith_clipboard_write'])assert.ok(context.includes('mcp__lilith_zorin__'+tool),tool+' must be discoverable');
   assert.match(context,/hermes-linux-control/);assert.match(context,/URL.*Titel|Titel.*URL/);assert.match(context,/Werkzeug.*prüfen|prüfen.*Werkzeug/i);
-  const unavailable=linuxDeviceContext('lx-gaming-nb',{configured:true,connected:false});assert.ok(!unavailable.includes('mcp__lilith_zorin__lilith_browser'));assert.match(unavailable,/nicht verbunden/);
+  const unavailable=linuxDeviceContext('notebook',{configured:true,connected:false});assert.ok(!unavailable.includes('mcp__lilith_zorin__lilith_browser'));assert.match(unavailable,/nicht verbunden/);
 });
 test('Only an explicit locally persisted session from the same gateway and profile resumes',()=>{
   const folder=fs.mkdtempSync(path.join(os.tmpdir(),'lilith-session-')),file=path.join(folder,'linux-session.json');

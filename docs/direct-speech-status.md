@@ -39,7 +39,7 @@ Abbruch, Tastaturwiederholung nach Loslassen eines Modifikators und fehlende
 Wörterbuchkorrektur im Standby-Weg. Alle drei Fehler sind korrigiert und durch
 Regressionstests abgesichert.
 Eine native Aktion mit unbestätigter Wirkung wird nach Neustart nicht
-wiederholt. F8/Hardwaremikrofon und Musik-Wechsel bei Patriks aktueller
+wiederholt. F8/Hardwaremikrofon und Musik-Wechsel bei des Nutzers aktueller
 Wiedergabe bleiben noch als gemeinsame Alltagstests erforderlich.
 
 Kein neuer kostenpflichtiger Dienst, keine fremde Sprachpipeline und keine

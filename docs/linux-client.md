@@ -1,17 +1,11 @@
 # Lilith auf dem Zorin-Notebook
 
-## Dauerhafter Start auf Patriks Notebook
+## Dauerhafter Start
 
-Seit 14.10.2026 startet `~/.config/autostart/lilith.desktop` den eigenen
-Benutzerdienst `lilith-client.service` bei der grafischen Zorin-Anmeldung.
-`~/.local/share/applications/lilith.desktop` ist in der Taskleiste angeheftet.
-Der Starter `~/.local/bin/lilith-start` übernimmt die tatsächliche grafische
-Sitzungsumgebung; der Dienst verwendet den bestehenden Lilith-Launcher samt
-privater Geräte-/Gateway-Konfiguration. Wiederholter Start erzeugt keine zweite
-Dienstinstanz. Die gespeicherte Hermes-Anmeldung und Session werden wiederverwendet;
-eine abgelaufene Anmeldung bleibt ausdrücklich sichtbar. Tailscale-SSH-Prüfungen
-für Wartungszugriff sind davon unabhängig. Es wird weder eine Netzfreigabe noch
-ein Passwort in den Starter geschrieben.
+Der öffentliche Installer richtet einen Anwendungsstarter ein und kann auf Wunsch
+Autostart aktivieren. Bestehende private Anmeldungen und Verbindungen bleiben
+lokal; eine Installation behauptet keinen bereits eingerichteten Zugang.
+Siehe [Installation](install.md).
 
 Der Linux-Einstieg `linux-main.cjs` verwendet denselben VPS-Hermes und die
 bestehenden Module `gateway.cjs`, `conversation.cjs`, `reply.cjs`,

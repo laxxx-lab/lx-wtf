@@ -7,7 +7,7 @@ onboarding and their own Hermes. Product name Hermes Voice; assistant name edita
 ## Design
 
 Keep the existing agent/client contracts. Package Electron with the application;
-do not require a separate Hermes Desktop install, a compiler, or Patrik's files.
+do not require a separate Hermes Desktop install, a compiler, or der Nutzer's files.
 Windows uses NSIS; Linux AppImage/deb plus an install script; macOS gets the common
 client with explicitly limited native automation. Android is a separate mobile
 client, not an Electron installer target, and is not advertised as delivered here.

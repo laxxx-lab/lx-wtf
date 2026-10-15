@@ -31,7 +31,7 @@ anspruchsvollen Aufgaben. Es ist keine zweite unabhängige Agenteninstanz nötig
 Die Cloud-Entscheidung ist nicht dauerhaft kostenlos; TypeSafe nennt
 verbrauchsabhängige Preise. Fishs kostenloses TTS-Angebot gilt derzeit bis
 30.11.2026. Deshalb passt eine eigenständige lokale Umsetzung besser zu
-Patriks Kostenwunsch. Das sind keine Klang- oder Geschwindigkeitsmessungen für
+des Nutzers Kostenwunsch. Das sind keine Klang- oder Geschwindigkeitsmessungen für
 unser deutsches Setup.
 [TypeSafe](https://docs.typesafe.ai/models),
 [Fish-Angebot](https://fish.audio/blog/s2-1-pro-free-api/).

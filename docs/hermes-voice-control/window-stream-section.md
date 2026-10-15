@@ -1,6 +1,6 @@
 ## Echter Artcraft-Fensterstream
 
-Aktueller Stand: Der frühere Screenshot-Schalter „Live“ ist ersetzt durch **Fensterstream**. Patrik kann im Artcraft-Reiter das ausgewählte native Anwendungsfenster als lokalen Video-MediaStream sehen, Ziel 30 fps. Bei unverändertem Fenster liefert Windows weniger neue Frames; Bewegung wird als Video übertragen. Keine periodische PNG-Schleife mehr für Live.
+Aktueller Stand: Der frühere Screenshot-Schalter „Live“ ist ersetzt durch **Fensterstream**. der Nutzer kann im Artcraft-Reiter das ausgewählte native Anwendungsfenster als lokalen Video-MediaStream sehen, Ziel 30 fps. Bei unverändertem Fenster liefert Windows weniger neue Frames; Bewegung wird als Video übertragen. Keine periodische PNG-Schleife mehr für Live.
 
 Der Fensterstream ist unabhängig vom MCP-/GUI-Control-Kanal. Eine geöffnete eindeutige Artcraft-GUI kann als Video sichtbar sein, auch wenn ihre GUI-Steuerung noch nicht verbunden ist. Die Anzeige „GUI-Steuerung verbunden“ bestätigt weiterhin nur den TCP-Control-Kanal. Streamen verbindet keinen Headless-MCP nachträglich mit der sichtbaren GUI. Dokumentbearbeitung weiter über denselben eingerichteten GUI-MCP oder im nativen Fenster durchführen.
 

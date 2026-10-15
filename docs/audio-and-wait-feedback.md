@@ -2,7 +2,7 @@
 
 ## Bedienung
 
-Unter Einstellungen → Audio / Ausgabe werden die aktiven Windows-Ausgaben frisch gelesen. Die Felder „Kopfhörer“ und „Boxen“ speichern jeweils eine eindeutige Render-ID. Auf diesem PC wurde nach Patriks Auswahl Realtek für Boxen und Corsair VOID für Kopfhörer zugeordnet. Nicht verfügbare gespeicherte Geräte führen zu einer konkreten Fehlermeldung; es wird kein Ersatzgerät geraten.
+Unter Einstellungen → Audio / Ausgabe werden die aktiven Windows-Ausgaben frisch gelesen. Die Felder „Kopfhörer“ und „Boxen“ speichern jeweils eine eindeutige Render-ID. Auf diesem PC wurde nach des Nutzers Auswahl Realtek für Boxen und USB VOID für Kopfhörer zugeordnet. Nicht verfügbare gespeicherte Geräte führen zu einer konkreten Fehlermeldung; es wird kein Ersatzgerät geraten.
 
 „Wechsle die Audioausgabe auf Boxen“ und „Audio auf Kopfhörer“ laufen lokal über die vorhandene Auftragswarteschlange. Vor Beginn wird die Geräte-ID festgelegt und gespeichert. Der native Aufruf prüft aktive Render-Geräte, stellt nur Console-/Multimedia-Standard um und liest den Zustand erneut. Das Kommunikationsgerät bleibt unverändert. Lilith verbindet ihren bestehenden AudioContext wieder mit dem Windows-Standard, ohne den Mikrofon-/Wakeword-Graphen neu aufzubauen. `completed` verlangt beide Windows-Rollen und die Bestätigung des Renderers. Angenommene, abgebrochene oder nicht belegte Aktionen bleiben unbestätigt und werden nicht automatisch wiederholt.
 

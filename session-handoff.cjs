@@ -8,7 +8,7 @@ async function handoffRequest(gateway,payload){
  if(!response.ok){const code=typeof result?.error==='string'&&/^[a-z_]{1,64}$/.test(result.error)?result.error:null;const error=Error(code||`Hermes antwortet mit HTTP ${response.status}.`);error.status=response.status;error.code=code;throw error;}
  return result;
 }
-const handoffDevice='(notebook|laptop|pc|gaming[ -]?pc|laxxx-gaming|rechner|computer)';
+const handoffDevice='(notebook|laptop|pc|gaming[ -]?pc|desktop-pc|rechner|computer)';
 const handoffModifiers='(?:(?:jetzt|nun|mal|doch|lieber|einfach|gern|gerne|zurück|wieder) )*';
 const handoffPlace='(?:am|auf (?:dem|meinem|deinem|unserem)|an (?:dem|meinem|deinem|unserem))';
 const handoffTravel='(?:aufs|auf (?:das|den|mein|meinen)|zum|an (?:den|das|mein|meinen)|zu (?:meinem|deinem|unserem))';

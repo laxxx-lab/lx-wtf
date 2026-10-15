@@ -18,8 +18,8 @@ test('a visual question uses only the local image endpoint and returns a bounded
   const result=await describeImage(image,'Was halte ich in der Hand?',{url:`http://127.0.0.1:${server.address().port}/api/chat`});
   assert.equal(result.held_object,'Tasse');assert.equal(body.model,'qwen3-vl:8b-instruct');
   assert.deepEqual(body.messages[1].images,[image]);assert.equal(body.stream,false);
-  const prompt=cameraPrompt('Was ist das?',result,[{name:'Patrik'},{name:null}]);
-  assert.ok(prompt.includes('Tasse'));assert.ok(prompt.includes('Patrik'));assert.ok(!prompt.includes(image));
+  const prompt=cameraPrompt('Was ist das?',result,[{name:'der Nutzer'},{name:null}]);
+  assert.ok(prompt.includes('Tasse'));assert.ok(prompt.includes('der Nutzer'));assert.ok(!prompt.includes(image));
 });
 test('ordinary instructions do not trigger the camera and explicit visual questions do',()=>{
   for(const text of ['Was halte ich in der Hand?','Ja, perfekt. Dann schau mal, was ich in der Hand halte.','Schau mal durch die Kamera.','Siehst du mich?','Erkennst du mich?','Wer sitzt vor dem Computer?','Was ist das hier?'])assert.equal(needsCameraLook(text),true,text);

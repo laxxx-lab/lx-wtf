@@ -64,12 +64,12 @@ test('a remote offline owner remains named on the orb with an explicit recall ac
  const r=renderer();r.run("orbRenderer.draw=()=>{};orbPreviewRenderer.draw=()=>{};");
  r.event({type:'state',status:'ready',connected:true,busy:false,session:{id:'selected'}});
  r.event({type:'handoff-input',passive:true});await settle();
- r.event({type:'handoff-state',handoff:{available:true,pending:null,presence:{remote:true,name:'lx-gaming-nb',online:false}}});
+ r.event({type:'handoff-state',handoff:{available:true,pending:null,presence:{remote:true,name:'notebook',online:false}}});
  r.run('draw(2000)');assert.equal(r.run("$('phase').textContent"),'AWAY');
- assert.match(r.run("$('handoff-location').textContent"),/lx-gaming-nb.*offline/);
+ assert.match(r.run("$('handoff-location').textContent"),/notebook.*offline/);
  assert.equal(r.run("$('handoff-recall').hidden"),false);assert.equal(r.run("$('handoff-recall').disabled"),false);
  r.context.document.getElementById('handoff-recall').onclick();await settle();assert.ok(r.calls.some(row=>row.method==='recall'));assert.equal(r.calls.some(row=>row.method==='submit'),false);
- r.run('privacyLocked=true;');r.event({type:'handoff-state',handoff:{available:true,pending:null,presence:{remote:true,name:'lx-gaming-nb',online:false}}});assert.equal(r.run("$('handoff-recall').disabled"),true);
+ r.run('privacyLocked=true;');r.event({type:'handoff-state',handoff:{available:true,pending:null,presence:{remote:true,name:'notebook',online:false}}});assert.equal(r.run("$('handoff-recall').disabled"),true);
 });
 
 test('a ready handoff without a pending receipt shows availability instead of claiming setup is missing',()=>{

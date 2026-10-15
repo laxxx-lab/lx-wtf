@@ -1,7 +1,7 @@
 # Gemini Live als Sprachinterface vor Hermes
 
 Recherche vom 15. Oktober 2026. Dokumentationsprüfung, noch keine implementierte
-Integration und kein Test mit Patriks Google-Projekt oder Mikrofon.
+Integration und kein Test mit des Nutzers Google-Projekt oder Mikrofon.
 
 ## Ergebnis
 

@@ -5,7 +5,7 @@ description: "Bei Codearbeit an Liliths Windows-Voice-App verwenden."
 
 # Liliths Windows-App verstehen und bearbeiten
 
-Dies ist Patriks eigenes Projekt. Bei einem ausdrücklich beauftragten Fix oder
+Dies ist des Nutzers eigenes Projekt. Bei einem ausdrücklich beauftragten Fix oder
 Feature darf Hermes innerhalb dieses Umfangs am Quellcode arbeiten und testen.
 Ein Bedienauftrag allein beauftragt keine Codeänderung. Für normale Steuerung
 zusätzlich `hermes-voice-control` frisch laden.
@@ -14,7 +14,7 @@ zusätzlich `hermes-voice-control` frisch laden.
 Windows-MCP-Shell:**
 
 ```powershell
-Set-Location -LiteralPath 'C:\Users\patri\Documents\ChatGPT\Voice'
+Set-Location -LiteralPath '.'
 Get-Content -LiteralPath .\AGENTS.md -Encoding UTF8
 Get-Content -LiteralPath .\docs\agent-maintenance.md -Encoding UTF8
 git status --short
@@ -27,7 +27,7 @@ benutzen; keine Namen erfinden. Projektanleitung und Quellcode live lesen,
 nicht nur diese Skill-Zusammenfassung oder alte Chat-Erinnerungen verwenden.
 Wenn die App aus ist, bleiben Code und Tests erreichbar; `status` braucht sie.
 
-Projekt/Quelle: `C:\Users\patri\Documents\ChatGPT\Voice`,
+Projekt/Quelle: `.`,
 Repository `https://github.com/laxxx-lab/lx-wtf`.
 `AGENTS.md` enthält die aktuelle Modulzuordnung; `docs/agent-maintenance.md`
 den Reparatur-, Test-, Aktivierungs- und Rückweg. `docs/control-api.md` ist der

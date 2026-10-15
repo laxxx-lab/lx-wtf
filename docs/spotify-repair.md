@@ -16,7 +16,7 @@ startete auf dem richtigen PC; Fortschritt725→1551ms belegte laufende Wiederga
 
 ## Native Korrektur
 
-In `/home/claw/.hermes/hermes-agent/plugins/spotify/tools.py` wurde nur der
+In `/srv/example/.hermes/hermes-agent/plugins/spotify/tools.py` wurde nur der
 Einzeltrack-Start ergänzt. Er versucht zunächst den bisherigen URI-Befehl und
 prüft begrenzt tatsächliche Wiedergabe, Track-URI und angefordertes Gerät.
 Bleibt der Effekt aus, ermittelt er das Album und verwendet Kontext plus
@@ -41,7 +41,7 @@ gegen die neue Version prüfen und nicht blind überschreiben.
 Das Spotify-Plugin wurde ohne Gateway-Neustart neu geladen. Die Rückgabe
 bestätigt die Aktivierung der Python-Werkzeuge ab der nächsten Session.
 Der direkte Test gegen die gepatchten nativen Funktionen startete den
-richtigen Titel auf `LAXXX-GAMING`; Fortschritt1237→2046ms bestätigte Wiedergabe.
+richtigen Titel auf `desktop-pc`; Fortschritt1237→2046ms bestätigte Wiedergabe.
 Das ist ein echter API-Test, kein zusätzlicher generierter Hermes-Chat-Auftrag.
 
 ## Voice-Rückmeldung
@@ -80,7 +80,7 @@ Eine separate frische Hermes-Testsession erhielt einen normalen Sprachauftrag:
 Spotify auf dem PC öffnen, Thunderstruck von AC/DC suchen und spielen.
 Lilith führte den Store-App-Start selbst über Cua aus. Ihr Play-Aufruf lieferte
 `playback_verified=true`, `strategy=album_offset`, den korrekten Track und
-`LAXXX-GAMING`. Der anschließende Status zeigte Fortschritt195→3322ms;
+`desktop-pc`. Der anschließende Status zeigte Fortschritt195→3322ms;
 zwei unabhängige native Abfragen bestätigten49877→51589ms. Die abschließende
 Antwort war kurz und deutsch. Dieser erste Agententest dauerte etwa32,7s;
 er enthielt noch zusätzliche Aufrufe mit unnötigen oder falschen Parametern.

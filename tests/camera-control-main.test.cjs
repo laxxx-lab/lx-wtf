@@ -15,18 +15,18 @@ function fixture({singleInstance=false,dialog,transcript}={}){
   }});
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../main.cjs'),'utf8'),context);
   vm.runInContext('const originalSubmit=submit;',context);
-  context.fixtureFrame=frame;context.fixtureService={request:async()=>({faces:[{name:'Patrik',box:[1,2,3,4]}]}),describe:async(image,question)=>{captured.push({image,question});return {description:'Eine Tasse.',held_object:'Tasse',uncertain:false};}};
+  context.fixtureFrame=frame;context.fixtureService={request:async()=>({faces:[{name:'der Nutzer',box:[1,2,3,4]}]}),describe:async(image,question)=>{captured.push({image,question});return {description:'Eine Tasse.',held_object:'Tasse',uncertain:false};}};
   context.submitSpy=()=>{submitted.push(true);};context.activity=[];
   vm.runInContext("config.localDialogueEnabled=false;config.naturalConversation=false;config.cameraEnabled=true;config.cameraDeviceId='chosen';config.cameraRecognize=true;clientInfo.cameraActive=true;conversation={session:{id:'selected'},busy:true};getCameraService=()=>fixtureService;clientControl=async action=>{if(action!=='look')throw new Error('Must not open a camera');return fixtureFrame;};submit=submitSpy;emit=(type,data)=>{if(type==='camera-activity')activity.push(data.active);};",context);
   return {context,captured,submitted,saved,events,look:()=>vm.runInContext("lookCurrentCamera('Was halte ich in der Hand?')",context)};
 }
 test('recognized startup greeting waits for connection and attendance without being consumed by an old frame',()=>{
  const f=fixture();f.context.greeted=[];
- vm.runInContext("config.cameraGreetings=true;conversation.busy=false;voiceClient={};speak=text=>greeted.push(text);cameraGreetings=['Patrik'];cameraSeen.set('Patrik',Date.now()-10000);connected=false;",f.context);
+ vm.runInContext("config.cameraGreetings=true;conversation.busy=false;voiceClient={};speak=text=>greeted.push(text);cameraGreetings=['der Nutzer'];cameraSeen.set('der Nutzer',Date.now()-10000);connected=false;",f.context);
  vm.runInContext('drainCameraGreetings()',f.context);assert.equal(f.context.greeted.length,0);assert.equal(vm.runInContext('cameraGreetings.length',f.context),1);
  vm.runInContext('connected=true;drainCameraGreetings()',f.context);assert.equal(vm.runInContext('cameraGreetings.length',f.context),1);
- vm.runInContext("cameraSeen.set('Patrik',Date.now());config.privacyLocked=true;drainCameraGreetings()",f.context);assert.equal(f.context.greeted.length,0);
- vm.runInContext('config.privacyLocked=false;drainCameraGreetings();drainCameraGreetings()',f.context);assert.equal(f.context.greeted.length,1);assert.match(f.context.greeted[0],/Patrik/);
+ vm.runInContext("cameraSeen.set('der Nutzer',Date.now());config.privacyLocked=true;drainCameraGreetings()",f.context);assert.equal(f.context.greeted.length,0);
+ vm.runInContext('config.privacyLocked=false;drainCameraGreetings();drainCameraGreetings()',f.context);assert.equal(f.context.greeted.length,1);assert.match(f.context.greeted[0],/der Nutzer/);
 });
 test('transcription alone cannot leave main thinking when a bare wakeword or cancelled dispatch creates no job',async()=>{
  const f=fixture({transcript:'Lilith'}),wav=Buffer.alloc(44);wav.write('RIFF');f.context.qaAudio=wav.toString('base64');
@@ -149,7 +149,7 @@ test('an explicitly associated activity guide clears when its tool ends',async()
 });
 test('a current camera look is allowed within the requesting Hermes turn and returns text only',async()=>{
   const f=fixture(),observation=await f.look();
-  assert.equal(observation.description,'Eine Tasse.');assert.equal(observation.source.label,'HD Webcam C525');assert.equal(observation.faces[0].name,'Patrik');
+  assert.equal(observation.description,'Eine Tasse.');assert.equal(observation.source.label,'HD Webcam C525');assert.equal(observation.faces[0].name,'der Nutzer');
   assert.equal(f.captured.length,1);assert.equal(f.submitted.length,0);assert.ok(!JSON.stringify(observation).includes(f.context.fixtureFrame.image));
   assert.deepEqual(f.context.activity,[true,false]);
 });

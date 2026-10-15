@@ -1,6 +1,6 @@
 # Artcraft in Liliths Werkbank
 
-Die installierten zwölf nativen Programme unter `I:\tools\artcraft\apps` werden als eigener Werkbank-Bereich verfügbar. Native Editoren bleiben eigene Windows-Fenster; die Werkbank zeigt die Vorschau derselben laufenden Instanz, ihren Dokumentstatus und reale Werkzeugereignisse. Aufträge laufen über die vorhandene ausgewählte Hermes-Session und deren MCP-Konfiguration.
+Die installierten zwölf nativen Programme unter `C:\Tools\artcraft\apps` werden als eigener Werkbank-Bereich verfügbar. Native Editoren bleiben eigene Windows-Fenster; die Werkbank zeigt die Vorschau derselben laufenden Instanz, ihren Dokumentstatus und reale Werkzeugereignisse. Aufträge laufen über die vorhandene ausgewählte Hermes-Session und deren MCP-Konfiguration.
 
 - Fester Katalog der zwölf bekannten EXE-/CLI-Pfade. Installiert, geöffnet und erreichbare Live-Steuerung sind getrennte Zustände. Keine bloße Installation als erfolgreiche MCP-Anbindung ausgeben.
 - Bestehende gestartete Prozesse und ihre expliziten Control-Argumente lesen. Nur dem bekannten ausführbaren Programm zugehörige Loopback-Listener verwenden; keine fremden Portdienste oder geratenen Dokumentinstanzen. Für von Lilith konfigurierte Kanäle erlaubt eine lokale Registrierung App-ID, Port und gegebenenfalls Token-/Endpoint-Dateipfad; Schlüssel bleiben ausschließlich auf Windows.

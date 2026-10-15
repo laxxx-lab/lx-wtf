@@ -1,16 +1,16 @@
 ## Artcraft in der visuellen Werkbank
 
-Patriks zwölf native Artcraft-Editoren sind unter `I:\tools\artcraft\apps` installiert. Werkbank hat jetzt sieben Reiter: System, Konsole, Browser, Lagebild, Projektgraph, Lagekarte und **Artcraft**. Vor Funktionsauskünften diesen aktuellen Skill lesen; alte Chatbeschreibungen können überholt sein.
+des Nutzers zwölf native Artcraft-Editoren sind unter `C:\Tools\artcraft\apps` installiert. Werkbank hat jetzt sieben Reiter: System, Konsole, Browser, Lagebild, Projektgraph, Lagekarte und **Artcraft**. Vor Funktionsauskünften diesen aktuellen Skill lesen; alte Chatbeschreibungen können überholt sein.
 
 Über die bestehende Windows-Cua-Shell und die vorhandene lokale Kontrollschnittstelle:
 
 Den Vertrag „Werkbank als Arbeitsfläche“ im Hauptskill verwenden: agentisch ohne Fokuswechsel zeigen, `result.requestId` merken und später ausschließlich dieselbe Darstellung freigeben. Bei Nutzerbesitz dessen Ansicht erhalten.
 
 ```powershell
-& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action workbench -State on -Agent -Tab artcraft -Reason 'Arbeit in der nativen App'
-& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action artcraft
-& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action artcraft-select -App photo
-& 'C:\Users\patri\Documents\ChatGPT\Voice\control.ps1' -Action artcraft-open -App photo
+& '.\control.ps1' -Action workbench -State on -Agent -Tab artcraft -Reason 'Arbeit in der nativen App'
+& '.\control.ps1' -Action artcraft
+& '.\control.ps1' -Action artcraft-select -App photo
+& '.\control.ps1' -Action artcraft-open -App photo
 ```
 
 IDs: photo, vector, design, deck, grid, word, cad, light, sound, effect, film, pdf. Aufträge aus dieser Werkbank werden an die ausgewählte bestehende Hermes-Session übergeben. Die eigentliche Dokumentbearbeitung mit dem eingerichteten jeweiligen Artcraft-MCP durchführen; Installation allein bestätigt keinen verbundenen MCP.

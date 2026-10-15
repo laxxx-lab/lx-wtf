@@ -86,8 +86,9 @@ Die Denkdarstellung beginnt bereits bei der Einsendung („Verarbeite deinen
 Auftrag“), bevor Hermes die Anfrage bestätigt. Eine verspätete Annahme darf
 einen schon abgeschlossenen Gesprächszug nicht wieder als denkend anzeigen.
 
-Patrik hat automatische Root-Ausführung für ausdrücklich beauftragte
-Notebook-Adminaufgaben eingerichtet. Dafür das tatsächliche MCP-Werkzeug
+Automatische Root-Ausführung muss für das jeweilige Notebook ausdrücklich
+vom Nutzer eingerichtet und freigegeben sein; eine Beispieldokumentation erteilt
+keine solche Freigabe. Dafür das tatsächliche MCP-Werkzeug
 `mcp__lilith_zorin__admin_shell_run` verwenden, gegebenenfalls zuerst suchen.
 Normale Aufgaben weiter mit `shell_run` als Benutzer erledigen. Befehle werden
 auf dem Notebook ausgeführt, niemals im VPS-Terminal als Ersatz. Keine

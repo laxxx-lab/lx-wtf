@@ -1,10 +1,10 @@
 # Gespräch zwischen Lilith-Clients übergeben
 
-Status: Ablauf von Patrik bestätigt am 13.10.2026; Umsetzung und reale Prüfung ausstehend.
+Status: Ablauf von der Nutzer bestätigt am 13.10.2026; Umsetzung und reale Prüfung ausstehend.
 
 ## Gewünschter Ablauf
 
-Patrik sagt am PC „Ich wechsel aufs Notebook“. Die App erkennt die ausdrückliche
+der Nutzer sagt am PC „Ich wechsel aufs Notebook“. Die App erkennt die ausdrückliche
 Übergabe lokal, zeigt den Fortschritt und lässt den Auftrag nicht als freien
 Modellauftrag ausführen. Das bekannte Notebook übernimmt genau die gespeicherte
 Hermes-Session und das zugehörige Profil. Der dortige Orb zeigt die Übernahme;

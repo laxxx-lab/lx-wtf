@@ -1,7 +1,7 @@
 # Mikrofon auswählen
 
 Orb öffnen → Einstellungen → **Audio / Mikrofon**. Den gewünschten Spracheingang
-auswählen, beispielsweise Corsair-Headset oder Sennheiser-Tischmikrofon.
+auswählen, beispielsweise USB-Headset oder Sennheiser-Tischmikrofon.
 Die Wahl wird sofort gespeichert; zusätzliches Speichern ist nicht erforderlich.
 Darunter stehen der tatsächlich geöffnete Gerätename und eine Pegelanzeige.
 „Windows-Standard“ bleibt als bewusste Auswahl verfügbar.
@@ -25,11 +25,11 @@ weiter als verwendbarer Eingang wiederverwendet. Technische Grundlage:
 
 ## Geprüft am 11.10.2026
 
-Ursache des gemeldeten Ausfalls: Die App öffnete Windows-Standard/Corsair,
+Ursache des gemeldeten Ausfalls: Die App öffnete Windows-Standard/USB,
 während ins Sennheiser gesprochen wurde. Am tatsächlichen PC wurde auf konkrete
 Geräte-IDs zwischen Headset und Sennheiser gewechselt, die alte Aufnahme
 geschlossen, die Wahl gespeichert sowie Live-Aufnahme und Wakeword-Bereitschaft
-mit Sennheiser geprüft. Patrik bestätigte anschließend, dass Lilith ihn hört und
+mit Sennheiser geprüft. der Nutzer bestätigte anschließend, dass Lilith ihn hört und
 antwortet. Es wurden keine Rohaufnahmen für diese Diagnose gespeichert.
 
 Automatisierte Prüfungen decken Auswahl ohne falschen Fallback, Trackende,
