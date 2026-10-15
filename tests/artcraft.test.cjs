@@ -6,7 +6,7 @@ const modulePath=path.join(__dirname,'../artcraft.cjs');
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64');
 function pngDimensions(width,height){const bytes=Buffer.from(png);bytes.writeUInt32BE(width,16);bytes.writeUInt32BE(height,20);let crc=0xffffffff;for(const byte of bytes.subarray(12,29)){crc^=byte;for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}bytes.writeUInt32BE((crc^0xffffffff)>>>0,29);return bytes;}
 function api(){assert.ok(fs.existsSync(modulePath),'Artcraft manager is not implemented');return require(modulePath);}
-function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'lilith-craft-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const installRoot=path.join(root,'installed'),cacheRoot=path.join(root,'cache');fs.mkdirSync(cacheRoot);return {root,installRoot,cacheRoot};}
+function fixture(t){const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'lilith-craft-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const installRoot=path.join(root,'installed'),cacheRoot=path.join(root,'cache');fs.mkdirSync(cacheRoot);return {root,installRoot,cacheRoot};}
 function install(f,id){const stem=id+'craft',name=id[0].toUpperCase()+id.slice(1)+'Craft',exe=path.join(f.installRoot,'apps',name,stem+'.exe');fs.mkdirSync(path.dirname(exe),{recursive:true});fs.writeFileSync(exe,'fixture');return exe;}
 function running(exe,port,pid=42,extras={}){return {processes:[{pid,executablePath:exe,mainWindowHandle:123,controlPort:port,...extras}],listeners:[{pid,port,localAddress:'127.0.0.1'}]};}
 function manager(t,f,options={}){const m=api().createArtcraft({...f,...options});t.after(()=>m.dispose());return m;}

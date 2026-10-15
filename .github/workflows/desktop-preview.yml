@@ -18,8 +18,6 @@ jobs:
           - os: macos-14
             target: --mac --arm64
     runs-on: ${{ matrix.os }}
-    env:
-      TMPDIR: ${{ runner.temp }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,6 +29,8 @@ jobs:
           python-version: '3.11'
       - run: npm ci
       - run: npm test
+        env:
+          TMPDIR: ${{ runner.temp }}
       - run: python -m unittest discover -s tests -p portable_speech_test.py
       - name: Prepare audited public payload
         run: npm run package:prepare
