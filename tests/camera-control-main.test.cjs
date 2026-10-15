@@ -273,6 +273,17 @@ test('silent text submissions bypass voice prompting and voice-only brevity',asy
   await vm.runInContext("submit('Erkläre mein Projekt vollständig.',{speak:false,sessionId:'selected'})",f.context);
   const prompt=f.context.prompts[0].text;assert.doesNotMatch(prompt,/\[Hermes Voice: Diese Antwort wird laut gesprochen/);assert.equal(require('../reply.cjs').visibleHandoffHistory([{role:'user',text:prompt}])[0].text,'Erkläre mein Projekt vollständig.');assert.equal(vm.runInContext('compactReply',f.context),false);
 });
+
+test('camera display requests carry the existing Home Assistant playback contract into the actual Hermes prompt',async()=>{
+ const f=fixture();f.context.prompts=[];
+ vm.runInContext("submit=originalSubmit;connected=true;conversation.busy=false;conversation.submit=async(text,options)=>prompts.push({text,options});",f.context);
+ await vm.runInContext("submit('Nee, ich meine über Home Assistant die Ringkamera an der Haustür. Die will ich als Livebild sehen.',{speak:true,sessionId:'selected'})",f.context);
+ assert.equal(f.context.prompts.length,1);const prompt=f.context.prompts[0].text;
+ assert.match(prompt,/-Action home-display -Operation open/);assert.match(prompt,/-Operation inventory/);
+ assert.match(prompt,/-Operation camera -CameraEntity/);assert.match(prompt,/camera\.playing/);
+ assert.match(prompt,/Kommunikationsfehler.*kein.*Anmeldefehler/i);assert.match(prompt,/keine.*Webcam/i);
+ assert.equal(f.captured.length,0,'A home-camera display request must not capture the local webcam');
+});
 test('queued user work chooses thinking from the visible request, not generated prompt context',async()=>{
  for(const [text,effort] of [['Öffne Spotify und spiele Musik.','none'],['Analysiere die Ursache des Abbruchs.','medium'],['Denke gründlich nach und plane die Architektur.','high'],['Kannst du mir '+('folgende Inhalte '.repeat(40)),'medium']]){
   const f=fixture();f.context.userRequest=text;f.context.dispatched=[];

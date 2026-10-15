@@ -43,6 +43,19 @@ Home Assistant: `-Action home-display -Operation open` zur lokalen Anmeldung,
 Der vorhandene Home-Assistant-Agent darf damit sinnvoll Status/Countdowns
 anzeigen; keine neue öffentliche Netzwerk-API öffnen.
 
+Bei „Zeig die Ringkamera/Haustür als Livebild“ zuerst die native Ansicht mit
+`-Action home-display -Operation open` öffnen, danach `-Operation inventory`
+lesen. `connected:false` bei geschlossener Ansicht belegt keine defekte
+Ring-Anmeldung. Die passende Live-Kamera anhand der frischen Entity-Liste
+auswählen und mit `-Operation camera -CameraEntity camera.<id>` anzeigen.
+Nicht die lokale Webcam aktivieren. Danach nur `inventory` bis zu 20 Sekunden
+begrenzt nachlesen: Erst `camera.playing:true` für die ausgewählte Entity
+bestätigt Wiedergabe. `cameraOpened:true` bestätigt nur die geöffnete Ansicht;
+`idle` ist allein kein Wiedergabefehler. Ein allgemeiner Kommunikationsfehler
+oder alte Ring-Logs belegen keinen Anmeldefehler. Aktuelle Erreichbarkeit,
+Home-Assistant-Anmeldung und Player getrennt prüfen; Ring-Neuanmeldung nur bei
+konkretem aktuellem Authentifizierungsbefund nennen. Keine Zugangsdaten auslesen.
+
 Vertrag: `docs/activity-cards.md`. Countdown benötigt tatsächlich beobachtete
 absolute Endzeit; eine Schätzung als `estimate` kennzeichnen. Ohne verlässliche
 Vorheiz-Endzeit tatsächliche Temperatur/Status zeigen. Ablauf ist keine

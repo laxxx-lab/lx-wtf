@@ -56,6 +56,15 @@ Lilith liest keine Passwörter, Cookies, Zugriffstokens oder signierten Video-UR
 über Home Assistants eigene Entity-Ansicht. Eine fehlende Entity wird gemeldet.
 Der Knopf auf einer Kamerakarte öffnet dieselbe Ansicht.
 
+Sprachaufträge tragen diesen vorhandenen Anzeigeweg im Windows-Gerätekontext:
+Ansicht öffnen, frische Entity-Liste lesen, eindeutig passende Live-Kamera
+auswählen und Wiedergabe bis zu 20 Sekunden über `inventory.camera.playing`
+beobachten. Die Kameraöffnung währenddessen nicht wiederholen. Ein geschlossenes
+Anzeigefenster (`connected:false`), Kamera-`idle`, ein allgemeiner API-
+Kommunikationsfehler oder ältere Ring-Logs belegen keinen defekten Login.
+Erreichbarkeit, Anmeldung und laufenden Player getrennt prüfen. Der Auftrag
+öffnet keine lokale Webcam und verändert keine Ring-Anmeldung.
+
 Home Assistant übernimmt seinen vorhandenen Kamera-Player. Eine geöffnete
 Ansicht belegt kein Livebild; `inventory.camera.playing` wird nur aus einem
 wirklich laufenden HTML-Videoplayer gelesen. Ein alter Aufnahme-/Snapshot-
