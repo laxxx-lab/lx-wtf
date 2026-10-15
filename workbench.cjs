@@ -308,10 +308,10 @@ function createWorkbench({electron,root,stateFile=null,getSnapshot=()=>({}),onCo
     return !destroyed&&presentationEpoch===epoch&&presentation.owner==='agent'&&presentation.requestId===requestId;
   }
   const controller={
-    async controlBrowser(value){
+    async controlBrowser(value,scopeAllowed=()=>true){
       validateWorkbenchBrowserRequest(value);
       if(safeSnapshot(getSnapshot()).privacyLocked)throw Error('Datenschutz ist aktiv.');
-      const safety=browserSafety,allowed=()=>safety===browserSafety&&!safeSnapshot(getSnapshot()).privacyLocked;
+      const safety=browserSafety,allowed=()=>scopeAllowed()&&safety===browserSafety&&!safeSnapshot(getSnapshot()).privacyLocked;
       if(value.action==='navigate'){const url=validateBrowserUrl(value.url);await controller.show({tab:'browser',url},allowed);}
       else if(value.action!=='state')await browserAction(value,allowed);
       if(safeSnapshot(getSnapshot()).privacyLocked)throw Error('Datenschutz ist aktiv.');

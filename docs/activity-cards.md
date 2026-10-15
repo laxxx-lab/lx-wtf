@@ -56,10 +56,13 @@ Lilith liest keine Passwörter, Cookies, Zugriffstokens oder signierten Video-UR
 über Home Assistants eigene Entity-Ansicht. Eine fehlende Entity wird gemeldet.
 Der Knopf auf einer Kamerakarte öffnet dieselbe Ansicht.
 
-Sprachaufträge tragen diesen vorhandenen Anzeigeweg im Windows-Gerätekontext:
-Ansicht öffnen, frische Entity-Liste lesen, eindeutig passende Live-Kamera
-auswählen und Wiedergabe bis zu 20 Sekunden über `inventory.camera.playing`
-beobachten. Die Kameraöffnung währenddessen nicht wiederholen. Ein geschlossenes
+Sprachaufträge verwenden `lilith-device.show_camera`: Ansicht öffnen, frische
+Entity-Liste lesen, eindeutig passende Live-Kamera auswählen und deren eigenen
+Player innerhalb eines gemeinsamen 15-Sekunden-Limits beobachten. Der lokale
+API-Aufruf ist `POST /v1/home-display` mit `{action:"show",query:"Haustür"}`.
+Erfolg verlangt `verified:true`; Abbruch sperrt auch verspätete Fensteraktionen.
+Geräte- und Sitzungsbindung: [Gerätewerkzeuge](device-tools.md).
+Die Kameraöffnung währenddessen nicht wiederholen. Ein geschlossenes
 Anzeigefenster (`connected:false`), Kamera-`idle`, ein allgemeiner API-
 Kommunikationsfehler oder ältere Ring-Logs belegen keinen defekten Login.
 Erreichbarkeit, Anmeldung und laufenden Player getrennt prüfen. Der Auftrag

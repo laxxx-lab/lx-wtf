@@ -9,7 +9,7 @@ function fixture({pointer=null,projectFactory=null}={}){
 }
 test('each Windows model job restores this client target after a shared Notebook conversation',async()=>{
  const f=fixture();await f.run("submit('Erkläre den Browser auf diesem Gerät',{speak:false})");assert.equal(f.prompts.length,1);
- assert.match(f.prompts[0].text,/Aktueller Lilith-Client: Windows/);assert.match(f.prompts[0].text,/Standardziel.*Windows/);assert.match(f.prompts[0].text,/mcp__cua_driver__get_window_state/);assert.match(f.prompts[0].text,/-Action browser/);
+ assert.match(f.prompts[0].text,/Aktueller Lilith-Client: Windows/);assert.match(f.prompts[0].text,/Standardziel.*Windows/);assert.match(f.prompts[0].text,/MCP-Servers lilith-device/);assert.match(f.prompts[0].text,/"device":"windows"/);assert.match(f.prompts[0].text,/"sessionId":"stored"/);
 });
 
 test('the first project library can initialize when no graph project was ever selected',()=>{

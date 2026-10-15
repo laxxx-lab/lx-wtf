@@ -7,6 +7,11 @@ const {validateAppReference}=require('./modes.cjs');
 
 const MAX_BODY_BYTES = 1024;
 const ACTIONS = new Set(['camera', 'live', 'wakewords']);
+function validHomeDisplay(value){
+ if(!value||typeof value!=='object'||Array.isArray(value))return false;
+ if(value.action==='show')return Object.keys(value).every(k=>['action','query','cameraEntity','waitMs'].includes(k))&&(typeof value.query==='string'&&value.query.trim().length>0&&value.query.length<=120||typeof value.cameraEntity==='string'&&/^camera\.[a-z0-9_]{1,120}$/.test(value.cameraEntity))&&(value.query===undefined||typeof value.query==='string'&&value.query.trim().length>0&&value.query.length<=120)&&(value.cameraEntity===undefined||/^camera\.[a-z0-9_]{1,120}$/.test(value.cameraEntity))&&(value.waitMs===undefined||Number.isInteger(value.waitMs)&&value.waitMs>=100&&value.waitMs<=15000);
+ return ['open','inventory','camera'].includes(value.action)&&Object.keys(value).every(k=>['action','cameraEntity'].includes(k))&&(value.action==='camera'?typeof value.cameraEntity==='string'&&/^camera\.[a-z0-9_]{1,120}$/.test(value.cameraEntity):value.cameraEntity===undefined);
+}
 const INTEL_KINDS=['earthquakes','cameras','ukraine','news','weather','flights','ships','stats','feed'];
 function validIntelRequest(value){return !!value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(key=>['kind','query','region','lat','lon','radiusKm','date','feed'].includes(key))&&INTEL_KINDS.includes(value.kind)&&['query','region','date'].every(key=>value[key]===undefined||typeof value[key]==='string'&&value[key].length<=200)&&(value.kind!=='feed'||typeof value.feed==='string'&&/^[a-z][a-z0-9/-]{0,60}$/.test(value.feed))&&(value.feed===undefined||value.kind==='feed')&&['lat','lon','radiusKm'].every(key=>value[key]===undefined||Number.isFinite(value[key]))&&(value.lat===undefined||Math.abs(value.lat)<=90)&&(value.lon===undefined||Math.abs(value.lon)<=180)&&(value.radiusKm===undefined||value.radiusKm>0&&value.radiusKm<=1000)&&(value.date===undefined||/^\d{4}-\d{2}-\d{2}$/.test(value.date));}
 function validGuideRequest(value){
@@ -32,7 +37,7 @@ function validEverydayRequest(action,v){
  if(action==='reminders')return exact(['action','id'])&&v.action==='cancel'&&typeof v.id==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(v.id)||exact(['action','kind','text','at'])&&v.action==='create'&&['reminder','alarm'].includes(v.kind)&&typeof v.text==='string'&&v.text.trim().length>0&&v.text.length<=500&&typeof v.at==='string'&&v.at.length<=64&&/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(v.at)&&Number.isFinite(Date.parse(v.at));
  return false;
 }
-async function createControlApi({ port = 8872, token, readStatus, onCommand, onLook, onScreen, onContent, onHighlight, onMode, readModes, onWorkbench,readContext,readTasks,readRoutines,onRoutine,onStop,onStopTask,readGraph,onGraphSearch,onGraphSource,readIntelCatalog,onIntel,onGuide,clearGuide,readArtcraft,onArtcraft,readAudioOutputs,onAudioOutput,readBluetooth,onBluetooth,readMicrophones,onMicrophone,readVolume,onVolume,readApps,onAppOpen,readWindows,onWindowFocus,onWindowPlace,readPower,onPower,readReminders,onReminder,onBrowser,onClipboard,readActivityCards,onActivityCard,onHomeDisplay,onNewSession,enabledActions=null }) {
+async function createControlApi({ port = 8872, token, readStatus, onCommand, onLook, onScreen, onContent, onHighlight, onMode, readModes, onWorkbench,readContext,readTasks,readRoutines,onRoutine,onStop,onStopTask,readGraph,onGraphSearch,onGraphSource,readIntelCatalog,onIntel,onGuide,clearGuide,readArtcraft,onArtcraft,readAudioOutputs,onAudioOutput,readBluetooth,onBluetooth,readMicrophones,onMicrophone,readVolume,onVolume,readApps,onAppOpen,readWindows,onWindowFocus,onWindowPlace,readPower,onPower,readReminders,onReminder,onBrowser,onClipboard,readActivityCards,onActivityCard,onHomeDisplay,onSessionHandoff,onNewSession,enabledActions=null }) {
   if (typeof token !== 'string' || !token || typeof readStatus !== 'function' || typeof onCommand !== 'function') {
     throw new Error('Invalid control API configuration');
   }
@@ -60,7 +65,7 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
       }
       const action = req.url.slice('/v1/'.length);
       if(enabledActions&&!enabledActions.includes(action))return reply(404,{error:'Not found'});
-      if (!['session-new','activity-cards','home-display','clipboard','browser','status','look','standby','screen','current-content','highlight','mode','modes','workbench','context','tasks','routines','routine','privacy','stop','emergency-stop','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','window-place','power','reminders'].includes(action) && !ACTIONS.has(action)) return reply(404, { error: 'Not found' });
+      if (!['session-handoff','session-new','activity-cards','home-display','clipboard','browser','status','look','standby','screen','current-content','highlight','mode','modes','workbench','context','tasks','routines','routine','privacy','stop','emergency-stop','graph','graph-search','graph-source','intel-catalog','intel','guide','guide-clear','artcraft','artcraft-select','artcraft-open','artcraft-link','audio-outputs','audio-output','bluetooth-devices','bluetooth','microphones','microphone','volume','apps','app-open','windows','window-focus','window-place','power','reminders'].includes(action) && !ACTIONS.has(action)) return reply(404, { error: 'Not found' });
       const bodyLimit=action==='clipboard'?131072:action==='activity-cards'?4096:MAX_BODY_BYTES;
       const dual=['activity-cards','browser','volume','power','reminders'].includes(action);
       if (!dual&&req.method !== (['status','modes','context','tasks','routines','graph','intel-catalog','artcraft','audio-outputs','bluetooth-devices','microphones','apps','windows'].includes(action) ? 'GET' : 'POST')||dual&&!['GET','POST'].includes(req.method)) return reply(405, { error: 'Method not allowed' });
@@ -98,12 +103,20 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
       if(['context','tasks','routines','graph','intel-catalog','artcraft'].includes(action))return typeof reader==='function'?reply(200,await reader()):reply(503,{error:'Resource unavailable'});
       let payload;
       try { payload = JSON.parse(body); } catch { return reply(400, { error: 'Invalid JSON' }); }
+      const expectedSession=req.headers['x-lilith-session'];
+      if(expectedSession!==undefined){const current=await readStatus();if(current?.privacyLocked||current?.privacy?.locked)return reply(423,{error:'Local privacy lock is active'});if(typeof expectedSession!=='string'||!expectedSession||expectedSession.length>128||current?.sessionContext?.id!==expectedSession)return reply(409,{error:'Selected device conversation changed'});}
+      if(action==='session-handoff'){
+        if(!payload||typeof payload!=='object'||Array.isArray(payload)||!['state','recall','transfer'].includes(payload.action)||Object.keys(payload).some(k=>!['action','target'].includes(k))||(payload.action==='transfer'?!['windows','notebook'].includes(payload.target):payload.target!==undefined))return reply(400,{error:'Invalid handoff request'});
+        const state=await readStatus();if(state?.privacyLocked||state?.privacy?.locked)return reply(423,{error:'Local privacy lock is active'});
+        if(typeof onSessionHandoff!=='function')return reply(503,{error:'Conversation handoff unavailable'});
+        return reply(200,await onSessionHandoff(payload,{expectedSession}));
+      }
       if(['activity-cards','home-display'].includes(action)){
         const callback=action==='activity-cards'?onActivityCard:onHomeDisplay;
         if(typeof callback!=='function')return reply(503,{error:'Activity display unavailable'});
-        if(action==='home-display'&&(!payload||typeof payload!=='object'||Array.isArray(payload)||!['open','inventory','camera'].includes(payload.action)||Object.keys(payload).some(k=>!['action','cameraEntity'].includes(k))||(payload.action==='camera'?typeof payload.cameraEntity!=='string'||!/^camera\.[a-z0-9_]{1,120}$/.test(payload.cameraEntity):payload.cameraEntity!==undefined)))return reply(400,{error:'Invalid home display request'});
+        if(action==='home-display'&&!validHomeDisplay(payload))return reply(400,{error:'Invalid home display request'});
         const state=await readStatus();if(state?.privacyLocked||state?.privacy?.locked)return reply(423,{error:'Local privacy lock is active'});
-        return reply(200,await callback(payload));
+        return reply(200,await callback(payload,{expectedSession}));
       }
       if(action==='session-new'){
         if(!payload||typeof payload!=='object'||Array.isArray(payload)||Object.keys(payload).length)return reply(400,{error:'New session requires an empty body'});
@@ -126,7 +139,7 @@ async function createControlApi({ port = 8872, token, readStatus, onCommand, onL
         const callback={microphone:onMicrophone,volume:onVolume,'app-open':onAppOpen,'window-focus':onWindowFocus,'window-place':onWindowPlace,power:onPower,reminders:onReminder}[action];
         if(typeof callback!=='function')return reply(503,{error:'Control unavailable'});
         if(action==='window-place'){const state=await readStatus();if(state?.privacyLocked||state?.privacy?.locked)return reply(423,{error:'Local privacy lock is active'});}
-        req.socket.setTimeout(35000);const epoch=controlEpoch,command=commandChain.then(async()=>{if(epoch!==controlEpoch)throw Object.assign(new Error('Stopped'),{status:423});if(action==='window-place'){const state=await readStatus();if(state?.privacyLocked||state?.privacy?.locked)throw Object.assign(Error('Privacy locked'),{status:423});}return callback(payload);});commandChain=command.catch(()=>{});
+        req.socket.setTimeout(35000);const epoch=controlEpoch,command=commandChain.then(async()=>{if(epoch!==controlEpoch)throw Object.assign(new Error('Stopped'),{status:423});if(expectedSession!==undefined){const current=await readStatus();if(current?.privacyLocked||current?.privacy?.locked)throw Object.assign(Error('Privacy locked'),{status:423});if(current?.sessionContext?.id!==expectedSession||current.sessionContext.canSubmit!==true)throw Object.assign(Error('Selected conversation changed'),{status:409});}if(action==='window-place'){const state=await readStatus();if(state?.privacyLocked||state?.privacy?.locked)throw Object.assign(Error('Privacy locked'),{status:423});}return callback(payload);});commandChain=command.catch(()=>{});
         const result=await command;return reply(200,{ok:['power','reminders'].includes(action)?result.ok===true:result.verified===true,action,result});
       }
       if(action==='bluetooth'){

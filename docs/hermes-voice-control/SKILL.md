@@ -35,36 +35,30 @@ kompakten Lilith-Orb nicht ungefragt in ein Raster zwingen. Vertrag:
 `docs/windows-control.md`.
 
 
-Kleine Aktivitätsfenster über `control.ps1 -Action activity-cards` lesen;
-mit `-CardJson` eine frische Karte anzeigen/aktualisieren oder schließen.
-Home Assistant: `-Action home-display -Operation open` zur lokalen Anmeldung,
-`-Operation inventory` für begrenzte Entity-Metadaten,
-`-Operation camera -CameraEntity camera.<id>` für eine bekannte Kamera.
-Der vorhandene Home-Assistant-Agent darf damit sinnvoll Status/Countdowns
-anzeigen; keine neue öffentliche Netzwerk-API öffnen.
+Direkte Alltagsaktionen verwenden jetzt den MCP-Server **lilith-device**.
+Zuerst device_status am ausdrücklichen Ziel windows/notebook lesen; für Änderungen
+expected_session aus result.sessionContext.id übernehmen. Die Geräteidentität
+wird tatsächlich geprüft; kein stiller VPS-/Gerätefallback.
 
-Bei „Zeig die Ringkamera/Haustür als Livebild“ zuerst die native Ansicht mit
-`-Action home-display -Operation open` öffnen, danach `-Operation inventory`
-lesen. `connected:false` bei geschlossener Ansicht belegt keine defekte
-Ring-Anmeldung. Die passende Live-Kamera anhand der frischen Entity-Liste
-auswählen und mit `-Operation camera -CameraEntity camera.<id>` anzeigen.
-Nicht die lokale Webcam aktivieren. Danach nur `inventory` bis zu 20 Sekunden
-begrenzt nachlesen: Erst `camera.playing:true` für die ausgewählte Entity
-bestätigt Wiedergabe. `cameraOpened:true` bestätigt nur die geöffnete Ansicht;
-`idle` ist allein kein Wiedergabefehler. Ein allgemeiner Kommunikationsfehler
-oder alte Ring-Logs belegen keinen Anmeldefehler. Aktuelle Erreichbarkeit,
-Home-Assistant-Anmeldung und Player getrennt prüfen; Ring-Neuanmeldung nur bei
-konkretem aktuellem Authentifizierungsbefund nennen. Keine Zugangsdaten auslesen.
+show_camera(device, query, expected_session) zeigt eine Home-Assistant-Livekamera
+in einem Aufruf, einschließlich eindeutiger Auswahl und begrenzter Wiedergabeprüfung.
+Eine kurze Bezeichnung wie „Haustür“ genügt als Werkzeugargument; die freie
+Nutzerformulierung bleibt unverändert intelligent zu verstehen. Erfolg nur bei
+result.verified:true und passender cameraEntity, nicht aus Modelltext oder
+Kamera-idle ableiten. Keine Webcam verwenden. Generische Kommunikationsfehler
+belegen keine defekte Ring-Anmeldung.
 
-Vertrag: `docs/activity-cards.md`. Countdown benötigt tatsächlich beobachtete
-absolute Endzeit; eine Schätzung als `estimate` kennzeichnen. Ohne verlässliche
-Vorheiz-Endzeit tatsächliche Temperatur/Status zeigen. Ablauf ist keine
-bestätigte Fertigstellung. Defekte Geräte bleiben `unavailable`. Kameraöffnung
-belegt kein Livebild; `inventory.camera.playing` separat prüfen. Keine Passwörter,
-Tokens, signierten Kamera-URLs oder beliebiges HTML an Karten übergeben.
-Karten öffnen ohne Fokusübernahme; Datenschutz und fremder Gesprächsbesitz
-sperren/schließen die Ansicht.
+windows_list/window_place verwenden echte Windows-Fenster und physische
+Monitorflächen, keine Mausbewegung und keine SSH-Bildschirmmaße. browser steuert
+den eigenen Lilith-Browser; native Chrome/Edge bleiben bei den bestehenden
+Desktopwerkzeugen. conversation_handoff verwendet den vorhandenen Controller;
+wartend bedeutet angefordert, nicht übernommen. Bei effectUnknown:true zuerst
+Wirkung beobachten; nicht wiederholen oder über einen zweiten Weg ausführen.
 
+Kleine Status-/Countdownkarten bleiben über die bestehende activity-cards-API
+verfügbar. Nur echte frische Gerätezeiten zeigen; unavailable bleibt unavailable.
+Datenschutz, fremder Gesprächsbesitz und Sitzungswechsel bleiben verbindlich.
+Verträge: docs/device-tools.md und docs/activity-cards.md.
 
 Natürlich formulierte Fortsetzungswünsche wie „Lass uns am PC weiter arbeiten“,
 „Ich würde gern am PC weitermachen“ oder „Ich arbeite jetzt am PC weiter“

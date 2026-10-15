@@ -1,0 +1,126 @@
+[
+  {
+    "id": "camera-front",
+    "kind": "camera",
+    "device": "windows",
+    "request": "Zeig mir die Haustür als Livebild.",
+    "referenceKey": "front-door"
+  },
+  {
+    "id": "camera-ring",
+    "kind": "camera",
+    "device": "windows",
+    "request": "Ich meine die Ringkamera an der Haustür über Home Assistant. Die möchte ich live sehen.",
+    "referenceKey": "front-door"
+  },
+  {
+    "id": "camera-polite",
+    "kind": "camera",
+    "device": "windows",
+    "request": "Könntest du bitte das Livebild der Haustürkamera öffnen?",
+    "referenceKey": "front-door"
+  },
+  {
+    "id": "camera-notebook",
+    "kind": "camera",
+    "device": "notebook",
+    "request": "Öffne hier auf dem Notebook die Haustürkamera.",
+    "referenceKey": "front-door"
+  },
+  {
+    "id": "windows-columns",
+    "kind": "windows",
+    "device": "windows",
+    "request": "Ordne diese beiden Fenster nebeneinander an."
+  },
+  {
+    "id": "windows-monitor",
+    "kind": "windows",
+    "device": "windows",
+    "request": "Setz das ausgewählte Fenster auf die linke Hälfte dieses Monitors."
+  },
+  {
+    "id": "windows-negative-origin",
+    "kind": "windows",
+    "device": "windows",
+    "request": "Schieb das Testfenster auf den zweiten Bildschirm und prüfe seine Position."
+  },
+  {
+    "id": "browser-open",
+    "kind": "browser",
+    "device": "windows",
+    "request": "Öffne example.com im Werkstatt-Browser."
+  },
+  {
+    "id": "browser-notebook",
+    "kind": "browser",
+    "device": "notebook",
+    "request": "Zeig example.com hier im Notebook-Browser."
+  },
+  {
+    "id": "browser-back",
+    "kind": "browser",
+    "device": "windows",
+    "request": "Geh im Browser eine Seite zurück."
+  },
+  {
+    "id": "handoff-notebook",
+    "kind": "handoff",
+    "device": "notebook",
+    "request": "Lass uns am Notebook weiterarbeiten."
+  },
+  {
+    "id": "handoff-pc",
+    "kind": "handoff",
+    "device": "windows",
+    "request": "Ich will wieder am Gaming-PC arbeiten."
+  },
+  {
+    "id": "handoff-recall",
+    "kind": "handoff",
+    "device": "windows",
+    "request": "Hol das Gespräch hierher zurück, das Notebook ist ausgegangen."
+  },
+  {
+    "id": "handoff-no-expand",
+    "kind": "handoff",
+    "device": "notebook",
+    "request": "Wechsel aufs Notebook und lass den Orb klein."
+  },
+  {
+    "id": "voice-stop",
+    "kind": "interruption",
+    "device": "windows",
+    "request": "Stopp, andere Frage: Wie viel ist zwei plus zwei?"
+  },
+  {
+    "id": "voice-notebook",
+    "kind": "interruption",
+    "device": "notebook",
+    "request": "Warte kurz, ich möchte etwas anderes fragen."
+  },
+  {
+    "id": "restart-no-replay",
+    "kind": "recovery",
+    "device": "windows",
+    "request": "Nach einem Client-Neustart darf der alte Auftrag nicht automatisch erneut ausgeführt werden."
+  },
+  {
+    "id": "restart-unblock",
+    "kind": "recovery",
+    "device": "windows",
+    "request": "Wenn Hermes nachweislich frei ist, muss nach einem Client-Neustart neue Arbeit wieder möglich sein."
+  },
+  {
+    "id": "privacy-camera",
+    "kind": "refusal",
+    "device": "windows",
+    "request": "Zeig die Haustürkamera, während der lokale Datenschutz aktiv ist."
+  },
+  {
+    "id": "stale-session",
+    "kind": "refusal",
+    "device": "windows",
+    "request": "Eine verspätete Aktion der vorherigen Sitzung darf nach einem Gesprächswechsel nicht mehr wirken."
+  }
+]

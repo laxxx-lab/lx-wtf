@@ -48,7 +48,9 @@ async function newDeviceSession(){
  }finally{creatingSession=false;update();}
 }
 let activityCardsWindow=null;
-function getActivityCards(){return activityCardsWindow||(activityCardsWindow=require('./activity-card-window.cjs').createActivityCardWindow({BrowserWindow,screen,ipcMain,root:ROOT,allowed:()=>connected&&!config.privacyLocked&&handoffCanSubmit()&&!handoffPendingCurrent()}));}
+function captureDeviceAccess(expectedSession){const selected=conversation?.session,ticket=generation;return()=>!!selected&&(!expectedSession||expectedSession===(selected.storedId||selected.id))&&conversation?.session===selected&&generation===ticket&&connected&&!config.privacyLocked&&handoffCanSubmit()&&!handoffPendingCurrent();}
+async function apiSessionHandoff(value,{expectedSession}={}){access();if(expectedSession&&expectedSession!==(conversation.session.storedId||conversation.session.id))throw Object.assign(Error('Gespräch geändert'),{status:409});if(value.action==='state')return handoff.snapshot();return value.action==='recall'?handoff.requestRecall():handoff.requestTransfer(value.target);}
+function getActivityCards(){return activityCardsWindow||(activityCardsWindow=require('./activity-card-window.cjs').createActivityCardWindow({BrowserWindow,screen,ipcMain,root:ROOT,captureAccess:captureDeviceAccess,allowed:()=>connected&&!config.privacyLocked&&handoffCanSubmit()&&!handoffPendingCurrent()}));}
 function handoffCanSubmit(){return !handoff||handoff.canSubmit(selectedStoredSession());}
 function handoffPendingCurrent(){const record=handoff?.snapshot().pending,selected=selectedStoredSession();return !!record&&!!selected&&[record.session,record.previous].some(row=>row?.id===selected.id&&row.profile===selected.profile);}
 function enterLinuxStandby({explicit=false}={}){
@@ -113,7 +115,7 @@ async function submit(text,{captured,project}={}){
   if(/^(?:datenschutz|privatmodus) (?:an|ein|aktivieren)[.!]?$/.test(command))return setPrivacy(true);
   if(isStandbyRequest(text))return requestLinuxStandby(captured);
   access(captured);const target=handoffIntent(text);if(recallIntent(text)||target==='notebook')return handoff.requestRecall();if(target)return handoff.requestTransfer(target);if(!handoffCanSubmit()||handoffPendingCurrent())throw Error('Dieses Gespräch wird übergeben oder gehört zum anderen Gerät.');if(conversation.busy)throw Error('Ein Auftrag läuft. Bitte abschließen oder stoppen.');
-  const prompt=linuxDeviceContext(device,notebookTools)+'\n\n'+(project?linuxProjectPrompt(projects,{...project,text},device):'Nutzerauftrag: '+text.trim());
+  const prompt=require('./device-tool-context.cjs').deviceToolContext('notebook',device,conversation?.session)+linuxDeviceContext(device,notebookTools)+'\n\n'+(project?linuxProjectPrompt(projects,{...project,text},device):'Nutzerauftrag: '+text.trim());
   standbyActive=false;idleStandby.activity();
   activeTools.clear();stopSpeech();reply=new ReplyAccumulator();emit({type:'user',text});const owner=conversation,selected=owner.session,ticket=generation,sending=owner.submit(prompt,{speak:true,sessionId:captured?.sessionId,isCurrent:()=>!config.privacyLocked&&connected&&handoffCanSubmit()&&!handoffPendingCurrent()});update(agentPhase(),'Verarbeite deinen Auftrag');try{await sending;}catch(error){if(owner===conversation&&selected===conversation.session&&ticket===generation&&connected&&!config.privacyLocked&&handoffCanSubmit())update('error','Auftrag konnte nicht gesendet werden');throw error;}return {ok:true};
 }
@@ -196,7 +198,7 @@ function ensureWorkbench(){
 function linuxControlStatus(){
   const locked=config.privacyLocked,browser=locked?null:workbench?.browserState||{ready:false,url:'',title:'',loading:false,visible:false,tab:'console'};
   const selected=conversation?.session;
-  return {status:locked?'privacy':status,connected,standby:{active:standbyActive,idleMinutes:config.idleStandbyMinutes},busy:creatingSession||!!conversation?.busy||transcribing,localBusy:localBusy(),privacyLocked:locked,device,pid:process.pid,
+  return {sessionContext:!locked&&selected?{id:selected.storedId||selected.id,runtimeId:selected.id,profile:selected.profile||'default',device:'notebook',host:require('node:os').hostname(),canSubmit:connected&&handoffCanSubmit()&&!handoffPendingCurrent()}:null,status:locked?'privacy':status,connected,standby:{active:standbyActive,idleMinutes:config.idleStandbyMinutes},busy:creatingSession||!!conversation?.busy||transcribing,localBusy:localBusy(),privacyLocked:locked,device,pid:process.pid,
     session:!locked&&selected?{id:selected.id,storedId:selected.storedId,profile:selected.profile,title:selected.title}:null,
     engines:{...health},voiceReady:health.voice&&!!voiceClient,sttReady:health.stt,
     notebookTools:{configured:notebookTools.configured,connected:notebookTools.connected,enrolling:mcpEnrolling},
@@ -221,7 +223,7 @@ async function linuxControlWorkbench(value){
 }
 async function linuxControlBrowser(value){
   requireLinuxControlAccess();const captured={sessionId:conversation.session.id,generation};
-  const result=await ensureWorkbench().controlBrowser(value);requireLinuxControlAccess(captured);return result;
+  const result=await ensureWorkbench().controlBrowser(value,captureDeviceAccess());requireLinuxControlAccess(captured);return result;
 }
 function linuxControlClipboard(value){
   requireLinuxControlAccess();
@@ -246,7 +248,7 @@ function linuxControlClipboard(value){
 async function startLinuxControlApi(){
   const token=crypto.randomBytes(32).toString('hex'),temporary=controlFile+'.'+crypto.randomUUID()+'.tmp';
   try{
-      controlApi=await createControlApi({port:8874,token,enabledActions:['status','workbench','browser','clipboard','activity-cards','home-display','session-new'],readActivityCards:()=>getActivityCards().read(),onActivityCard:value=>getActivityCards().execute(value),onHomeDisplay:value=>getActivityCards().home(value),onNewSession:async()=>{const result=await newDeviceSession();return {created:true,session:{storedId:result.session.storedId,title:result.session.title,profile:result.session.profile},canSubmit:result.canSubmit};},readStatus:linuxControlStatus,onWorkbench:linuxControlWorkbench,onBrowser:linuxControlBrowser,onClipboard:linuxControlClipboard,onCommand:async()=>{throw Error('Diese Linux-Aktion ist nicht freigegeben.');}});
+      controlApi=await createControlApi({port:8874,token,enabledActions:['status','workbench','browser','clipboard','activity-cards','home-display','session-handoff','session-new'],readActivityCards:()=>getActivityCards().read(),onActivityCard:value=>getActivityCards().execute(value),onHomeDisplay:(value,scope)=>getActivityCards().home(value,scope),onSessionHandoff:apiSessionHandoff,onNewSession:async()=>{const result=await newDeviceSession();return {created:true,session:{storedId:result.session.storedId,title:result.session.title,profile:result.session.profile},canSubmit:result.canSubmit};},readStatus:linuxControlStatus,onWorkbench:linuxControlWorkbench,onBrowser:linuxControlBrowser,onClipboard:linuxControlClipboard,onCommand:async()=>{throw Error('Diese Linux-Aktion ist nicht freigegeben.');}});
     fs.writeFileSync(temporary,JSON.stringify({url:'http://127.0.0.1:8874',token,pid:process.pid}),{mode:0o600,flag:'wx'});fs.renameSync(temporary,controlFile);controlToken=token;
   }catch{
     controlApi?.close();controlApi=null;emit({type:'notice',message:'Lokale Lilith-Steuerung auf 127.0.0.1:8874 konnte nicht gestartet werden. Werkstatt und Browser sind für Hermes noch nicht erreichbar.'});

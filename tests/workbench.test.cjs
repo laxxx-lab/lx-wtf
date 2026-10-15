@@ -40,6 +40,12 @@ test('failed browser navigation cannot return an opening confirmation',async()=>
  const f=fixture();await f.controller.show('console');f.views[0].webContents.loadURL=async()=>{throw Error('ERR_NAME_NOT_RESOLVED');};
  await assert.rejects(f.controller.controlBrowser({action:'navigate',url:'https://unreachable.invalid'}),/ERR_NAME_NOT_RESOLVED/);f.controller.destroy();
 });
+test('a changed device session cancels browser navigation before a pending workbench opens',async()=>{
+ let release,allowed=true;const loading=new Promise(resolve=>release=resolve),f=fixture({beforeLoadFile:()=>loading});
+ const opening=f.controller.controlBrowser({action:'navigate',url:'https://example.com'},()=>allowed);
+ await new Promise(resolve=>setImmediate(resolve));allowed=false;release();
+ await assert.rejects(opening,/gestoppt/);assert.equal(f.controller.browserState.ready,false);assert.equal(f.controller.visible,false);f.controller.destroy();
+});
 
 test('privacy during pending agent navigation never reveals the newly loaded browser',async()=>{
  let locked=false,release;const f=fixture({getSnapshot:()=>({privacyLocked:locked})});await f.controller.show('console');f.controller.hide();

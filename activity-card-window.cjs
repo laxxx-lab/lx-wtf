@@ -1,7 +1,8 @@
 'use strict';
 const path=require('node:path'),fs=require('node:fs');
 const {createActivityCards}=require('./activity-cards.cjs'),{createHomeDisplay}=require('./home-display.cjs');
-function createActivityCardWindow({BrowserWindow,screen,ipcMain,root,allowed=()=>true}){
+const {showHomeCamera}=require('./home-display-workflow.cjs');
+function createActivityCardWindow({BrowserWindow,screen,ipcMain,root,allowed=()=>true,captureAccess=()=>allowed}){
  let win=null,loaded=false,home,loadPending=null,displayError=null;
  function getHome(){if(!home){let config;try{config=JSON.parse(fs.readFileSync(path.join(root,'.local/home-display.json'),'utf8'));}catch{throw Error('Home Assistant ist noch nicht eingerichtet.');}home=createHomeDisplay({BrowserWindow,screen,root,url:config.url});}return home;}
  function snapshot(){return allowed()?store.read():{cards:[],privacyLocked:true};}
@@ -17,6 +18,6 @@ function createActivityCardWindow({BrowserWindow,screen,ipcMain,root,allowed=()=
  ipcMain.handle('lilith-card:dismiss',async(event,id)=>{access(event);const result=store.execute({action:'dismiss',id});await sync();return result;});
  ipcMain.handle('lilith-card:camera',async(event,id)=>{access(event);if(!allowed())throw Error('Datenschutz oder fremder Gesprächsbesitz.');const card=store.read().cards.find(c=>c.id===id&&c.kind==='camera');if(!card)throw Error('Kamera nicht gefunden.');return getHome().openCamera(card.cameraEntity);});
  function hide(){win?.destroy();win=null;loaded=false;home?.hide();}
- return {read:snapshot,execute:async value=>{if(!allowed())throw Object.assign(Error('Datenschutz oder fremder Gesprächsbesitz.'),{status:423});let result;try{result=store.execute(value);}catch(error){throw Object.assign(error,{status:400});}await sync();return {...result,display:{shown:!!win&&!win.isDestroyed()&&win.isVisible(),...(displayError?{error:displayError}:{})}};},home:async value=>{if(!allowed())throw Object.assign(Error('Datenschutz oder fremder Gesprächsbesitz.'),{status:423});if(value?.action==='open')return getHome().open();if(value?.action==='camera')return getHome().openCamera(value.cameraEntity);if(value?.action==='inventory')return {...await getHome().inventory(),camera:await getHome().cameraState()};throw Object.assign(Error('Unbekannte Home-Assistant-Aktion.'),{status:400});},sync,hide};
+ return {read:snapshot,execute:async value=>{if(!allowed())throw Object.assign(Error('Datenschutz oder fremder Gesprächsbesitz.'),{status:423});let result;try{result=store.execute(value);}catch(error){throw Object.assign(error,{status:400});}await sync();return {...result,display:{shown:!!win&&!win.isDestroyed()&&win.isVisible(),...(displayError?{error:displayError}:{})}};},home:async (value,scope={})=>{if(!allowed())throw Object.assign(Error('Datenschutz oder fremder Gesprächsbesitz.'),{status:423});if(value?.action==='show')return showHomeCamera({home:getHome(),query:value.query,cameraEntity:value.cameraEntity,waitMs:value.waitMs,allowed:captureAccess(scope.expectedSession)});if(value?.action==='open')return getHome().open();if(value?.action==='camera')return getHome().openCamera(value.cameraEntity);if(value?.action==='inventory')return {...await getHome().inventory(),camera:await getHome().cameraState()};throw Object.assign(Error('Unbekannte Home-Assistant-Aktion.'),{status:400});},sync,hide};
 }
 module.exports={createActivityCardWindow};

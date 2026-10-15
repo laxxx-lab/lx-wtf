@@ -18,3 +18,16 @@ test('Windows privacy closes passive cards synchronously before awaiting remote 
  assert.match(block,/onChange:value=>\{\s*if\(value\.locked\)activityCardsWindow\?\.hide\(\)/);
  const {LocalSafety}=require('../local-safety.cjs');let closed=false,release;const safety=new LocalSafety({onChange:value=>{if(value.locked)closed=true;},quiesce:()=>new Promise(resolve=>release=resolve)});const pending=safety.lock();assert.equal(closed,true);release();return pending;
 });
+test('aborted delayed navigation cannot show or apply to a following window',async()=>{
+ const {createHomeDisplay}=require('../home-display.cjs');const windows=[];let finish;
+ class Window extends EventEmitter{
+  constructor(){super();windows.push(this);this.calls=[];this.webContents=new EventEmitter();Object.assign(this.webContents,{session:{setPermissionRequestHandler(){}},setAudioMuted(){},setWindowOpenHandler(){},getURL:()=>this.url,executeJavaScript:async script=>{this.calls.push(script);return {connected:true,cameraOpened:true};}});}
+  isDestroyed(){return this.destroyed===true;}isVisible(){return this.visible===true;}
+  loadURL(url){this.url=url;return windows.length===1?new Promise(resolve=>{finish=resolve;}):Promise.resolve();}
+  showInactive(){this.visible=true;}destroy(){this.destroyed=true;this.emit('closed');}
+ }
+ const home=createHomeDisplay({BrowserWindow:Window,screen:{getPrimaryDisplay:()=>({workArea:{x:0,y:0,width:1000,height:800}})},url:'http://192.0.2.10:8123'});
+ const controller=new AbortController();const old=home.openCamera('camera.old',{signal:controller.signal});controller.abort();
+ await home.openCamera('camera.new');const count=windows[1].calls.length;finish();await old;
+ assert.equal(windows[0].isDestroyed(),true);assert.equal(windows[0].visible,undefined);assert.equal(windows[1].isDestroyed(),false);assert.equal(windows[1].calls.length,count,'Old navigation cannot apply to current window');assert.equal(windows[1].visible,true);home.hide();
+});

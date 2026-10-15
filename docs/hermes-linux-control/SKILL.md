@@ -17,23 +17,33 @@ Keine laufende PC-Session eigenmächtig zurückholen, um am Notebook neu zu star
 Vertrag: docs/linux-client.md, docs/session-handoff.md.
 
 
-Kleine Aktivitätskarten sind über die bestehenden authentifizierten Loopback-
-Endpunkte `/v1/activity-cards` (GET/POST) und `/v1/home-display` (POST) am
-Notebook verfügbar. Verbindungskonfiguration bleibt privat in
-`.local/linux-control.json`; über die vorhandene Notebook-MCP-Shell aufrufen.
-Keine Tokens oder Inhalte dieser Datei ausgeben. Für Home Assistant muss seine
-Adresse vom Notebook tatsächlich erreichbar sein; derzeit ist die LAN-Adresse
-am Windows-PC erreichbar, vom Notebook noch nicht.
+Direkte Alltagsaktionen verwenden jetzt den MCP-Server **lilith-device**.
+Zuerst device_status am ausdrücklichen Ziel windows/notebook lesen; für Änderungen
+expected_session aus result.sessionContext.id übernehmen. Die Geräteidentität
+wird tatsächlich geprüft; kein stiller VPS-/Gerätefallback.
 
-Vertrag: `docs/activity-cards.md`. Countdown benötigt tatsächlich beobachtete
-absolute Endzeit; eine Schätzung als `estimate` kennzeichnen. Ohne verlässliche
-Vorheiz-Endzeit tatsächliche Temperatur/Status zeigen. Ablauf ist keine
-bestätigte Fertigstellung. Defekte Geräte bleiben `unavailable`. Kameraöffnung
-belegt kein Livebild; `inventory.camera.playing` separat prüfen. Keine Passwörter,
-Tokens, signierten Kamera-URLs oder beliebiges HTML an Karten übergeben.
-Karten öffnen ohne Fokusübernahme; Datenschutz und fremder Gesprächsbesitz
-sperren/schließen die Ansicht.
+show_camera(device, query, expected_session) zeigt eine Home-Assistant-Livekamera
+in einem Aufruf, einschließlich eindeutiger Auswahl und begrenzter Wiedergabeprüfung.
+Eine kurze Bezeichnung wie „Haustür“ genügt als Werkzeugargument; die freie
+Nutzerformulierung bleibt unverändert intelligent zu verstehen. Erfolg nur bei
+result.verified:true und passender cameraEntity, nicht aus Modelltext oder
+Kamera-idle ableiten. Keine Webcam verwenden. Generische Kommunikationsfehler
+belegen keine defekte Ring-Anmeldung.
 
+windows_list/window_place verwenden echte Windows-Fenster und physische
+Monitorflächen, keine Mausbewegung und keine SSH-Bildschirmmaße. browser steuert
+den eigenen Lilith-Browser; native Chrome/Edge bleiben bei den bestehenden
+Desktopwerkzeugen. conversation_handoff verwendet den vorhandenen Controller;
+wartend bedeutet angefordert, nicht übernommen. Bei effectUnknown:true zuerst
+Wirkung beobachten; nicht wiederholen oder über einen zweiten Weg ausführen.
+
+Kleine Status-/Countdownkarten bleiben über die bestehende activity-cards-API
+verfügbar. Nur echte frische Gerätezeiten zeigen; unavailable bleibt unavailable.
+Datenschutz, fremder Gesprächsbesitz und Sitzungswechsel bleiben verbindlich.
+Verträge: docs/device-tools.md und docs/activity-cards.md.
+
+Windows-Fensterwerkzeuge sind Windows-spezifisch; Notebook-Desktopaktionen
+weiter über die vorhandenen lilith-zorin-Werkzeuge ausführen.
 
 Natürlich formulierte Fortsetzungswünsche wie „Lass uns am PC weiter arbeiten“,
 „Ich würde gern am PC weitermachen“ oder „Ich arbeite jetzt am PC weiter“

@@ -365,6 +365,13 @@ Kameraentity; Typen, Grenzen und Beispiele: [Aktivitätskarten](activity-cards.m
 Keine frei wählbare URL, Shell oder Medienadresse. Beide Clients prüfen
 Datenschutz und aktuellen Gesprächsbesitz.
 
+`POST /v1/home-display` unterstützt zusätzlich `{action:"show",query:"Haustür"}`
+für den vollständigen Ablauf mit bestätigtem Player. `X-Lilith-Session` bindet
+Änderungen an die aktuell ausgewählte stabile `status.sessionContext.id`.
+`POST /v1/session-handoff` akzeptiert `state`, `recall` oder `transfer` mit
+`target:"windows"|"notebook"`; ein wartendes Ergebnis ist noch keine Übernahme.
+Der MCP-Adapter benutzt diese Verträge direkt: [Gerätewerkzeuge](device-tools.md).
+
 `POST /v1/window-place` ordnet ein bekanntes Fenster nativ an: genau
 `{id,pid,processStartedAt,monitorId,rect:{x,y,width,height}}`, optional passender
 `jobId`. Frische physische WorkArea über windows lesen; Erfolg erst bei

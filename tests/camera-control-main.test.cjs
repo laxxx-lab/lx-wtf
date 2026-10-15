@@ -279,9 +279,9 @@ test('camera display requests carry the existing Home Assistant playback contrac
  vm.runInContext("submit=originalSubmit;connected=true;conversation.busy=false;conversation.submit=async(text,options)=>prompts.push({text,options});",f.context);
  await vm.runInContext("submit('Nee, ich meine über Home Assistant die Ringkamera an der Haustür. Die will ich als Livebild sehen.',{speak:true,sessionId:'selected'})",f.context);
  assert.equal(f.context.prompts.length,1);const prompt=f.context.prompts[0].text;
- assert.match(prompt,/-Action home-display -Operation open/);assert.match(prompt,/-Operation inventory/);
- assert.match(prompt,/-Operation camera -CameraEntity/);assert.match(prompt,/camera\.playing/);
- assert.match(prompt,/Kommunikationsfehler.*kein.*Anmeldefehler/i);assert.match(prompt,/keine.*Webcam/i);
+ assert.match(prompt,/lilith-device/);assert.match(prompt,/device_status/);
+ assert.match(prompt,/show_camera/);assert.match(prompt,/result\.verified=true/);
+ assert.match(prompt,/Kommunikationsfehler.*keine.*Anmeldefehler/i);assert.match(prompt,/Keine Webcam/i);
  assert.equal(f.captured.length,0,'A home-camera display request must not capture the local webcam');
 });
 test('queued user work chooses thinking from the visible request, not generated prompt context',async()=>{
