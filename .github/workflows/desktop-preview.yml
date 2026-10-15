@@ -1,0 +1,70 @@
+name: Desktop preview installers
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win --x64
+          - os: ubuntu-22.04
+            target: --linux --x64
+          - os: macos-14
+            target: --mac --arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: npm ci
+      - run: npm test
+      - run: python -m unittest discover -s tests -p portable_speech_test.py
+      - name: Prepare audited public payload
+        run: npm run package:prepare
+      - name: Package unsigned preview
+        run: npx electron-builder ${{ matrix.target }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Linux packaged Electron smoke
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          artifact="$(find dist/installers -maxdepth 1 -name '*.AppImage' -print -quit)"
+          test -n "$artifact"
+          chmod u+x "$artifact"
+          APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a "$artifact" --version | grep -F 'v44.7.2'
+      - name: Checksums of installer artifacts
+        shell: bash
+        run: |
+          cd dist/installers
+          python - <<'PY'
+          import hashlib, pathlib
+          files = sorted(p for p in pathlib.Path('.').iterdir() if p.is_file() and p.suffix in {'.exe', '.AppImage', '.deb', '.dmg', '.zip'})
+          with open('SHA256SUMS', 'w', encoding='utf-8') as out:
+              for path in files:
+                  with path.open('rb') as source:
+                      digest = hashlib.file_digest(source, 'sha256').hexdigest()
+                  out.write(f'{digest}  {path.name}\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hermes-voice-preview-${{ matrix.os }}
+          path: |
+            dist/installers/*.exe
+            dist/installers/*.AppImage
+            dist/installers/*.deb
+            dist/installers/*.dmg
+            dist/installers/*.zip
+            dist/installers/SHA256SUMS
+          if-no-files-found: error

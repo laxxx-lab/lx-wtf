@@ -5,6 +5,17 @@ description: "Bei Steuerung von Liliths Windows-App verwenden."
 
 # Hermes Voice auf Patriks Windows-PC steuern
 
+## Öffentliche Installation · 15.10.2026
+
+Hermes Voice ist auch als eigenständiger Desktop-Client mit Setup und frei
+wählbarem Anzeigenamen verfügbar. Neuinstallation: `docs/install.md`. Nicht
+Patriks Referenzstimme, private Laufzeiten, Gateway-Adresse oder Schlüssel auf
+andere Geräte kopieren. Das Setup verbindet den eigenen kompatiblen Hermes;
+die Anmeldung verleiht noch keine lokale MCP-/Adminberechtigung. STT/TTS sind
+separat wählbar; ein Name trainiert kein neues Aktivierungswort. Bestehende
+Installationen und Sessions bleiben erhalten. Ein beauftragter Installer-Build
+ist kein Auftrag, den produktiven Voice-Client neu zu starten.
+
 ## Optionale Desktop-Handsteuerung · 14.10.2026
 
 **Sicht / Lokal → Gesamten Desktop per Hand steuern** beziehungsweise

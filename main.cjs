@@ -9,7 +9,9 @@ const {createSessionHandoff,handoffIntent,recallIntent,handoffRequest}=require('
 const {thinkingForTask}=require('./automatic-thinking.cjs');
 const {createMonitorPolicy}=require('./monitor-policy.cjs');
 const {createSystemSampler,germanAlert}=require('./system-monitor.cjs');
-const {engineSpecs,liveEngineSpec}=require('./engines.cjs');
+const {engineSpecs:nativeEngineSpecs,liveEngineSpec}=require('./engines.cjs');
+const {readPortableInstallation,portablePython,selectEngineSpecs,createPortableVoiceClient,engineResponseReady}=require('./portable-runtime.cjs');
+function engineSpecs(root){return selectEngineSpecs(root,process.platform,nativeEngineSpecs(root));}
 const {matchWakePhrase,isWakeRequestCurrent}=require('./wake-phrase.cjs');
 const {ReplyAccumulator,visibleHandoffHistory}=require('./reply.cjs');
 const {VoiceClient}=require('./voice-client.cjs');
@@ -64,7 +66,7 @@ fs.mkdirSync(LOCAL,{recursive:true});
 app.setPath('userData',path.join(LOCAL,process.argv.includes('--smoke')?'smoke-data':'app-data'));
 app.setName('Hermes Voice');
 if(process.platform==='win32')app.setAppUserModelId('Hermes.Voice.Windows');
-let config={url:'http://lilith.lx.local',voice:'dark',delivery:'normal',monitoring:true,proactive:true,speakAlerts:true,autoStart:false,wakeWord:true,bareNames:true,sessionId:null,cameraEnabled:false,cameraDeviceId:'',cameraRecognize:false,cameraGreetings:false};
+let config={url:'https://hermes.invalid',voice:'dark',delivery:'normal',monitoring:true,proactive:true,speakAlerts:true,autoStart:false,wakeWord:true,bareNames:true,sessionId:null,cameraEnabled:false,cameraDeviceId:'',cameraRecognize:false,cameraGreetings:false};
 try { const saved=JSON.parse(fs.readFileSync(path.join(LOCAL,'settings.json'),'utf8'));config={...config,...saved}; }
 catch {try {const saved=JSON.parse(fs.readFileSync(path.join(process.env.APPDATA,'Hermes','connection.json'),'utf8'));if(saved.remote?.url)config.url=saved.remote.url;}catch{}}
 if(process.argv.includes('--smoke'))config.cameraEnabled=false;
@@ -114,7 +116,7 @@ async function localConversation(text,options={}){
   cancelLocalConversation();stopSpeech();
   const turnId=validTurnId(options.turnId)?options.turnId:crypto.randomUUID(),controller=new AbortController(),owner={id:turnId,controller,session:selected};localTurn=owner;
   const current=()=>localTurn===owner&&conversation?.session===selected&&generation===safetyGeneration&&!config.privacyLocked&&connected;
-  voiceTiming.begin(turnId,{kind:'voice'});timing('dispatch-start',turnId);timing('local-model-submit',turnId);emit('local-dialogue-user',{turnId,text});publishLocalConversation();state('thinking','Lilith formuliert ihre Antwort');
+  voiceTiming.begin(turnId,{kind:'voice'});timing('dispatch-start',turnId);timing('local-model-submit',turnId);emit('local-dialogue-user',{turnId,text});publishLocalConversation();state('thinking',(config.assistantName||'Lilith')+' formuliert ihre Antwort');
   let spoken=false,shown='';
   try{
     const context={jobs:backgroundSnapshot().jobs.slice(-4).map(({title,status,summary})=>({title,status,summary:summary.slice(0,300)})),hermesBusy:conversation.busy};
@@ -808,7 +810,7 @@ let voiceHealthInterval=null,voiceHealthRunning=false,voiceHealthRepairing=false
 function voiceHealthSample(){return {privacyLocked:config.privacyLocked,expectedMicrophone:ownsConversationInput()&&!handoffState().pending&&!config.privacyLocked&&(clientInfo.live||config.wakeWord),microphoneActive:clientInfo.microphoneActive,frameCount:clientInfo.frameCount??null,frameAt:clientInfo.frameAt??null,rendererAt:clientInfo.rendererAt??null,audioContextState:clientInfo.audioContextState,connected,engines:{...voiceEngineStates,live:config.localDialogueEnabled?voiceEngineStates.live:null,vad:clientInfo.live||config.wakeWord?vadReady:null,wake:config.wakeWord?wakeReady:null},busy:!!(speechLaneBusy()||cameraLooking||screenLooking||contentLooking||getJobs().active()||hasBackgroundWork()||pendingControls.size),speaking:clientSpeaking,ttsPending:ttsPending>0,lastPcmAt:voiceLastPcmAt||null,startedAt:voiceHealthStartedAt,repairing:voiceHealthRepairing,capturing:clientInfo.capturing===true,transcribing:clientInfo.transcribing===true};}
 async function inspectVoiceEngines(){
  const generation=safetyGeneration,required=engineSpecs(ROOT).filter(spec=>spec.name!=='live'||config.localDialogueEnabled);
- const observations=await Promise.allSettled(required.map(async spec=>({name:spec.name,ready:(await fetch(`http://127.0.0.1:${spec.port}${spec.health}`,{signal:AbortSignal.timeout(700)})).ok})));
+ const observations=await Promise.allSettled(required.map(async spec=>({name:spec.name,ready:await engineResponseReady(spec,await fetch(`http://127.0.0.1:${spec.port}${spec.health}`,{signal:AbortSignal.timeout(700)}))})));
  if(config.privacyLocked||generation!==safetyGeneration||shuttingDown)return;
  for(let i=0;i<observations.length;i++){const result=observations[i];voiceEngineStates[required[i].name]=result.status==='fulfilled'&&result.value.ready===true;}voiceEngineCheckedAt=Date.now();
 }
@@ -983,17 +985,18 @@ const children=new Set(),policy=createMonitorPolicy(),sampleSystem=createSystemS
 const voiceNames=['sovereign','dark','playful'];
 const fixedVoices=path.join(ROOT,'voices/fixed');
 let voiceClient=null,greetingIndex=0;
-try{voiceClient=new VoiceClient({registry:JSON.parse(fs.readFileSync(path.join(fixedVoices,'registry.json'),'utf8'))});}catch{}
+const portableInstallation=readPortableInstallation(ROOT);
+if(portableInstallation&&portableInstallation.tts!=='existing')voiceClient=createPortableVoiceClient(portableInstallation);else try{voiceClient=new VoiceClient({registry:JSON.parse(fs.readFileSync(path.join(fixedVoices,'registry.json'),'utf8'))});}catch{}
 function referenceVoiceReady(){return !!voiceClient?.registry.some(entry=>entry.name==='hermes-reference-normal');}
 function voiceProfiles(){return voiceClient?.profiles||[];}
 function validVoice(voice){return voiceNames.includes(voice)||voiceProfiles().some(profile=>profile.id===voice);}
 function validVoiceDelivery(voice,delivery){const profile=voiceProfiles().find(profile=>profile.id===voice);return profile?profile.deliveries.includes(delivery):voiceNames.includes(voice)&&['normal','whisper','power'].includes(delivery);}
-if(!validVoice(config.voice))config.voice='dark';
+if(config.voice!=='off'&&!validVoice(config.voice))config.voice='dark';
 if(!validVoiceDelivery(config.voice,config.delivery))config.delivery='normal';
-const wakeGreetings=['Ja?','Ich bin hier. Was liegt an?','Lilith einsatzbereit. Was kann ich für dich tun, Boss?'];
+const wakeGreetings=['Ja?','Ich bin hier. Was liegt an?',(config.assistantName||'Lilith')+' einsatzbereit. Was kann ich für dich tun, Boss?'];
 function emit(type,data={}) {workbench?.publish({type,...data});if(win&&!win.isDestroyed())win.webContents.send('companion:event',{type,...data});}
-function state(next,message) {if(localTurn&&['ready','working','thinking'].includes(next)){next='thinking';message='Lilith formuliert ihre Antwort';}status=next;detail=message || '';const data={status,detail,handoff:handoffState(),localConversation:localConversationSnapshot(),timers:timerSnapshot(),background:backgroundSnapshot(),busy:speechLaneBusy(),connected,session:conversation?.session||null,approval,privacyLocked:config.privacyLocked};emit('state',data);fs.writeFileSync(path.join(LOCAL,process.argv.includes('--smoke')?'smoke-status.json':'status.json'),JSON.stringify(data,null,2));}
-function snapshot(){return {status,detail,connected,handoff:handoffState(),voiceHealth:voiceHealth.snapshot(),attention:attentionSnapshot(),localConversation:localConversationSnapshot(),timers:timerSnapshot(),background:backgroundSnapshot(),busy:speechLaneBusy(),session:conversation?.session||null,sessions:sessionRows,sample,settings:config,privacyLocked:config.privacyLocked,context:contextSnapshot(),tasks:tasks.list(),jobQueue:getJobs().snapshot(),awareness:awarenessSnapshot(),teach:teach.snapshot(),voiceTiming:voiceTiming.snapshot(),routines:config.routines,currentContent:config.privacyLocked?null:currentContent,startup:startupSnapshot(app,ROOT),camera:{profiles:cameraProfiles,scene:cameraScene,looking:cameraLooking,active:clientInfo.cameraActive},screen:{looking:screenLooking,scene:screenScene},mode:activeMode,hud:hudActivity.view(),approval,wakeReady,wakeArmed:clientInfo.wakeArmed,vadReady,systemReport:currentSystemReport(),workbenchVisible:workbench?.visible===true,referenceVoiceReady:referenceVoiceReady(),voiceProfiles:voiceProfiles(),voiceReady:fs.existsSync(path.join(ROOT,'runtime/voice/build/tts-server.exe')),sttReady:fs.existsSync(path.join(ROOT,'runtime/stt/models/ggml-large-v3-turbo.bin'))};}
+function state(next,message) {if(localTurn&&['ready','working','thinking'].includes(next)){next='thinking';message=(config.assistantName||'Lilith')+' formuliert ihre Antwort';}status=next;detail=message || '';const data={status,detail,handoff:handoffState(),localConversation:localConversationSnapshot(),timers:timerSnapshot(),background:backgroundSnapshot(),busy:speechLaneBusy(),connected,session:conversation?.session||null,approval,privacyLocked:config.privacyLocked};emit('state',data);fs.writeFileSync(path.join(LOCAL,process.argv.includes('--smoke')?'smoke-status.json':'status.json'),JSON.stringify(data,null,2));}
+function snapshot(){return {status,detail,connected,handoff:handoffState(),voiceHealth:voiceHealth.snapshot(),attention:attentionSnapshot(),localConversation:localConversationSnapshot(),timers:timerSnapshot(),background:backgroundSnapshot(),busy:speechLaneBusy(),session:conversation?.session||null,sessions:sessionRows,sample,settings:config,privacyLocked:config.privacyLocked,context:contextSnapshot(),tasks:tasks.list(),jobQueue:getJobs().snapshot(),awareness:awarenessSnapshot(),teach:teach.snapshot(),voiceTiming:voiceTiming.snapshot(),routines:config.routines,currentContent:config.privacyLocked?null:currentContent,startup:startupSnapshot(app,ROOT),camera:{profiles:cameraProfiles,scene:cameraScene,looking:cameraLooking,active:clientInfo.cameraActive},screen:{looking:screenLooking,scene:screenScene},mode:activeMode,hud:hudActivity.view(),approval,wakeReady,wakeArmed:clientInfo.wakeArmed,vadReady,systemReport:currentSystemReport(),workbenchVisible:workbench?.visible===true,referenceVoiceReady:referenceVoiceReady(),voiceProfiles:voiceProfiles(),voiceReady:engineSpecs(ROOT).some(spec=>spec.name==='voice'&&fs.existsSync(spec.exe)&&fs.existsSync(spec.readyFile||spec.args[1])),sttReady:engineSpecs(ROOT).some(spec=>spec.name==='stt'&&fs.existsSync(spec.exe)&&fs.existsSync(spec.readyFile||spec.args[1]))};}
 function saveConfig(){fs.writeFileSync(path.join(LOCAL,process.argv.includes('--smoke')?'smoke-settings.json':'settings.json'),JSON.stringify(config,null,2));}
 function syncStartup(){return syncLoginStartup(app,{root:ROOT,enabled:config.autoStart,smoke:process.argv.includes('--smoke')});}
 const speechPendingByTurn=new Map();
@@ -1352,8 +1355,8 @@ function runEngine(exe,args,cwd,name){
 }
 async function startEngines(){
   for(const spec of engineSpecs(ROOT).filter(spec=>spec.name!=='live'||config.localDialogueEnabled)){
-    try{const response=await fetch(`http://127.0.0.1:${spec.port}${spec.health}`,{signal:AbortSignal.timeout(700)});if(response.status<500)continue;}catch{}
-    if(fs.existsSync(spec.args[1]))runEngine(spec.exe,spec.args,spec.cwd,spec.name);
+    try{const response=await fetch(`http://127.0.0.1:${spec.port}${spec.health}`,{signal:AbortSignal.timeout(700)});if(await engineResponseReady(spec,response))continue;if(spec.portable){emit('notice',{message:spec.name+': der lokale Port ist durch einen anderen Dienst belegt.'});continue;}}catch{}
+    if(fs.existsSync(spec.readyFile||spec.args[1]))runEngine(spec.exe,spec.args,spec.cwd,spec.name);
   }
   startWake();
   if(!config.privacyLocked&&config.naturalConversation)await turnDetector.start();
@@ -1384,7 +1387,7 @@ async function prepareLocalDialogue(){
 let vadChild=null,vadReady=false,vadGeneration=null;
 function startSpeechDetector(){
   if(vadChild)return;
-  const python=path.join(ROOT,'runtime/voice/venv/Scripts/python.exe'),model=path.join(ROOT,'runtime/wake/silero_vad.onnx');
+  const python=portableInstallation&&['base','small'].includes(portableInstallation.stt)?portablePython(ROOT):path.join(ROOT,'runtime/voice/venv/Scripts/python.exe'),model=path.join(ROOT,'runtime/wake/silero_vad.onnx');
   if(!fs.existsSync(python)||!fs.existsSync(model)){emit('vad-ready',{ready:false});return;}
   const child=spawn(python,[path.join(ROOT,'scripts/speech_listener.py'),'--model',model,'--min-silence',turnDetector.snapshot().available&&config.naturalConversation?'0.3':'0.5'],{cwd:ROOT,windowsHide:true,env:{...process.env,PYTHONIOENCODING:'utf-8'},stdio:['pipe','pipe','pipe']});vadChild=child;children.add(child);
   const output=fs.createWriteStream(path.join(LOCAL,'speech-detector.log'),{flags:'a'});child.stderr.pipe(output);
@@ -1567,7 +1570,7 @@ function registerHandlers(){
     'local-dialogue-ready':()=>localConversationSnapshot(),
     'job-adjustment-intent':(_e,text)=>jobAdjustmentIntent(text),
     'job-amend':(_e,value)=>amendJob(value),
-    audition:(_e,value)=>{const voice=typeof value==='string'?value:value?.voice,delivery=value?.delivery||config.delivery;if(!validVoice(voice)||!validVoiceDelivery(voice,delivery))throw new Error('Unbekannte Stimme oder nicht installierte Sprechweise.');stopSpeech();speak('Ich bin Lilith. Sag mir, was anliegt, Boss.',voice,delivery);},
+    audition:(_e,value)=>{const voice=typeof value==='string'?value:value?.voice,delivery=value?.delivery||config.delivery;if(!validVoice(voice)||!validVoiceDelivery(voice,delivery))throw new Error('Unbekannte Stimme oder nicht installierte Sprechweise.');stopSpeech();speak('Ich bin '+(config.assistantName||'Lilith')+'. Sag mir, was anliegt, Boss.',voice,delivery);},
     settings:async(_e,values,standbyTransition=false)=>{
       if(values&&typeof values==='object'&&!Array.isArray(values)&&Object.keys(values).length===1&&Object.hasOwn(values,'orbTheme')){
         const previous=config.orbTheme;config.orbTheme=normalizeOrbTheme(values.orbTheme);try{saveConfig();}catch(error){config.orbTheme=previous;throw error;}emit('orb-theme-config',{orbTheme:config.orbTheme});return snapshot();

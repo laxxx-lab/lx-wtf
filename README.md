@@ -1,4 +1,19 @@
-# Hermes Voice für Windows
+# Hermes Voice
+
+Desktop-Sprachclient für **deinen eigenen kompatiblen Hermes-Gateway**. Der
+Assistentenname ist frei wählbar; „Lilith“ ist eine persönliche Konfiguration.
+Die öffentliche Installation enthält keine privaten Stimmen, Modelle, Zugangsdaten
+oder vorgegebenen Netzadressen.
+
+**Neuinstallation:** [Installationsanleitung für Windows, Zorin/Linux und macOS](docs/install.md).
+Windows bekommt ein Setup mit gebündeltem Electron; Linux AppImage/deb und ein
+Installationsskript. Beim ersten Start wählst du Gateway, Namen, Whisper und lokale
+Piper-Sprachausgabe unabhängig aus. Textbetrieb braucht keine Sprachmodelle.
+macOS ist eine Vorschau des gemeinsamen Gesprächsclients; Android ist noch kein
+Installationsziel dieser Desktop-Version.
+
+Die folgenden Abschnitte beschreiben zusätzlich die bestehende persönliche
+Entwicklungsinstallation und ihre optionalen erweiterten Gerätefunktionen.
 
 Lilith ist deine Werkstatt-Zentrale: ein sichtbarer, sprachgesteuerter Zugang
 zu deinem vorhandenen Hermes und echten Werkzeugen auf PC und Notebook.
@@ -105,11 +120,12 @@ Installierter Agentenstand und echte Zugriffstests:
 
 Dieses Repository enthält den Client, Helfer, Dokumentation und Tests. Modelle,
 private Referenzstimmen, Fotos, Anmeldung und lokale Einstellungen werden nicht
-mitgeliefert. Voraussetzung: Windows, Node.js/npm und die Electron-Laufzeit einer
-vorhandenen Hermes-Desktop-Installation. Im geklonten Projektordner:
+mitgeliefert. Für den Quellstart werden Node.js ab 22.12 und npm benötigt. Eine
+separate Hermes-Desktop-Installation ist nicht mehr erforderlich:
 
 ```powershell
-npm ci --ignore-scripts
+npm ci
+npm run runtime:install
 .\launch.ps1
 ```
 
@@ -118,7 +134,8 @@ die gewünschte Session auswählen. Lokale Sprach-/Kameramodelle benötigen die
 separaten Schritte unter [Sprachlaufzeit](docs/voice-runtime.md) und
 [Kameralaufzeit](docs/camera-runtime.md). Windows-MCP und der PC-Helfer-Skill werden
 für den jeweiligen Rechner eingerichtet; Beispielpfade müssen dazu angepasst
-werden. Die Veröffentlichung installiert keine fehlenden Modelle automatisch.
+werden. Das öffentliche Setup bietet Whisper und Piper inklusive Abhängigkeiten
+an; die bisherigen optimierten Qwen-/Kamera-Laufzeiten bleiben zusätzliche Optionen.
 
 ## Systemüberwachung
 

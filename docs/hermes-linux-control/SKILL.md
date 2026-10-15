@@ -5,6 +5,17 @@ description: Linux-Notebook über den verbundenen Lilith-MCP bedienen.
 
 # Lilith auf dem Linux-Notebook
 
+## Öffentliche Installation · 15.10.2026
+
+Neue Zorin-/Linux-Geräte verwenden den eigenständigen Hermes-Voice-Installer
+unter `docs/install.md`. AppImage/deb bringen Electron mit; lokale Whisper- und
+Piper-Pakete sind optional. Der eigene Hermes und Anzeigename werden im Setup
+gewählt. Keine privaten Referenzstimmen, Tokens oder Verbindungsdateien kopieren.
+Lokale Systemsteuerung benötigt weiterhin die ausdrücklich eingerichtete eigene
+MCP-Verbindung; macOS darf nicht als Linux-Notebook bedient werden. Persönliche
+Daten bleiben beim Programmupdate erhalten. Der Installer-Build startet diese
+produktive Notebook-App nicht neu.
+
 ## Adminaufgaben und lebendige Denkphase · 14.10.2026
 
 **＋ Neues Gespräch hier** erstellt neben der Notebook-Sessionauswahl eine

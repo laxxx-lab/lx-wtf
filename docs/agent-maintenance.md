@@ -2,6 +2,14 @@
 
 ## Ein gemeinsames Projekt
 
+Der öffentliche Installationsweg beginnt in `desktop-entry.cjs`: geprüfter
+öffentlicher Payload, eigener Arbeitsordner, Setup und danach der bestehende
+Plattformclient. `setup-options.cjs` hält den Einstellungsvertrag,
+`portable-runtime.cjs` wählt den optionalen Whisper-/Piper-Weg. Ohne
+Installationsmanifest bleibt die vorhandene native Sprachlaufzeit maßgeblich.
+Installations- und Wiederherstellungsanleitung: [Installation](install.md).
+Paketierungen enthalten keine ignorierten Daten aus dieser Entwicklungsinstallation.
+
 Der VPS-Hermes liefert das Modell und seine vorhandenen Skills/MCP-Werkzeuge.
 Electron auf Windows hält die ausgewählte Hermes-Session, Audio, Sensoren, Orb,
 Werkstatt und lokale Helfer. Die Werkstatt ist seine sichtbare Arbeitsfläche.

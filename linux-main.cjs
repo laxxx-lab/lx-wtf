@@ -7,13 +7,15 @@ const {Gateway}=require('./gateway.cjs'),{Conversation,SentenceBuffer}=require('
 const {createWorkbench}=require('./workbench.cjs'),{createProjectLibrary}=require('./project-library.cjs');
 const {createControlApi}=require('./control-api.cjs');
 const {createDeviceSession}=require('./device-session.cjs');
-const {validateLinuxSettings,linuxProjectPrompt,normalizeLinuxRegistry,requireLinuxAccess,linuxEngineSpecs,linuxGatewayMapping,requireLinuxReconnect,createLinuxTurnGate,requireLinuxApprovalOwner,linuxDeviceContext,readLinuxSession,writeLinuxSession,resolveLinuxSession}=require('./linux-client.cjs');
+const {validateLinuxSettings,linuxProjectPrompt,normalizeLinuxRegistry,requireLinuxAccess,linuxEngineSpecs:nativeLinuxEngineSpecs,linuxGatewayMapping,requireLinuxReconnect,createLinuxTurnGate,requireLinuxApprovalOwner,linuxDeviceContext,readLinuxSession,writeLinuxSession,resolveLinuxSession}=require('./linux-client.cjs');
 const {enrollLinuxMcp}=require('./linux-mcp-enrollment.cjs');
 const {createLinuxOrbWindow}=require('./linux-window.cjs');
 const {createSessionHandoff,handoffIntent,recallIntent,handoffRequest}=require('./session-handoff.cjs');
 const {createIdleStandby}=require('./idle-standby.cjs');
 const {normalizeOrbMotion,normalizeOrbTheme}=require('./ui/orb.js');
 const {isStandbyRequest}=require('./ui/voice-interaction.js');
+const {readPortableInstallation,selectEngineSpecs,createPortableVoiceClient,engineResponseReady}=require('./portable-runtime.cjs');
+function linuxEngineSpecs(root){return selectEngineSpecs(root,process.platform,nativeLinuxEngineSpecs(root));}
 const ROOT=__dirname,LOCAL=path.join(ROOT,'.local'),settingsFile=path.join(LOCAL,'linux-settings.json'),page=pathToFileURL(path.join(ROOT,'ui/linux.html')).href;
 const sessionFile=path.join(LOCAL,'linux-session.json');
 const controlFile=path.join(LOCAL,'linux-control.json');let controlApi=null,controlToken=null;
@@ -39,7 +41,7 @@ async function newDeviceSession(){
  const link=gateway,previous=conversation,ticket=generation,profile=conversation?.session?.profile||'default';creatingSession=true;update(status,'Neues Notebook-Gespräch wird erstellt');
  const locallyOwned=handoffCanSubmit(),current=()=>connected&&!connecting&&!config.privacyLocked&&gateway===link&&conversation===previous&&generation===ticket&&!handoff?.snapshot().pending&&!transcribing&&!rendererInput.capturing&&!rendererInput.speaking&&!rendererInput.microphoneOpen&&!speechPending&&(!locallyOwned||!previous?.busy);
  try{
-  const created=await createDeviceSession({profile,title:'Lilith · Notebook · '+new Date().toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}),request:(...args)=>link.request(...args),json:(...args)=>link.json(...args),isCurrent:current});
+  const created=await createDeviceSession({profile,title:(config.assistantName||'Hermes')+' · Notebook · '+new Date().toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}),request:(...args)=>link.request(...args),json:(...args)=>link.json(...args),isCurrent:current});
   if(!current())throw Error('Notebook-Auswahl wurde geändert.');clearApproval();generation++;stopSpeech();rendererInput={capturing:false,speaking:false,live:false,microphoneOpen:false};standbyActive=false;idleStandby.activity();conversation=created.conversation;sessions=[created.row,...sessions.filter(row=>row.id!==created.row.id||row.profile!==profile)];turnGate.reconcile(conversation.session.id,false);rememberSession();emit({type:'history',sessionId:created.row.id,messages:[]});creatingSession=false;update('ready','Eigenes Notebook-Gespräch · PC arbeitet unabhängig weiter');
   // A tick already in flight may still describe the previous PC conversation.
   // Await it, then register the newly selected identity before returning readiness.
@@ -49,8 +51,10 @@ async function newDeviceSession(){
 }
 let activityCardsWindow=null;
 function captureDeviceAccess(expectedSession){const selected=conversation?.session,ticket=generation;return()=>!!selected&&(!expectedSession||expectedSession===(selected.storedId||selected.id))&&conversation?.session===selected&&generation===ticket&&connected&&!config.privacyLocked&&handoffCanSubmit()&&!handoffPendingCurrent();}
-async function apiSessionHandoff(value,{expectedSession}={}){access();if(expectedSession&&expectedSession!==(conversation.session.storedId||conversation.session.id))throw Object.assign(Error('Gespräch geändert'),{status:409});if(value.action==='state')return handoff.snapshot();return value.action==='recall'?handoff.requestRecall():handoff.requestTransfer(value.target);}
+async function apiSessionHandoff(value,{expectedSession}={}){access();if(expectedSession&&expectedSession!==(conversation.session.storedId||conversation.session.id))throw Object.assign(Error('Gespräch geändert'),{status:409});if(value.action==='state')return handoffState();return value.action==='recall'?requireHandoff().requestRecall():requireHandoff().requestTransfer(value.target);}
 function getActivityCards(){return activityCardsWindow||(activityCardsWindow=require('./activity-card-window.cjs').createActivityCardWindow({BrowserWindow,screen,ipcMain,root:ROOT,captureAccess:captureDeviceAccess,allowed:()=>connected&&!config.privacyLocked&&handoffCanSubmit()&&!handoffPendingCurrent()}));}
+function handoffState(){return handoff?.snapshot()||{available:false,phase:'unavailable',detail:process.platform==='darwin'?'Gesprächsübergabe wird auf macOS nicht unterstützt.':'Gesprächsübergabe noch nicht eingerichtet',pending:null,clients:[]};}
+function requireHandoff(){if(!handoff)throw Object.assign(Error(handoffState().detail),{status:501});return handoff;}
 function handoffCanSubmit(){return !handoff||handoff.canSubmit(selectedStoredSession());}
 function handoffPendingCurrent(){const record=handoff?.snapshot().pending,selected=selectedStoredSession();return !!record&&!!selected&&[record.session,record.previous].some(row=>row?.id===selected.id&&row.profile===selected.profile);}
 function enterLinuxStandby({explicit=false}={}){
@@ -72,12 +76,13 @@ function idleStandbyTick(){
  if(idleStandby.due(config.idleStandbyMinutes,{eligible:!shuttingDown&&!standbyActive&&!config.privacyLocked&&connected&&!!conversation?.session&&!connecting&&handoffCanSubmit()&&!handoffPendingCurrent(),busy:localBusy()||mcpEnrolling}))enterLinuxStandby();
 }
 let pendingEnrollment=process.argv.includes('--enroll-mcp')||notebookTools.configured;
-try{voiceClient=new VoiceClient({url:config.ttsUrl,registry:normalizeLinuxRegistry(JSON.parse(fs.readFileSync(path.join(ROOT,'voices/fixed/registry.json'),'utf8')),ROOT)});}catch{}
+const portableInstallation=readPortableInstallation(ROOT);
+if(portableInstallation&&portableInstallation.tts!=='existing')voiceClient=createPortableVoiceClient(portableInstallation);else try{voiceClient=new VoiceClient({url:config.ttsUrl,registry:normalizeLinuxRegistry(JSON.parse(fs.readFileSync(path.join(ROOT,'voices/fixed/registry.json'),'utf8')),ROOT)});}catch{}
 if(voiceClient&&!voiceClient.profiles.some(profile=>profile.id===config.voice))config.voice=voiceClient.profiles[0]?.id||'reference';
 function save(){fs.writeFileSync(settingsFile,JSON.stringify(config,null,2),{mode:0o600});}
 function rememberSession(){const selected=conversation?.session;if(selected)writeLinuxSession(sessionFile,{id:selected.storedId,profile:selected.profile,title:selected.title},config.url);}
 function runPendingEnrollment(){if(!pendingEnrollment||!connected||connecting||mcpEnrolling)return;pendingEnrollment=false;void actions['mcp-enroll']().catch(error=>emit({type:'notice',message:error.message}));}
-function snapshot(){const modelReady=health.stt&&health.voice&&!!voiceClient;return {status,detail,connected,panelOpen,creatingSession,canCreateSession:canCreateSession(),standby:{active:standbyActive,idleMinutes:config.idleStandbyMinutes},busy:creatingSession||!!conversation?.busy||transcribing,localBusy:localBusy(),inputState:{...rendererInput},canSubmit:handoffCanSubmit(),handoff:handoff?.snapshot()||null,session:conversation?.session||null,sessions,settings:config,privacyLocked:config.privacyLocked,generation,device,voiceReady:health.voice&&!!voiceClient,sttReady:health.stt,voiceProfiles:voiceClient?.profiles||[],approval,notebookTools:{...notebookTools,enrolling:mcpEnrolling},voiceHealth:{state:modelReady?'ready':'degraded',summary:modelReady?'Lokale Sprachmodelle bereit · Mikrofon noch separat prüfen':'Lokale Sprachmodelle noch nicht vollständig bereit',checks:[{key:'stt',state:health.stt?'ready':'degraded',summary:'Lokale Spracherkennung'},{key:'voice',state:health.voice&&voiceClient?'ready':'degraded',summary:'Lokale Lilith-Stimme'}]}};}
+function snapshot(){const modelReady=health.stt&&health.voice&&!!voiceClient;return {status,detail,connected,panelOpen,creatingSession,canCreateSession:canCreateSession(),standby:{active:standbyActive,idleMinutes:config.idleStandbyMinutes},busy:creatingSession||!!conversation?.busy||transcribing,localBusy:localBusy(),inputState:{...rendererInput},canSubmit:handoffCanSubmit(),handoff:handoffState(),session:conversation?.session||null,sessions,settings:config,privacyLocked:config.privacyLocked,generation,device,voiceReady:health.voice&&!!voiceClient,sttReady:health.stt,voiceProfiles:voiceClient?.profiles||[],approval,notebookTools:{...notebookTools,enrolling:mcpEnrolling},voiceHealth:{state:modelReady?'ready':'degraded',summary:modelReady?'Lokale Sprachmodelle bereit · Mikrofon noch separat prüfen':'Lokale Sprachmodelle noch nicht vollständig bereit',checks:[{key:'stt',state:health.stt?'ready':'degraded',summary:'Lokale Spracherkennung'},{key:'voice',state:health.voice&&voiceClient?'ready':'degraded',summary:'Lokale Lilith-Stimme'}]}};}
 function emit(event){workbench?.publish(event);if(win&&!win.isDestroyed())win.webContents.send('linux:event',event);}
 function update(next=status,message=detail){status=next;detail=message;emit({type:'state',snapshot:snapshot()});fs.writeFileSync(path.join(LOCAL,'linux-status.json'),JSON.stringify({status,detail,connected,busy:snapshot().busy,localBusy:localBusy(),inputState:{...rendererInput},device,sessionId:conversation?.session?.id||null,storedSessionId:conversation?.session?.storedId||null,sessionProfile:conversation?.session?.profile||null,sessionTitle:conversation?.session?.title||null,privacyLocked:config.privacyLocked,engines:health,notebookTools:{...notebookTools,enrolling:mcpEnrolling},pid:process.pid},null,2),{mode:0o600});}
 function access(captured){return requireLinuxAccess({privacyLocked:config.privacyLocked,connected,sessionId:conversation?.session?.id,generation},captured);}
@@ -114,8 +119,8 @@ async function submit(text,{captured,project}={}){
   if(/^(?:stopp|stop|stoppe alles|alles stoppen|not-aus)[.!]?$/.test(command))return interrupt();
   if(/^(?:datenschutz|privatmodus) (?:an|ein|aktivieren)[.!]?$/.test(command))return setPrivacy(true);
   if(isStandbyRequest(text))return requestLinuxStandby(captured);
-  access(captured);const target=handoffIntent(text);if(recallIntent(text)||target==='notebook')return handoff.requestRecall();if(target)return handoff.requestTransfer(target);if(!handoffCanSubmit()||handoffPendingCurrent())throw Error('Dieses Gespräch wird übergeben oder gehört zum anderen Gerät.');if(conversation.busy)throw Error('Ein Auftrag läuft. Bitte abschließen oder stoppen.');
-  const prompt=require('./device-tool-context.cjs').deviceToolContext('notebook',device,conversation?.session)+linuxDeviceContext(device,notebookTools)+'\n\n'+(project?linuxProjectPrompt(projects,{...project,text},device):'Nutzerauftrag: '+text.trim());
+  access(captured);const target=handoffIntent(text);if(recallIntent(text)||target==='notebook')return requireHandoff().requestRecall();if(target)return requireHandoff().requestTransfer(target);if(!handoffCanSubmit()||handoffPendingCurrent())throw Error('Dieses Gespräch wird übergeben oder gehört zum anderen Gerät.');if(conversation.busy)throw Error('Ein Auftrag läuft. Bitte abschließen oder stoppen.');
+  const prompt=(process.platform==='darwin'?'\n[Aktueller Hermes Voice Client: macOS. Kein Linux-Notebook und keine Windows-Sitzung. Lokale Systemwerkzeuge sind hier noch nicht angebunden; keine Wirkung auf einem fremden Gerät behaupten.]':require('./device-tool-context.cjs').deviceToolContext('notebook',device,conversation?.session)+linuxDeviceContext(device,notebookTools))+'\n\n'+(project?linuxProjectPrompt(projects,{...project,text},device):'Nutzerauftrag: '+text.trim());
   standbyActive=false;idleStandby.activity();
   activeTools.clear();stopSpeech();reply=new ReplyAccumulator();emit({type:'user',text});const owner=conversation,selected=owner.session,ticket=generation,sending=owner.submit(prompt,{speak:true,sessionId:captured?.sessionId,isCurrent:()=>!config.privacyLocked&&connected&&handoffCanSubmit()&&!handoffPendingCurrent()});update(agentPhase(),'Verarbeite deinen Auftrag');try{await sending;}catch(error){if(owner===conversation&&selected===conversation.session&&ticket===generation&&connected&&!config.privacyLocked&&handoffCanSubmit())update('error','Auftrag konnte nicht gesendet werden');throw error;}return {ok:true};
 }
@@ -161,6 +166,7 @@ async function connect(){
 }
 function configureAuth(){authSession=session.fromPartition('persist:hermes-linux-'+crypto.createHash('sha256').update(config.url).digest('hex').slice(0,12));}
 function createHandoff(){
+ if(process.platform==='darwin')return; // macOS handoff is not mapped to the Linux notebook identity.
  handoff=createSessionHandoff({kind:'notebook',name:device,stateFile:path.join(LOCAL,'linux-handoff.json'),
   getState:()=>({profile:conversation?.session?.profile||'default',session:selectedStoredSession(),connected:connected&&!connecting,busy:localBusy(),privacyLocked:config.privacyLocked,generation,gatewayUrl:config.url}),
   request:async payload=>{const link=gateway,owner=generation;if(!connected||!link)throw Error('Hermes ist nicht verbunden.');const result=await handoffRequest(link,payload);if(link!==gateway||owner!==generation)throw Error('Gateway-Verbindung geändert.');return result;},
@@ -261,13 +267,13 @@ function stopLinuxControlApi(){
   controlToken=null;
 }
 async function inspectEngines(){
-  const results=await Promise.allSettled(linuxEngineSpecs(ROOT).map(async spec=>({name:spec.name,ready:(await fetch(`http://127.0.0.1:${spec.port}${spec.health}`,{signal:AbortSignal.timeout(1000)})).ok})));
+  const results=await Promise.allSettled(linuxEngineSpecs(ROOT).map(async spec=>({name:spec.name,ready:await engineResponseReady(spec,await fetch(`http://127.0.0.1:${spec.port}${spec.health}`,{signal:AbortSignal.timeout(1000)}))})));
   results.forEach((result,index)=>health[linuxEngineSpecs(ROOT)[index].name]=result.status==='fulfilled'&&result.value.ready);update();
 }
 async function startEngines(){
   for(const spec of linuxEngineSpecs(ROOT)){
-    try{if((await fetch(`http://127.0.0.1:${spec.port}${spec.health}`,{signal:AbortSignal.timeout(700)})).ok)continue;}catch{}
-    if(!fs.existsSync(spec.exe)||!fs.existsSync(spec.args[spec.args.indexOf('--model')+1])){emit({type:'notice',message:spec.name+': lokale Linux-Binärdatei oder Modell fehlt'});continue;}
+    try{const response=await fetch(`http://127.0.0.1:${spec.port}${spec.health}`,{signal:AbortSignal.timeout(700)});if(await engineResponseReady(spec,response))continue;if(spec.portable){emit({type:'notice',message:spec.name+': der lokale Port ist durch einen anderen Dienst belegt.'});continue;}}catch{}
+    if(!fs.existsSync(spec.exe)||!fs.existsSync(spec.readyFile||spec.args[spec.args.indexOf('--model')+1])){emit({type:'notice',message:spec.name+': lokale Linux-Binärdatei oder Modell fehlt'});continue;}
     const child=spawn(spec.exe,spec.args,{cwd:spec.cwd,stdio:['ignore','ignore','ignore']});children.add(child);child.on('error',error=>emit({type:'notice',message:spec.name+': '+error.message}));child.on('exit',()=>children.delete(child));
   }
   await inspectEngines();healthTimer=setInterval(()=>void inspectEngines(),5000);
@@ -277,8 +283,8 @@ const actions={
   'wake-resume':resumeLinuxStandby,
   standby:requestLinuxStandby,
   'voice-control-intent':text=>isStandbyRequest(text)||!!handoffIntent(text)||recallIntent(text),
-  handoff:target=>handoff.requestTransfer(target),
-  recall:()=>{access();return handoff.requestRecall();},
+  handoff:target=>{access();return requireHandoff().requestTransfer(target);},
+  recall:()=>{access();return requireHandoff().requestRecall();},
   'input-state':value=>{if(!value||typeof value.capturing!=='boolean'||typeof value.speaking!=='boolean'||['live','microphoneOpen'].some(key=>value[key]!==undefined&&typeof value[key]!=='boolean')||value.sessionId!==conversation?.session?.id||value.generation!==generation)throw Error('Ungültiger Aufnahmezustand.');if(!config.privacyLocked&&!standbyActive&&(value.capturing&&!rendererInput.capturing||value.microphoneOpen&&!rendererInput.microphoneOpen))idleStandby.activity();rendererInput={capturing:value.capturing&&!config.privacyLocked&&!standbyActive,speaking:value.speaking&&!config.privacyLocked&&!standbyActive,live:value.live===true&&!config.privacyLocked&&!standbyActive,microphoneOpen:value.microphoneOpen===true&&!config.privacyLocked&&!standbyActive};return {ok:true};},
   panel:expanded=>windowShell.setPanel(expanded),
   'settings-view':open=>{if(typeof open!=='boolean')throw Error('Ungültige Ansicht.');return windowShell.setSettings(open);},
@@ -290,7 +296,7 @@ const actions={
   'mcp-enroll':async()=>{if(config.privacyLocked||!connected||!gateway)throw Error('Bitte lokal an Hermes anmelden und Datenschutz aufheben.');if(mcpEnrolling)throw Error('Notebook-Werkzeuge werden bereits verbunden.');if(!notebookTools.configured)throw Error('Lokale Notebook-Werkzeuge sind noch nicht eingerichtet.');const link=gateway,owner=generation;const requireOwner=()=>{if(config.privacyLocked||!connected||gateway!==link||generation!==owner)throw Error('Notebook-Verbindung wurde geändert.');};mcpEnrolling=true;update();try{const result=await enrollLinuxMcp({url:process.env.LILITH_MCP_URL,tokenFile:process.env.LILITH_MCP_TOKEN_FILE,request:async(method,params)=>{requireOwner();const result=await link.request(method,params,60000);requireOwner();return result;}});requireOwner();notebookTools={configured:true,connected:true,detail:`Notebook-Werkzeuge verbunden · ${result.toolCount} Werkzeuge geprüft`};return {ok:true,toolCount:result.toolCount};}catch(error){notebookTools={...notebookTools,connected:false,detail:error.message};throw error;}finally{mcpEnrolling=false;update();}},
   answer:value=>{if(!connected||config.privacyLocked||!handoffCanSubmit())throw Error('Keine Antwort offen.');requireLinuxApprovalOwner(approval,value,{gatewayId,sessionId:conversation?.session?.id,generation});if(approval.kind==='approval'){if(!['once','deny'].includes(value?.choice))throw Error('Ungültige Freigabe.');gateway.respond(approval.id,{choice:value.choice});}else{const answers={};for(const question of (approval.questions||[])){const answer=value?.answers?.[question.qid];if(typeof answer!=='string'||answer.length>4000)throw Error('Bitte alle Rückfragen beantworten.');answers[question.qid]=answer;}gateway.respond(approval.id,{answers});}approval=null;update(agentPhase(),'Antwort gesendet');},quit:()=>app.quit()
 };
-if(process.platform!=='linux'&&!process.argv.includes('--linux-smoke'))throw Error('Diesen Einstieg ausschließlich unter Linux verwenden.');
+if(!['linux','darwin'].includes(process.platform)&&!process.argv.includes('--linux-smoke'))throw Error('Diesen Einstieg ausschließlich unter Linux verwenden.');
 if(!app.requestSingleInstanceLock())app.quit();else{
   app.on('second-instance',(_event,argv)=>{win?.show();if(!argv?.includes('--enroll-mcp'))windowShell?.setPanel(true);if(argv?.includes('--enroll-mcp')){pendingEnrollment=true;if(connected&&!connecting)runPendingEnrollment();else if(!connecting)void connect().catch(error=>emit({type:'notice',message:error.message}));}if(argv?.includes('--login'))void login().catch(error=>emit({type:'notice',message:error.message}));});
   app.whenReady().then(async()=>{

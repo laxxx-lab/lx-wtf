@@ -15,3 +15,8 @@ settings.json
 connection.json
 captures/
 artifacts/
+
+dist/
+*.AppImage
+*.dmg
+*.deb
