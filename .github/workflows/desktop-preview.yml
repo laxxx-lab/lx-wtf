@@ -28,9 +28,12 @@ jobs:
         with:
           python-version: '3.11'
       - run: npm ci
-      - run: npm test
+      - name: Full Node regression suite (bounded native subprocess load)
+        run: node --test --test-concurrency=4 tests/*.test.cjs
         env:
           TMPDIR: ${{ runner.temp }}
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
       - run: python -m unittest discover -s tests -p portable_speech_test.py
       - name: Prepare audited public payload
         run: npm run package:prepare
