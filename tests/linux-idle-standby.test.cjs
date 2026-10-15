@@ -5,7 +5,7 @@ function fixture(){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'lilith-idle-')),events=[];let time=0;
  class Clock extends Date{static now(){return time;}}
  const app={commandLine:{appendSwitch(){}},requestSingleInstanceLock:()=>false,quit(){}};
- const context=vm.createContext({__dirname:root,process:{...process,argv:[...process.argv,'--linux-smoke']},Date:Clock,Buffer,setTimeout,clearTimeout,setInterval,clearInterval,AbortSignal,AbortController,fetch,console,require:name=>{
+ const context=vm.createContext({__dirname:root,process:{...process,platform:'linux',argv:[...process.argv,'--linux-smoke']},Date:Clock,Buffer,setTimeout,clearTimeout,setInterval,clearInterval,AbortSignal,AbortController,fetch,console,require:name=>{
   if(name==='electron')return {app};if(name==='./idle-standby.cjs'){const module=require('../idle-standby.cjs');return {...module,createIdleStandby:()=>module.createIdleStandby({now:Clock.now})};}if(name==='./session-handoff.cjs')return {...require('../session-handoff.cjs'),createSessionHandoff:options=>{context.handoffOptions=options;return {start(){},canSubmit:()=>true,snapshot:()=>({})};}};if(name.startsWith('./'))return require(path.resolve(__dirname,'..',name));return require(name);
  }});
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../linux-main.cjs'),'utf8'),context);

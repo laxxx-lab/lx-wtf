@@ -53,7 +53,8 @@ if [[ "$mode" == deb ]]; then
  [[ -f "$artifact" && "$artifact" == *.deb ]] || { echo 'A local .deb file is required.' >&2; exit 2; }
  sudo apt-get install -y -- "$artifact"
  if ((autostart)); then
-  mapfile -t desktop_entries < <(dpkg-query --listfiles hermes-voice-desktop | grep '/share/applications/[^/]*\.desktop$')
+  desktop_entries=()
+  while IFS= read -r entry; do desktop_entries+=("$entry"); done < <(dpkg-query --listfiles hermes-voice-desktop | grep '/share/applications/[^/]*\.desktop$')
   [[ "${#desktop_entries[@]}" == 1 && -f "${desktop_entries[0]}" ]] || { echo 'Installed package desktop entry was not found uniquely.' >&2; exit 1; }
   mkdir -p -- "${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
   cp -- "${desktop_entries[0]}" "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/hermes-voice.desktop"

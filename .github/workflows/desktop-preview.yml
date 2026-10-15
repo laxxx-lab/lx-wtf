@@ -18,6 +18,8 @@ jobs:
           - os: macos-14
             target: --mac --arm64
     runs-on: ${{ matrix.os }}
+    env:
+      TMPDIR: ${{ runner.temp }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
