@@ -33,10 +33,11 @@
   }
 
   class GestureController {
-    constructor({ loadDetector, onAction = () => {}, onSpatial = () => {}, onState = () => {}, now = () => performance.now(), mirror=true,spatialBounds = {left:.1,right:.9,top:.1,bottom:.9} }) {
+    constructor({ loadDetector, onAction = () => {}, onSpatial = () => {}, onState = () => {}, now = () => performance.now(), mirror=true,desktop=false,spatialBounds = {left:.1,right:.9,top:.1,bottom:.9} }) {
       this.loadDetector = loadDetector;
       this.onAction = onAction;
       this.onSpatial = onSpatial;
+      this.desktop=desktop===true;
       if(typeof mirror!=='boolean')throw TypeError('Ungültige Gestenrichtung');this.mirror=mirror;
       if(!spatialBounds||!['left','right','top','bottom'].every(key=>Number.isFinite(spatialBounds[key])&&spatialBounds[key]>=0&&spatialBounds[key]<=1)||spatialBounds.right-spatialBounds.left<.1||spatialBounds.bottom-spatialBounds.top<.1)throw new TypeError('Ungültiger Gestenbereich');
       this.spatialBounds = {...spatialBounds};
@@ -59,6 +60,7 @@
       this.resetPose();
     }
     get active() { return Boolean(this.detector); }
+    setDesktop(enabled){if(this.desktop===enabled)return;this.cancelSpatial();this.resetPose();this.desktop=enabled===true;this.state(this.desktop?'Desktopsteuerung · zeigen, greifen oder zwei Finger':'Gesten aktiv · Werkstattsteuerung');}
     cameraLive(video) {
       return Boolean(video?.srcObject && video.srcObject.getVideoTracks?.().some(track => track.readyState === 'live' && track.enabled !== false));
     }
@@ -67,14 +69,16 @@
     navigation(hand,phase,progress=0){return {x:Math.round(Math.max(0,Math.min(1,hand.x))*100)/100,phase,progress:Math.max(0,Math.min(1,progress))};}
     emitSpatial(value) { this.onSpatial({...value,generation:this.generation,sequence:++this.spatialSequence,at:Date.now()}); }
     cancelSpatial() {
-      const wasActive=this.spatialActive;this.spatialActive=false;this.spatialCandidate=null;this.pinching=false;this.pinchSince=null;this.pointerFilter=null;
+      const wasActive=this.spatialActive;this.spatialActive=false;this.spatialCandidate=null;this.pinching=false;this.pinchSince=null;this.pointerFilter=null;this.twoHand=null;
       if(wasActive)this.emitSpatial({kind:'cancel'});
     }
     processSpatial(hand,time) {
       const folded=hand.fingers.slice(1).every(finger=>finger.folded);
       const pinchPose=hand.indexAway&&hand.pinch<=(this.pinching?.4:.24);
       const pointing=folded&&hand.fingers[0].straight;
-      if(hand.confidence<(this.spatialActive?.8:.85)||(!pinchPose&&!pointing)){this.cancelSpatial();return false;}
+      const scrolling=this.desktop&&!pinchPose&&hand.fingers[0].straight&&hand.fingers[1].straight&&hand.fingers.slice(2).every(finger=>finger.folded);
+      const releasing=this.desktop&&this.pinching&&!pinchPose&&hand.indexAway;
+      if(hand.confidence<(this.spatialActive?.8:.85)||(!pinchPose&&!pointing&&!scrolling&&!releasing)){this.cancelSpatial();return false;}
       if(pinchPose){this.pinchSince??=time;}else this.pinchSince=null;
       const pinch=pinchPose&&(this.pinching||time-this.pinchSince>=100);
       this.candidate=null;this.swipe=[];
@@ -82,12 +86,12 @@
       if(time-this.spatialCandidate.since<150)return true;
       const bounds=this.spatialBounds,clamp=value=>Math.max(0,Math.min(1,value));
       const point=pinch?hand.pinchPoint:hand.tip;
-      const value={kind:'pointer',x:clamp((point.x-bounds.left)/(bounds.right-bounds.left)),y:clamp((point.y-bounds.top)/(bounds.bottom-bounds.top)),pinching:pinch};
+      const value={kind:'pointer',x:clamp((point.x-bounds.left)/(bounds.right-bounds.left)),y:clamp((point.y-bounds.top)/(bounds.bottom-bounds.top)),pinching:pinch,...(this.desktop?{scrolling}:{})};
       const previous=this.pointerFilter;
       if(previous&&pinch===this.pinching){const jump=Math.hypot(value.x-previous.x,value.y-previous.y),dt=time-previous.time,alpha=jump>.25?1:1-Math.exp(-dt/(jump>.06?25:80));value.x=previous.x+alpha*(value.x-previous.x);value.y=previous.y+alpha*(value.y-previous.y);}
       this.pointerFilter={x:value.x,y:value.y,time};
       this.pinching=pinch;this.spatialActive=true;const generation=this.generation;this.emitSpatial(value);
-      if(generation===this.generation)this.state(pinch?'Pinch · Projekt-Orb drehen und zoomen':'Zeigen · Projektknoten hervorheben',{pose:pinch?'pinch':'point'});
+      if(generation===this.generation)this.state(this.desktop?(scrolling?'Zwei Finger · scrollen':pinch?'Pinch · loslassen zum Klicken, bewegen zum Ziehen':'Zeigen · Desktopzeiger bewegen'):(pinch?'Pinch · Projekt-Orb drehen und zoomen':'Zeigen · Projektknoten hervorheben'),{pose:pinch?'pinch':'point'});
       return true;
     }
     async enable(video) {
@@ -188,6 +192,17 @@
     }
     process(result, time = this.now()) {
       if (!this.active || !Number.isFinite(time)) return;
+      if(this.desktop&&result?.landmarks?.length===2){
+        const hands=result.landmarks.map((points,index)=>readHand({landmarks:[points],worldLandmarks:result.worldLandmarks?.[index]?[result.worldLandmarks[index]]:[],handedness:[result.handedness?.[index]]}));
+        const labels=new Set(result.handedness?.map(items=>items?.[0]?.categoryName));
+        const valid=hands.every(hand=>hand&&hand.confidence>=.85&&hand.indexAway&&hand.pinch<=.24)&&labels.has('Left')&&labels.has('Right');
+        if(!valid||this.lastProcess!==null&&(time<=this.lastProcess||time-this.lastProcess>350)){this.cancelSpatial();this.resetPose();this.state('Zwei Hände · beide mit Daumen und Zeigefinger greifen');return;}
+        if(!this.twoHand){this.cancelSpatial();this.resetPose();this.twoHand={since:time,span:Math.hypot(hands[0].pinchPoint.x-hands[1].pinchPoint.x,hands[0].pinchPoint.y-hands[1].pinchPoint.y)};}
+        this.lastProcess=time;const pair=this.twoHand,span=Math.hypot(hands[0].pinchPoint.x-hands[1].pinchPoint.x,hands[0].pinchPoint.y-hands[1].pinchPoint.y);
+        if(span<.12){this.cancelSpatial();this.resetPose();return;}
+        if(time-pair.since>=200){this.spatialActive=true;this.emitSpatial({kind:'zoom',delta:Math.max(-1,Math.min(1,Math.log(span/pair.span)))});pair.span=span;this.state('Zwei Hände · auseinander: größer, zusammen: kleiner');}return;
+      }
+      if(this.twoHand){this.cancelSpatial();this.resetPose();}
       let hand = readHand(result);
       if (!hand) {
         const hadPose = Boolean(this.candidate)||this.spatialActive;
@@ -201,6 +216,7 @@
       if (this.lastProcess !== null && time - this.lastProcess > 350) {this.cancelSpatial();this.resetPose();}
       this.lastProcess = time;
       if(this.processSpatial(hand,time))return;
+      if(this.desktop){this.resetPose();this.state('Desktopsteuerung · zeigen, greifen oder zwei Finger',{navigation:null});return;}
       if(!hand.pose){this.resetPose();return;}
       if (!this.candidate || this.candidate.pose !== hand.pose) {
         this.candidate = { pose: hand.pose, since: time, anchor: hand, consumed: false };

@@ -1,5 +1,12 @@
 # Lokale Workbench-Gesten
 
+Zusätzlich gibt es seit 14.10.2026 einen ausdrücklich separat aktivierten
+[Desktopmodus](desktop-gestures.md) für Webseiten, Projekte und andere normale
+Windows-Programme. Die folgenden Einschränkungen und Gesten beschreiben den
+Werkstattmodus. Im Desktopmodus sind dessen Navigationsaktionen pausiert;
+Zeigen/Pinch steuern stattdessen den echten Mauszeiger, zwei Finger scrollen
+und zwei bewusst greifende Hände zoomen. Bei jedem App-Start ist Desktopsteuerung aus.
+
 Die Gestensteuerung ist standardmäßig aus und wird ausdrücklich eingeschaltet. Zuerst muss die Kamera bereits aktiv sein. Die Gestenerkennung verwendet genau das Video und den Stream der ausgewählten Kamera (`cameraControls.controller.video`). Sie fordert keinen zweiten Kamerazugriff an, startet die Kamera nicht und beendet keine Kameratracks.
 
 Die Erkennung läuft lokal in einem Web Worker. Bilder werden kurzzeitig als `ImageBitmap` an diesen Worker übergeben und nach der Auswertung freigegeben. Die Gestenfunktion lädt keine Kamerabilder hoch und speichert keine Bilder. Die sonstigen Kamerafunktionen behalten ihre eigenen Einstellungen.

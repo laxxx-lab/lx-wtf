@@ -41,6 +41,19 @@ function spatialResult(pinchRatio=null,dx=0,dy=0,score=.99){
   for(const point of points){point.x+=dx;point.y+=dy;}
   return {landmarks:[points],worldLandmarks:[],handedness:[[{score,categoryName:'Right'}]]};
 }
+test('desktop mode recognizes two-finger scrolling and deliberate two-hand pinch zoom, without picking one of two hands',async t=>{
+ const spatial=[],f=fixture(t,{onSpatial:value=>spatial.push(value),desktop:true});await f.controller.enable(f.video);
+ const scroll=spatialResult(),open=hand('palm');for(const i of [9,10,11,12])scroll.landmarks[0][i]=open[i];
+ for(const time of [0,50,100,150])f.controller.process(scroll,time);assert.equal(spatial.at(-1)?.scrolling,true);
+ const pair=(gap)=>{const left=spatialResult(.18,-gap),right=spatialResult(.18,gap);return {landmarks:[...left.landmarks,...right.landmarks],handedness:[[{score:.99,categoryName:'Left'}],[{score:.99,categoryName:'Right'}]]};};
+ for(const time of [200,250,300,350,400])f.controller.process(pair(.15),time);assert.equal(spatial.filter(s=>s.kind==='pointer'&&s.pinching).length,0);f.controller.process(pair(.2),450);assert.ok(spatial.at(-1)?.kind==='zoom'&&spatial.at(-1).delta>0);f.controller.process(result(),500);assert.equal(spatial.at(-1).kind,'cancel');
+});
+test('desktop pinch can release with relaxed open fingers and plain palms do not fire workbench navigation',async t=>{
+ const spatial=[],f=fixture(t,{desktop:true,onSpatial:value=>spatial.push(value)});await f.controller.enable(f.video);
+ const relaxed=ratio=>{const r=spatialResult(ratio),palm=hand('palm');for(const i of [9,10,11,12,13,14,15,16,17,18,19,20])r.landmarks[0][i]=palm[i];return r;};
+ for(const time of [0,50,100,150])f.controller.process(relaxed(.18),time);assert.equal(spatial.at(-1).pinching,true);f.controller.process(relaxed(.48),200);assert.equal(spatial.at(-1).kind,'pointer');assert.equal(spatial.at(-1).pinching,false);
+ for(let time=250;time<=1000;time+=50)f.controller.process(result(),time);assert.deepEqual(f.actions,[]);
+});
 test('fresh camera frames are processed at up to twenty fps without duplicate work',async t=>{
  const f=fixture(t);await f.controller.enable(f.video);
  for(const time of [0,25,50,75,100,125,150]){f.setTime(time);f.video.currentTime=time/1000;await f.controller.tick();}

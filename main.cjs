@@ -32,6 +32,7 @@ const {createArtcraft,ARTCRAFT_APPS}=require('./artcraft.cjs');
 const {createWorkbench}=require('./workbench.cjs');
 const {readAppCatalog,launchCatalogApp}=require('./app-catalog.cjs');
 const {createWindowsControl,windowArrangementRequest,windowArrangementContext}=require('./windows-control.cjs');
+const {createDesktopGestures,validDesktopGesture}=require('./desktop-gestures.cjs');
 const {createPowerControl}=require('./power-control.cjs');
 const {createReminders}=require('./reminders.cjs');
 const {everydayIntent}=require('./everyday-intent.cjs');
@@ -94,7 +95,7 @@ try{config.speechDictionary=normalizeSpeechDictionary(config.speechDictionary||[
 config.projectName=redactContext(config.projectName,80);
 try{config.routines=normalizeRoutines(config.routines||[]);}catch{config.routines=[];}
 try{createLogWatcher({paths:config.logPaths||[]}).close();}catch{config.logPaths=[];}
-if(config.privacyLocked)for(const key of ['cameraEnabled','wakeWord','screenEnabled','gesturesEnabled','contextEnabled'])config[key]=false;
+if(config.privacyLocked)for(const key of ['cameraEnabled','wakeWord','screenEnabled','gesturesEnabled','desktopGesturesEnabled','contextEnabled'])config[key]=false;
 const journal=createContextJournal({file:path.join(LOCAL,process.argv.includes('--smoke')?'smoke-context.json':'context.json')}),tasks=new TaskLedger();
 const awareness=new Awareness(),teach=new TeachMode(),voiceTiming=new VoiceTiming();
 const localDialogue=new LocalDialogue({maxContextChars:2000,maxTurns:6});
@@ -774,7 +775,8 @@ const safety=new LocalSafety({initialLocked:config.privacyLocked,onChange:value=
   pttHotkey?.close();localCommandAbort?.abort();
   pauseJobs('Datenschutz / Not-Aus: Warteschlange angehalten.');teach.cancel();awareness.clear();
   clearVisualGuide();workbench?.stopStream();artcraftController?.stop();projectGraph.cancel();intelGeneration++;intelAbort?.abort();intelAbort=null;
-  for(const key of ['wakeWord','cameraEnabled','screenEnabled','gesturesEnabled','contextEnabled'])config[key]=false;
+  for(const key of ['wakeWord','cameraEnabled','screenEnabled','gesturesEnabled','desktopGesturesEnabled','contextEnabled'])config[key]=false;
+  desktopGestures.disable();
   alertQueue=[];resetContextObserver();resetCamera('Datenschutz aktiv');cancelScreen();markerSequence++;clearTimeout(markerTimer);markerWindow?.hide();
   startWake();stopSpeech();emit('settings-config',{settings:config});
   for(const [id,pending]of pendingControls){clearTimeout(pending.timer);pendingControls.delete(id);pending.reject(new Error('Lokale Aktion durch Datenschutz gestoppt.'));}
@@ -840,7 +842,7 @@ function clientControl(action,enabled,timeoutMs=15000,metadata={}){
 function deviceSessionContext(){const selected=conversation?.session;return selected?{id:selected.storedId||selected.id,runtimeId:selected.id,profile:selected.profile||'default',device:'windows',host:require('node:os').hostname(),canSubmit:connected&&!config.privacyLocked&&ownsConversationInput()&&!handoffState().pending}:null;}
 function captureDeviceAccess(expectedSession){const selected=conversation?.session,generation=safetyGeneration;return()=>!!selected&&(!expectedSession||expectedSession===(selected.storedId||selected.id))&&selected===conversation?.session&&generation===safetyGeneration&&connected&&!config.privacyLocked&&ownsConversationInput()&&!handoffState().pending;}
 async function apiSessionHandoff(value,{expectedSession}={}){requireLocalAccess();if(!conversation?.session||expectedSession&&expectedSession!==(conversation.session.storedId||conversation.session.id))throw Object.assign(Error('Gespräch geändert'),{status:409});if(value.action==='state')return handoffState();return value.action==='recall'?getSessionHandoff().requestRecall():getSessionHandoff().requestTransfer(value.target);}
-function controlStatus(){return {sessionContext:config.privacyLocked?null:deviceSessionContext(),connected,status,voiceHealth:voiceHealth.snapshot(),attention:attentionSnapshot(),localConversation:localConversationSnapshot(),voiceTiming:{summary:voiceTiming.snapshot().summary},timers:timerSnapshot(),background:backgroundSnapshot(),reasoning:conversation?.reasoningState||null,privacy:safety.snapshot(),context:{enabled:config.contextEnabled,project:config.projectName},task:tasks.view(),conversationBusy:speechLaneBusy(),busy:!!(speechLaneBusy()||cameraLooking||screenLooking||contentLooking||backgroundJobs?.jobs.some(j=>['preparing','running','stopping','outcome-unknown'].includes(j.status))),session:conversation?.session?.title||null,camera:{enabled:config.cameraEnabled,active:clientInfo.cameraActive,deviceId:clientInfo.cameraDeviceId||config.cameraDeviceId,label:clientInfo.cameraLabel||null,recognize:config.cameraRecognize,greetings:config.cameraGreetings},screen:{enabled:config.screenEnabled,looking:screenLooking,sourceId:config.screenSourceId},mode:activeMode?{id:activeMode.id,name:activeMode.name,ok:activeMode.ok}:null,live:{active:clientInfo.live,microphoneActive:clientInfo.microphoneActive,audioContextState:clientInfo.audioContextState,captureArmed:clientInfo.captureArmed===true,transcribing:clientInfo.transcribing===true,awaitingResume:clientInfo.awaitingResume===true,vadReady:clientInfo.vadReady===true,dispatchCurrent:clientInfo.dispatchCurrent===true,inputBusy:clientInfo.inputBusy===true,inputTtsPending:clientInfo.inputTtsPending===true,speaking:clientSpeaking},wakewords:{enabled:config.wakeWord,ready:wakeReady,armed:clientInfo.wakeArmed,inLive:clientInfo.live&&config.wakeWord},microphoneLevel:clientInfo.micLevel,standby:{active:config.standbyActive,idleMinutes:config.idleStandbyMinutes,cameraWillResume:config.standbyCameraEnabled},system:currentSystemReport(),workbench:{visible:workbench?.visible===true,tab:workbench?.activeTab||null,browser:workbench?.browserState||null,presentation:workbench?.presentation||{owner:null,reason:'',requestId:null}},startup:startupSnapshot(app,ROOT)};}
+function controlStatus(){return {sessionContext:config.privacyLocked?null:deviceSessionContext(),gestures:{enabled:config.gesturesEnabled,desktopEnabled:config.desktopGesturesEnabled,...desktopGestures.snapshot()},connected,status,voiceHealth:voiceHealth.snapshot(),attention:attentionSnapshot(),localConversation:localConversationSnapshot(),voiceTiming:{summary:voiceTiming.snapshot().summary},timers:timerSnapshot(),background:backgroundSnapshot(),reasoning:conversation?.reasoningState||null,privacy:safety.snapshot(),context:{enabled:config.contextEnabled,project:config.projectName},task:tasks.view(),conversationBusy:speechLaneBusy(),busy:!!(speechLaneBusy()||cameraLooking||screenLooking||contentLooking||backgroundJobs?.jobs.some(j=>['preparing','running','stopping','outcome-unknown'].includes(j.status))),session:conversation?.session?.title||null,camera:{enabled:config.cameraEnabled,active:clientInfo.cameraActive,deviceId:clientInfo.cameraDeviceId||config.cameraDeviceId,label:clientInfo.cameraLabel||null,recognize:config.cameraRecognize,greetings:config.cameraGreetings},screen:{enabled:config.screenEnabled,looking:screenLooking,sourceId:config.screenSourceId},mode:activeMode?{id:activeMode.id,name:activeMode.name,ok:activeMode.ok}:null,live:{active:clientInfo.live,microphoneActive:clientInfo.microphoneActive,audioContextState:clientInfo.audioContextState,captureArmed:clientInfo.captureArmed===true,transcribing:clientInfo.transcribing===true,awaitingResume:clientInfo.awaitingResume===true,vadReady:clientInfo.vadReady===true,dispatchCurrent:clientInfo.dispatchCurrent===true,inputBusy:clientInfo.inputBusy===true,inputTtsPending:clientInfo.inputTtsPending===true,speaking:clientSpeaking},wakewords:{enabled:config.wakeWord,ready:wakeReady,armed:clientInfo.wakeArmed,inLive:clientInfo.live&&config.wakeWord},microphoneLevel:clientInfo.micLevel,standby:{active:config.standbyActive,idleMinutes:config.idleStandbyMinutes,cameraWillResume:config.standbyCameraEnabled},system:currentSystemReport(),workbench:{visible:workbench?.visible===true,tab:workbench?.activeTab||null,browser:workbench?.browserState||null,presentation:workbench?.presentation||{owner:null,reason:'',requestId:null}},startup:startupSnapshot(app,ROOT)};}
 async function observeCamera(frame,question,generation,sessionId){
   validateFrame(frame?.image);
   if(!frame.source||typeof frame.source.deviceId!=='string'||(config.cameraDeviceId&&frame.source.deviceId!==config.cameraDeviceId))throw new Error('Kamera-Quelle stimmt nicht mit der ausgewählten Kamera überein.');
@@ -896,6 +898,11 @@ async function startControlApi(){
 let sample={},connected=false,status='offline',detail='Hermes verbinden',sessionRows=[],approval=null;
 let mcpOnline,mcpCheckedAt=0,lastMcpAttempt=0,tickRunning=false,workbench=null;
 config.gesturesEnabled=config.gesturesEnabled===true;
+// Desktop input always needs a conscious activation in this app run.
+config.desktopGesturesEnabled=false;
+let gestureModelReady=false;
+const desktopGestures=createDesktopGestures({root:ROOT,allowed:()=>config.desktopGesturesEnabled&&config.cameraEnabled&&clientInfo.cameraActive&&gestureModelReady&&!config.privacyLocked&&!config.standbyActive&&ownsConversationInput()&&!handoffState().pending,onState:value=>emit('desktop-gesture-state',value)});
+function syncDesktopGestureInput(){if(config.desktopGesturesEnabled&&gestureModelReady)desktopGestures.enable();else desktopGestures.disable();}
 function currentSystemReport(){return buildSystemReport(sample,{connected,mcpOnline:connected?mcpOnline:undefined,mcpCheckedAt});}
 function ensureWorkbench(){
   workbench||=createWorkbench({electron:require('electron'),root:ROOT,stateFile:path.join(LOCAL,process.argv.includes('--smoke')?'smoke-workbench-window.json':'workbench-window.json'),getSnapshot:snapshot,onVisual:visualAction,onVisibility:(visible,tab)=>{if(!visible||tab!=='artcraft')artcraftController?.stop();else if(!config.privacyLocked)void getArtcraft().refresh({preview:false}).catch(()=>{});},onBrowserChange:clearVisualGuide,onCommand:text=>submit(text,{speak:false,sessionId:conversation?.session?.id}),onAction:async value=>{
@@ -916,8 +923,8 @@ function ensureWorkbench(){
   return workbench;
 }
 async function presentJobInWorkbench(job){
- if(windowArrangementRequest(job.text))return;
  if(config.privacyLocked||!ownedJob(job)||job.kind!=='user'||getJobs().owned(job.id,adjustmentOwner())?.revision!==job.revision)return;
+ if(windowArrangementRequest(job.text))return; // Desktop arrangement belongs to the actual desktop, not a duplicate workbench.
  if(currentContent&&job.text.includes('[Aktuelle lokale Inhaltsquelle:')&&job.text.includes(currentContent.observedAt))return; // Its explicit read already presented the exact source before dispatch.
  const intent=taskAcknowledgement(job.title);if(!job.appId&&!['inspect','effort'].includes(intent?.kind))return;
  if(workbench?.visible&&workbench.presentation?.owner==='user')return;
@@ -1481,7 +1488,8 @@ function registerHandlers(){
     'workbench-show':async(_e,tab)=>{await ensureWorkbench().show(['system','console','browser','context','graph','intel','artcraft'].includes(tab)?tab:'system');speak('Werkstatt geöffnet, Boss.');},
     'workbench-hide':()=>{workbench?.hide();speak('Werkstatt ausgeblendet.');},
     'gesture-action':(_e,action)=>{
-      if(config.privacyLocked||!config.gesturesEnabled||!config.cameraEnabled||!clientInfo.cameraActive)return;
+      if(config.privacyLocked||config.standbyActive||!ownsConversationInput()||handoffState().pending||(!config.gesturesEnabled&&!config.desktopGesturesEnabled)||!config.cameraEnabled||!clientInfo.cameraActive){desktopGestures.disable();return;}
+      if(config.desktopGesturesEnabled){if(validDesktopGesture(action,Date.now()))return desktopGestures.handle(action);return;}
       if(action&&typeof action==='object'){
         if(!['pointer','cancel'].includes(action.kind)||!Number.isSafeInteger(action.generation)||action.generation<0||!Number.isSafeInteger(action.sequence)||action.sequence<0||!Number.isFinite(action.at)||Date.now()-action.at>500||action.at>Date.now()+50)return;
         if(action.generation<spatialGeneration||action.generation===spatialGeneration&&action.sequence<=spatialSequence)return;
@@ -1491,7 +1499,7 @@ function registerHandlers(){
       }
       const w=ensureWorkbench();if(action==='workbench-show')return w.show();if(action==='workbench-hide')return w.hide();if(action==='workbench-next'&&w.visible)return w.cycleTab(1);if(action==='workbench-previous'&&w.visible)return w.cycleTab(-1);
     },
-    'gesture-state':(_e,value)=>{if(value?.active!==true){spatialGeneration=-1;spatialSequence=-1;}return workbench?.publish({type:'gesture-state',enabled:!config.privacyLocked&&config.gesturesEnabled&&config.cameraEnabled,ready:!config.privacyLocked&&value?.active===true,label:String(value?.status||'Gesten aus').slice(0,160),navigation:value?.navigation});},
+    'gesture-state':(_e,value)=>{gestureModelReady=value?.active===true;if(!gestureModelReady){spatialGeneration=-1;spatialSequence=-1;}syncDesktopGestureInput();return workbench?.publish({type:'gesture-state',enabled:!config.privacyLocked&&config.gesturesEnabled&&config.cameraEnabled,ready:!config.privacyLocked&&gestureModelReady,label:String(value?.status||'Gesten aus').slice(0,160),navigation:value?.navigation});},
     'apps-catalog':()=>readAppCatalog(),
     'system-intent':(_e,text)=>systemReportIntent(text),
     'system-report':(_e,value)=>{
@@ -1568,7 +1576,7 @@ function registerHandlers(){
       if(values?.microphoneDeviceId!==undefined&&!validMicrophoneDeviceId(values.microphoneDeviceId))throw Error('Ungültiges Mikrofon.');
       if(values?.microphoneDeviceLabel!==undefined&&!validMicrophoneLabel(values.microphoneDeviceLabel))throw Error('Ungültiger Mikrofonname.');
       if(config.privacyLocked&&values?.approvalChoice==='once')requireLocalAccess();
-      if(config.privacyLocked&&['cameraEnabled','wakeWord','screenEnabled','gesturesEnabled','contextEnabled'].some(key=>values?.[key]===true))requireLocalAccess();
+      if(config.privacyLocked&&['cameraEnabled','wakeWord','screenEnabled','gesturesEnabled','desktopGesturesEnabled','contextEnabled'].some(key=>values?.[key]===true))requireLocalAccess();
       if(values?.contextEnabled!==undefined&&typeof values.contextEnabled!=='boolean')throw new Error('Ungültige Kontextfreigabe.');
       if(values?.projectName!==undefined&&(typeof values.projectName!=='string'||values.projectName.length>80))throw new Error('Projektname darf höchstens 80 Zeichen enthalten.');
       if(values?.logPaths!==undefined){const validated=createLogWatcher({paths:values.logPaths});validated.close();}
@@ -1613,7 +1621,9 @@ function registerHandlers(){
       if(oldScreen!==JSON.stringify([config.screenEnabled,config.screenSourceId])){cancelScreen();if(config.screenEnabled)void warmCameraVision();else if(!config.cameraEnabled)resetCamera();}
       if(['normal','whisper','power'].includes(values?.delivery))config.delivery=values.delivery;
       if(!validVoiceDelivery(config.voice,config.delivery))config.delivery='normal';
-      for(const key of ['monitoring','proactive','speakAlerts','autoStart','wakeWord','bareNames','cameraEnabled','cameraRecognize','cameraGreetings','gesturesEnabled'])if(typeof values?.[key]==='boolean')config[key]=values[key];
+      if(values?.desktopGesturesEnabled===true){requireLocalAccess();if(config.standbyActive||!ownsConversationInput()||handoffState().pending)throw Error('Handsteuerung nur am aktiven Desktop einschalten.');desktopGestures.resetError();}
+      for(const key of ['monitoring','proactive','speakAlerts','autoStart','wakeWord','bareNames','cameraEnabled','cameraRecognize','cameraGreetings','gesturesEnabled','desktopGesturesEnabled'])if(typeof values?.[key]==='boolean')config[key]=values[key];
+      syncDesktopGestureInput();
       if(typeof values?.cameraDeviceId==='string'&&values.cameraDeviceId.length<=256)config.cameraDeviceId=values.cameraDeviceId;
       if(oldCamera!==JSON.stringify([config.cameraEnabled,config.cameraDeviceId,config.cameraRecognize,config.cameraGreetings])){
         if(oldCameraEnabled!==config.cameraEnabled||oldCameraDevice!==config.cameraDeviceId||cameraLooking){resetCamera();void warmCameraVision();}
@@ -1705,7 +1715,7 @@ function registerHandlers(){
   });
   return actions;
 }
-app.on('before-quit',()=>{shuttingDown=true;clearInterval(orbTopInterval);activityCardsWindow?.hide();clearInterval(idleStandbyTimer);sessionHandoff?.close();cancelLocalConversation({clear:true});turnDetector.stop();taskWaitFeedback.finish();pttHotkey?.close();localCommandAbort?.abort();clearTimeout(jobPumpTimer);for(const timer of missionReleaseTimers.values())clearTimeout(timer);missionReleaseTimers.clear();cancelCurrentContent({clear:true});circleController?.dispose();artcraftController?.dispose();guideController?.dispose();projectGraph.dispose();intelAbort?.abort();resetContextObserver();workbench?.destroy();clearInterval(interval);clearInterval(everydayInterval);clearInterval(voiceHealthInterval);clearInterval(contextInterval);clearInterval(hudInterval);clearTimeout(markerTimer);screenAbort?.abort();hudWindow?.destroy();markerWindow?.destroy();controlApi?.close();for(const pending of pendingControls.values()){clearTimeout(pending.timer);pending.reject(new Error('Voice-App wurde beendet.'));}pendingControls.clear();cameraService?.close();stopSpeech();gateway?.close();if(app.isReady())globalShortcut.unregisterAll();for(const child of children)child.kill();});
+app.on('before-quit',()=>{shuttingDown=true;clearInterval(orbTopInterval);activityCardsWindow?.hide();desktopGestures.close();clearInterval(idleStandbyTimer);sessionHandoff?.close();cancelLocalConversation({clear:true});turnDetector.stop();taskWaitFeedback.finish();pttHotkey?.close();localCommandAbort?.abort();clearTimeout(jobPumpTimer);for(const timer of missionReleaseTimers.values())clearTimeout(timer);missionReleaseTimers.clear();cancelCurrentContent({clear:true});circleController?.dispose();artcraftController?.dispose();guideController?.dispose();projectGraph.dispose();intelAbort?.abort();resetContextObserver();workbench?.destroy();clearInterval(interval);clearInterval(everydayInterval);clearInterval(voiceHealthInterval);clearInterval(contextInterval);clearInterval(hudInterval);clearTimeout(markerTimer);screenAbort?.abort();hudWindow?.destroy();markerWindow?.destroy();controlApi?.close();for(const pending of pendingControls.values()){clearTimeout(pending.timer);pending.reject(new Error('Voice-App wurde beendet.'));}pendingControls.clear();cameraService?.close();stopSpeech();gateway?.close();if(app.isReady())globalShortcut.unregisterAll();for(const child of children)child.kill();});
 if(!app.requestSingleInstanceLock()){app.quit();}else{
   app.on('second-instance',(_event,argv)=>{win?.show();expand(true);if(argv?.includes('--login'))void login().catch(error=>emit('notice',{message:error.message}));});
   app.whenReady().then(async()=>{
@@ -1730,11 +1740,12 @@ if(!app.requestSingleInstanceLock()){app.quit();}else{
     const icon=nativeImage.createFromDataURL(orbData).resize({width:32,height:32});
     const png=icon.toPNG(),ico=Buffer.alloc(22);ico.writeUInt16LE(1,2);ico.writeUInt16LE(1,4);ico[6]=32;ico[7]=32;ico.writeUInt16LE(1,10);ico.writeUInt16LE(32,12);ico.writeUInt32LE(png.length,14);ico.writeUInt32LE(22,18);fs.writeFileSync(path.join(LOCAL,'app.ico'),Buffer.concat([ico,png]));
     tray=new Tray(icon);tray.setToolTip('Hermes Voice · Ctrl+Alt+Space');
-    tray.setContextMenu(Menu.buildFromTemplate([{label:'Hermes anzeigen',click:()=>{win.show();expand(true);}},{label:'Lagebild / Aufgaben',click:()=>void ensureWorkbench().show('context')},{label:'Bereich einkreisen · Ctrl+Alt+Q',click:()=>void showCircle().catch(error=>emit('notice',{message:error.message}))},{label:'Live-Gespräch · Ctrl+Alt+Space',click:()=>{win.show();emit('toggle-mic');}},{label:'Datenschutz an/aus · Ctrl+Alt+P',click:()=>void setPrivacy(!config.privacyLocked).catch(error=>emit('notice',{message:error.message}))},{label:'Not-Aus · Ctrl+Alt+Escape',click:()=>void emergencyStop().catch(error=>emit('notice',{message:error.message}))},{label:'Mikrofon und Stimme aus',click:()=>{stopSpeech();emit('mic-off');}},{label:'Kamera ausschalten',click:()=>void actionHandlers.settings(null,{cameraEnabled:false}).catch(error=>emit('notice',{message:error.message}))},{label:'Systemüberwachung',type:'checkbox',checked:config.monitoring,click:item=>{config.monitoring=item.checked;saveConfig();}},{type:'separator'},{label:'Hermes beenden',click:()=>app.quit()}]));
+    tray.setContextMenu(Menu.buildFromTemplate([{label:'Hermes anzeigen',click:()=>{win.show();expand(true);}},{label:'Lagebild / Aufgaben',click:()=>void ensureWorkbench().show('context')},{label:'Bereich einkreisen · Ctrl+Alt+C',click:()=>void showCircle().catch(error=>emit('notice',{message:error.message}))},{label:'Live-Gespräch · Ctrl+Alt+Space',click:()=>{win.show();emit('toggle-mic');}},{label:'Datenschutz an/aus · Ctrl+Alt+P',click:()=>void setPrivacy(!config.privacyLocked).catch(error=>emit('notice',{message:error.message}))},{label:'Not-Aus · Ctrl+Alt+Escape',click:()=>void emergencyStop().catch(error=>emit('notice',{message:error.message}))},{label:'Mikrofon und Stimme aus',click:()=>{stopSpeech();emit('mic-off');}},{label:'Kamera ausschalten',click:()=>void actionHandlers.settings(null,{cameraEnabled:false}).catch(error=>emit('notice',{message:error.message}))},{label:'Systemüberwachung',type:'checkbox',checked:config.monitoring,click:item=>{config.monitoring=item.checked;saveConfig();}},{type:'separator'},{label:'Hermes beenden',click:()=>app.quit()}]));
     tray.on('click',()=>{win.show();expand(true);});
     globalShortcut.register('Control+Alt+Space',()=>{win.show();emit('toggle-mic');});
     globalShortcut.register('Control+Alt+W',()=>void ensureWorkbench().toggle());
-    globalShortcut.register('Control+Alt+Q',()=>void showCircle().catch(error=>emit('notice',{message:error.message})));
+    globalShortcut.register('Control+Alt+G',()=>void actionHandlers.settings(null,{desktopGesturesEnabled:!config.desktopGesturesEnabled}).catch(error=>emit('notice',{message:error.message})));
+    globalShortcut.register('Control+Alt+C',()=>void showCircle().catch(error=>emit('notice',{message:error.message})));
     globalShortcut.register('Control+Alt+Escape',()=>void emergencyStop().catch(error=>emit('notice',{message:error.message})));
     globalShortcut.register('Control+Alt+P',()=>void setPrivacy(!config.privacyLocked).catch(error=>emit('notice',{message:error.message})));
     if(process.argv.includes('--expanded'))expand(true);

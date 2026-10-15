@@ -11,6 +11,15 @@ function fixture({fileSystem={},clipboardSource={}}={}){
  vm.runInContext("let fixtureReasoning='none';connected=true;emit=(type,data={})=>events.push({type,...data});conversation=new Conversation(async(method,params)=>{if(method==='config.get')return {value:fixtureReasoning};if(method==='config.set'){fixtureReasoning=params.value;return {key:'reasoning',value:fixtureReasoning};}if(method==='prompt.submit'){prompts.push(params.text);return {};}return {};});conversation.session={id:'runtime',storedId:'stored',profile:'default',title:'Test'};",ctx);
  return {ctx,prompts,events,run:s=>vm.runInContext(s,ctx)};
 }
+test('desktop gestures route only after explicit activation and block privacy standby camera loss and foreign ownership',()=>{
+ const f=fixture();f.run("globalThis.desktopPackets=[];desktopGestures.handle=value=>desktopPackets.push(value);config.desktopGesturesEnabled=true;config.gesturesEnabled=true;config.cameraEnabled=true;clientInfo.cameraActive=true;");
+ const invoke=()=>f.run("registerHandlers()['gesture-action'](null,{kind:'pointer',x:.4,y:.5,pinching:false,scrolling:true,generation:1,sequence:1,at:Date.now()})");
+ invoke();assert.equal(f.run('desktopPackets.length'),1);assert.equal(f.run('desktopPackets[0].scrolling'),true);
+ for(const guard of ['config.privacyLocked=true','config.standbyActive=true','clientInfo.cameraActive=false','ownsConversationInput=()=>false']){const g=fixture();g.run("globalThis.desktopPackets=[];desktopGestures.handle=value=>desktopPackets.push(value);config.desktopGesturesEnabled=true;config.gesturesEnabled=true;config.cameraEnabled=true;clientInfo.cameraActive=true;"+guard);g.run("registerHandlers()['gesture-action'](null,{kind:'pointer',x:.4,y:.5,pinching:true,generation:1,sequence:1,at:Date.now()})");assert.equal(g.run('desktopPackets.length'),0);}
+});
+test('desktop activation and deactivation preserve the independent workbench gesture preference',async()=>{
+ const f=fixture();f.run("config.gesturesEnabled=false;config.desktopGesturesEnabled=false;syncStartup=()=>{};");await f.run("registerHandlers().settings(null,{desktopGesturesEnabled:true})");assert.equal(f.run('config.desktopGesturesEnabled'),true);assert.equal(f.run('config.gesturesEnabled'),false);await f.run("registerHandlers().settings(null,{desktopGesturesEnabled:false})");assert.equal(f.run('config.gesturesEnabled'),false);
+});
 test('explicit clipboard writes verify native content and block privacy, standby and a remote session',async()=>{
  let text='Old';const f=fixture({clipboardSource:{readText:()=>text,writeText:value=>{text=value}}});f.ctx.clipboardValue={action:'write',text:'New text'};
  const result=await f.run('apiClipboard(clipboardValue)');assert.equal(result.verified,true);assert.equal(text,'New text');assert.equal(result.text,undefined);
