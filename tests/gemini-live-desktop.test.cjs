@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{EventEmitter}=require('node:events');
 const {createGeminiLiveDesktop}=require('../gemini-live-desktop.cjs');
-function fixture(){let allowed=true,stored=null,resolve,options;const events=[],jobs=[];let jobState={id:'j',status:'completed',verified:true,summary:'verified'};class Live extends EventEmitter{start(){return new Promise(r=>resolve=r);}close(){this.emit('closed');}feed(){return true;}}const config={speechProvider:'gemini',geminiCloudAllowed:true};const control=createGeminiLiveDesktop({config,store:{present:()=>!!stored,read:()=>stored,write:k=>stored=k,forget:()=>stored=null},createLive:o=>{options=o;return new Live();},access:id=>allowed&&id==='s',emit:(...v)=>events.push(v),audio:()=>{},submit:async text=>{jobs.push(text);return {jobId:'j'};},jobs:()=>[jobState],handoff:async value=>{events.push(['handoff',value]);},stopTask:async()=>({ready:true}),save:()=>{},waitMs:10});return {control,events,jobs,stored:()=>stored,setAllowed:v=>allowed=v,setJob:j=>{jobState=j;control.jobsChanged();},tool:c=>options.executeTool(c),ready:()=>resolve({ready:true})};}
+function fixture(overrides={}){let allowed=true,stored=null,resolve,options;const events=[],jobs=[];let jobState={id:'j',status:'completed',verified:true,summary:'verified'};class Live extends EventEmitter{start(){return new Promise(r=>resolve=r);}close(){this.emit('closed');}feed(){return true;}}const config={speechProvider:'gemini',geminiCloudAllowed:true};const control=createGeminiLiveDesktop({config,store:{present:()=>!!stored,read:()=>stored,write:k=>stored=k,forget:()=>stored=null},createLive:o=>{options=o;return new Live();},access:id=>allowed&&id==='s',emit:(...v)=>events.push(v),audio:()=>{},submit:async text=>{jobs.push(text);return {jobId:'j'};},jobs:()=>[jobState],handoff:async value=>{events.push(['handoff',value]);},stopTask:async()=>({ready:true}),save:()=>{},waitMs:10,...overrides});return {control,events,jobs,stored:()=>stored,setAllowed:v=>allowed=v,setJob:j=>{jobState=j;control.jobsChanged();},options:()=>options,tool:c=>options.executeTool(c),ready:()=>resolve({ready:true})};}
 test('key is never returned and consent gates start',async()=>{const f=fixture();f.control.configure({apiKey:'secret'});assert(!JSON.stringify(f.control.snapshot()).includes('secret'));f.control.configure({geminiCloudAllowed:false});await assert.rejects(f.control.start({sessionId:'s'}));});
 test('late start cannot revive stopped stream',async()=>{const f=fixture();f.control.configure({apiKey:'secret'});const pending=f.control.start({sessionId:'s'});f.control.stop();f.ready();await assert.rejects(pending);assert.equal(f.control.snapshot().active,false);});
 test('session ownership is checked for every feed',async()=>{const f=fixture();f.control.configure({apiKey:'secret'});const pending=f.control.start({sessionId:'s'});f.ready();await pending;f.setAllowed(false);assert.equal(f.control.feed({sessionId:'s',audio:'AAAA'}),false);assert.equal(f.control.snapshot().active,false);});
@@ -23,4 +23,35 @@ test('invalid configuration cannot replace credentials or partially mutate setti
  assert.throws(()=>f.control.configure({speechProvider:'bad',apiKey:'replacement',geminiCloudAllowed:false}));
  assert.equal(f.control.settings().geminiCloudAllowed,true);assert.equal(f.stored(),'secret');
  f.control.configure({speechProvider:'local'});assert.equal(f.control.snapshot().configured,true);
+});
+
+async function started(overrides){const f=fixture(overrides);f.control.configure({apiKey:'secret'});const p=f.control.start({sessionId:'s'});f.ready();await p;return f;}
+test('direct microphone confirmation preserves verified result without a job ID',async()=>{
+ const f=await started({submit:async()=>({verified:true,status:'completed',message:'Mikrofon verbunden'})});
+ const r=await f.tool({id:'mic',name:'hermes_submit',args:{text:'Mikrofon wechseln'}});
+ assert.equal(r.verified,true);assert.equal(r.status,'completed');assert.equal(r.summary,'Mikrofon verbunden');f.control.stop();
+});
+test('real reminder and power results confirm scheduling only',async()=>{
+ const {createReminders}=require('../reminders.cjs');
+ const {createPowerControl}=require('../power-control.cjs');
+ const reminder=createReminders({file:null,now:()=>0}).execute({action:'create',kind:'reminder',text:'Pause',at:'2030-01-01T12:00:00Z'});
+ const power=await createPowerControl({file:null,platform:'win32',now:()=>0}).execute({action:'shutdown',delaySeconds:60});
+ for(const result of [reminder,power]){
+  assert.equal(result.ok,true);const f=await started({submit:async()=>result});
+  const r=await f.tool({id:'schedule',name:'hermes_submit',args:{text:'Planen'}});
+  assert.equal(r.status,'scheduled');assert.equal(r.verified,true);assert.equal(r.verificationScope,'schedule');
+  if(result.actualPowerEvent)assert.equal(r.actualPowerEvent,'unknown');f.control.stop();
+ }
+});
+test('split submissions retain every job and await the last completion',async()=>{
+ const jobs=[{id:'a',status:'completed',verified:true},{id:'b',status:'running',verified:false}];
+ const f=await started({submit:async()=>({jobIds:['a','b']}),jobs:()=>jobs,waitMs:1000});let settled=false;
+ const result=f.tool({id:'split',name:'hermes_submit',args:{text:'Zwei Aufgaben'}}).then(r=>{settled=true;return r;});
+ await new Promise(r=>setImmediate(r));assert.equal(settled,false);
+ jobs[1]={id:'b',status:'agent-finished',verified:false};f.control.jobsChanged();
+ const r=await result;assert.deepEqual(r.jobs.map(j=>j.id),['a','b']);assert.equal(r.verified,false);f.control.stop();
+});
+test('configured assistant name is supplied to the cloud instruction',async()=>{
+ const f=await started({config:{speechProvider:'gemini',geminiCloudAllowed:true,assistantName:'Lilith'}});
+ assert.match(f.options().instruction,/Lilith/);f.control.stop();
 });

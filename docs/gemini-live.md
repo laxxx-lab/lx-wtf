@@ -23,7 +23,11 @@ Gemini erhält schmale NON_BLOCKING-Funktionen: `hermes_submit`, `hermes_status`
 `hermes_stop`, `hermes_handoff`. Ein Auftrag geht mit `speak:false` durch den
 bestehenden Submit-/Intent-/Auftragsweg. Keine freie Shell- oder Rendererfunktion.
 Job-Ergebnisse enthalten den tatsächlichen Status und `verified`; `agent-finished`
-ist keine bestätigte PC-Aktion. Bei fehlender Job-ID, Zeitüberschreitung oder
+ist keine bestätigte PC-Aktion. Mehrteilige Aufträge behalten alle Job-IDs; die
+Antwort wartet auf alle Teilaufträge oder das Zeitlimit. Direkte Mikrofonergebnisse
+übernehmen die vorhandene Prüfung. Erinnerungs- und Power-Ergebnisse bestätigen
+nur Planung beziehungsweise Abbruch; eine tatsächliche spätere PC-Aktion oder
+Erinnerungsausgabe ist damit nicht geprüft. Bei fehlender Bestätigung, Zeitüberschreitung oder
 unbekanntem Ergebnis wird nichts automatisch erneut geschickt. Der Status zeigt
 höchstens 20 Aufträge der gewählten Session mit begrenzten Ergebnistexten.
 Gerätewechsel kennt Notebook und Windows-PC sowie Recall. Angeforderte Übergabe
@@ -39,3 +43,15 @@ Transporttests verwenden einen lokalen WebSocket-Peer. Controllertests prüfen
 Freigabe, Ownership, Schlüsselgrenzen, verspäteten Start und einmalige Jobs.
 Ohne echten API-Schlüssel sind Google-Audio, Latenz und Abrechnung nicht geprüft.
 Linux-Aktivierung ist nicht Bestandteil dieser Windows-Integration.
+
+Freie Gemini-Gespräche erscheinen derzeit nur im Fenster. Sie werden nicht in
+Hermes-Verlauf oder Geräteübergabe gespeichert und bei einer neuen Live-Verbindung
+nicht als Kontext geladen. Nur ausdrücklich übergebene Hermes-Aufträge erreichen
+den bestehenden Auftragsweg. Gemini erhält den konfigurierten Assistentennamen.
+Gemini Live kann Google-API-Kosten verursachen; Gebührenfreiheit gilt nur für den
+lokalen Sprachweg. Ein Mikrofonwechsel während des Cloud-Verbindungsaufbaus
+bricht diesen Aufbau ab; Live kann danach ausdrücklich neu gestartet werden.
+
+Wakeword-Wiederaufnahme bleibt lokal, auch bei ausgewähltem Gemini-Modus.
+Für die lokale Sprechtaste muss eine laufende Gemini-Verbindung zuerst beendet
+werden; die Oberfläche zeigt diesen Hinweis ausdrücklich.

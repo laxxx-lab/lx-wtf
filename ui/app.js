@@ -185,6 +185,7 @@ async function handlePushToTalk(event){
   }
   if(event.sequence<=pushToTalk.sequence)return;pushToTalk.sequence=event.sequence;
   if(privacyLocked||settings.pushToTalkEnabled!==true)return;
+  if(geminiLiveActive||geminiLiveStarting){notice('Sprechtaste: Bitte Gemini Live zuerst beenden.');return;}
   if(!gatewayConnected||!sessionInfo){notice('Sprechtaste: Bitte verbinden und eine Hermes-Session auswählen.');return;}
   if(pushToTalk.held||pushToTalk.finishing||transcribing||wakeResuming||busy||ttsPending||bargeAwaitingTurn||(audioContext&&speakingUntil>0&&audioContext.currentTime<speakingUntil+.4)||(capturing&&speechStarted)){
     notice('Sprechtaste: Bitte warten, bis der aktuelle Sprachauftrag beendet ist.');return;
@@ -245,6 +246,7 @@ async function finishCapture(){
 }
 function releaseMic(){cancelNaturalEndpoint();naturalBarge=false;duckPlayback(false);microphone.release();if(micProcessor){micProcessor.onaudioprocess=null;micProcessor.disconnect();micProcessor=null;}micSource?.disconnect();micAnalyser?.disconnect();micSilent?.disconnect?.();micSource=null;micAnalyser=null;micSilent=null;micStream=null;wakePreRoll=[];wakeSpeech=[];wakeSpeechStart=0;bargePreRoll=[];lastMicLevel=0;}
 async function reconnectMicrophone(){
+  if(geminiLiveStarting)stopGeminiLive();
   cancelPushToTalk();liveRequest++;if(captureTurnId)markVoice(captureTurnId,'capture-discarded');
   capturing=false;speechStarted=false;frames=[];transcribing=false;captureGeneration++;captureTurnId=null;voiceDispatch=null;captureInterrupt=null;bargeListening=false;bargeAwaitingTurn=false;wakeFrames=[];wakeSamples=0;releaseMic();
   if(privacyLocked||!live&&!(settings.wakeWord&&wakeReady))return true;
@@ -323,7 +325,7 @@ async function ensureMic(){
   };
 }
 async function armWake(){if(handoffPaused){releaseMic();return;}if(pushToTalk.held)return;if(!privacyLocked&&settings.wakeWord&&wakeReady){try{await ensureMic();if(!live&&!busy&&!pushToTalk.finishing)$('detail').textContent=gatewayConnected?'Bereit · Hey Hermes / Hey Lilith':'Lokal bereit · Hermes offline';}catch(error){notice('Aktivierungswort-Mikrofon: '+error.message);}}else if(!live)releaseMic();}
-async function toggleMic(force){
+async function toggleMic(force,{localOnly=false}={}){
   handoffListen=null;
   cancelPushToTalk();
   const enable=typeof force==='boolean'?force:!(live||geminiLiveStarting);
@@ -333,7 +335,7 @@ async function toggleMic(force){
   if(!enable){stopGeminiLive();live=false;capturing=false;speechStarted=false;frames=[];transcribing=false;awaitingResume=false;bargeListening=false;bargeAwaitingTurn=false;bargePreRoll=[];captureInterrupt=null;captureTurnId=null;voiceDispatch=null;captureGeneration++;clearTimeout(autoResumeTimer);if(privacyLocked||!settings.wakeWord){releaseMic();micMuted=true;}$('mic').classList.remove('active');$('mic').querySelector('span').textContent='Live starten';if(!busy&&gatewayConnected&&!privacyLocked){$('phase').textContent=phases.ready;$('detail').textContent=settings.wakeWord?'Bereit · Hey Hermes / Hey Lilith':'Mikrofon aus';}return;}
   if(handoffPaused){notice('Das Gespräch wird auf dem anderen Gerät fortgesetzt.');return;}if(privacyLocked){notice('Datenschutzmodus aktiv. Bitte zuerst lokal entsperren.');return;}
   if(!sessionInfo||!gatewayConnected){notice('Bitte zuerst verbinden und deine Hermes-Session auswählen.');if(!expanded){expanded=true;document.body.classList.add('expanded');await invoke('expand',true);}return;}
-  if(settings.speechProvider==='gemini'){
+  if(settings.speechProvider==='gemini'&&!localOnly){
    if(settings.geminiCloudAllowed!==true){notice('Bitte in Sprache die Übertragung an Gemini ausdrücklich erlauben.');return;}
    if(geminiLiveActive||geminiLiveStarting)return;
    geminiLiveStarting=true;geminiSessionId=selectedSession;geminiEpoch++;
@@ -416,7 +418,7 @@ api.on(event=>{
   if(event.type==='speech-pending'&&!privacyLocked&&!bargeAwaitingTurn&&(!Number.isSafeInteger(event.generation)||event.generation>rejectedAudioGeneration)){ttsPending=event.pending;if(event.turnId&&Number.isSafeInteger(event.turnPending))turnAudioPending.set(event.turnId,event.turnPending);notifyPlaybackDrained();if(ttsPending>0&&pushToTalk.held)cancelPushToTalk();if(ttsPending>0&&!speechStarted&&!bargeListening){capturing=false;if(live)awaitingResume=true;}}
   if(event.type==='wake-ready'){wakeReady=event.ready;void armWake();}
   if(event.type==='wake-detected'){
-    if(handoffPaused||privacyLocked||!settings.wakeWord||live||transcribing||busy||wakeResuming||pushToTalk.held||pushToTalk.finishing)return;
+    if(handoffPaused||privacyLocked||!settings.wakeWord||live||geminiLiveStarting||transcribing||busy||wakeResuming||pushToTalk.held||pushToTalk.finishing)return;
     if(!gatewayConnected||!sessionInfo){wakeFrames=[];wakeSamples=0;wakeSpeech=[];wakeSpeechStart=0;wakePauseUntil=performance.now()+3000;notice(gatewayConnected?'Ich bin lokal bereit. Bitte eine Hermes-Session auswählen.':'Ich bin lokal bereit. Die Verbindung zu Hermes fehlt.');void api.invoke('wake-offline').catch(()=>{});return;}
     if(event.sessionId!==sessionInfo?.id)return;
     wakeFrames=[];wakeSamples=0;wakeSpeech=[];wakeSpeechStart=0;
@@ -504,7 +506,7 @@ async function applyControl(event){
       await syncCameraSettings(settings);
       if(ticket!==sensorControlGeneration||privacyLocked||event.sessionId!==sessionInfo?.id)throw Error('Aufwachen wurde gestoppt.');
       if(cameraControls.controller.active!==settings.cameraEnabled)throw Error('Die vorherige Kamera konnte nicht wieder gestartet werden.');
-      await toggleMic(true);
+      await toggleMic(true,{localOnly:true});
       if(!live)throw Error('Live-Modus konnte nicht wieder gestartet werden.');
       await syncGestures();
     }

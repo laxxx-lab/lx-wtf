@@ -70,7 +70,7 @@
       <section class="speech-settings" aria-label="Sprachbedienung">
         <div class="workstation-heading"><span>SPRACHE / DIREKT</span><small>LOKAL</small></div>
         <label>Live-Sprachmodus<select id="speechProvider"><option value="local">Lokal · bisherige Stimme</option><option value="gemini">Gemini Live · Cloud</option></select></label>
-        <small>Gemini gilt für den Live-Schalter. Aktivierungswort und Sprechtaste verwenden weiterhin den lokalen Sprachweg. Hermes behält deine Aufträge und Gespräche.</small>
+        <small>Gemini gilt für den Live-Schalter. Aktivierungswort und Sprechtaste verwenden weiterhin den lokalen Sprachweg. Aufträge gehen an Hermes. Freie Gemini-Gespräche erscheinen nur in diesem Fenster und werden nicht in Hermes-Verlauf oder Geräteübergabe übernommen.</small>
         <label class="check"><input id="geminiCloudAllowed" type="checkbox"> Sprache im Gemini-Live-Modus an Google übertragen</label>
         <label>Eigener Gemini-API-Schlüssel<input id="geminiApiKey" type="password" maxlength="256" autocomplete="off" spellcheck="false" placeholder="Leer lassen, um den gespeicherten Schlüssel zu behalten"></label>
         <label>Gemini-Stimme<select id="geminiVoice"><option value="Kore">Kore</option><option value="Aoede">Aoede</option><option value="Puck">Puck</option><option value="Charon">Charon</option></select></label>
@@ -154,7 +154,7 @@
         <div class="camera-enroll"><select id="camera-profile" aria-label="Gespeichertes Gesicht"><option value="">Keine Gesichter eingerichtet</option></select><button id="camera-forget">Profil löschen</button></div>
         <small>Einrichtung speichert drei Gesichtsreferenzen auf diesem PC. Kamerafotos werden nicht gespeichert oder zum VPS gesendet. Ausschalten stoppt die Kamera sofort.</small>
       </section>
-      <button id="save">Einstellungen speichern</button><small>Sprachberechnung lokal · keine Sprach-API-Gebühren</small>
+      <button id="save">Einstellungen speichern</button><small>Lokaler Sprachmodus ohne Sprach-API-Gebühren · Gemini Live nutzt Google und kann API-Kosten verursachen</small>
     </section>
     <div id="notice" role="status" hidden></div>
   </div>
