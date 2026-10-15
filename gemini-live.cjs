@@ -67,7 +67,9 @@ class GeminiLive extends EventEmitter {
       clearTimeout(this.#timer); this.#state = 'ready'; this.#settle?.(this.snapshot()); this.#settle = null; this.emit('ready');
     }
     if (this.#state !== 'ready') return;
-    for (const id of message.toolCallCancellation?.ids || []) this.#calls.set(id, 'cancelled');
+    for (const id of message.toolCallCancellation?.ids || []) {
+      if (this.#calls.get(id) === 'pending') this.#calls.set(id, 'cancelled');
+    }
     const content = message.serverContent;
     if (content) {
       if (typeof content.inputTranscription?.text === 'string') this.emit('input-text', { text: content.inputTranscription.text });
@@ -86,7 +88,7 @@ class GeminiLive extends EventEmitter {
     for (const call of message.toolCall?.functionCalls || []) this.#tool(call);
   }
   async #tool(call) {
-    if (!call || typeof call.id !== 'string' || !call.id || typeof call.name !== 'string' || !call.name || this.#calls.has(call.id)) return;
+    if (!call || typeof call.id !== 'string' || !call.id || call.id.length > 256 || typeof call.name !== 'string' || !call.name || call.name.length > 128 || this.#calls.has(call.id)) return;
     if (this.#calls.size >= 4096) return this.#fail('Gemini tool limit reached; restart Live explicitly');
     const socket = this.#socket;
     this.#calls.set(call.id, 'pending'); this.emit('tool-start', { id: call.id, name: call.name });

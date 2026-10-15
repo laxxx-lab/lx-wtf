@@ -147,3 +147,25 @@ test('pending Hermes result leaves voice ready and returns eventual authoritativ
   finish({ jobId: 'job', state: 'succeeded', result: 'confirmed' }); await tick();
   assert.deepEqual(messages[2].toolResponse.functionResponses[0].response, { jobId: 'job', state: 'succeeded', result: 'confirmed' });
 });
+test('unknown cancellation floods do not grow history or block later tools', async t => {
+  const executed = [];
+  const { live, ws, messages } = await peer(t, { executeTool: async call => { executed.push(call.id); return { ok: true }; } });
+  ws.send(JSON.stringify({ toolCallCancellation: { ids: Array.from({ length: 5000 }, (_, index) => `unknown-${index}`) } }));
+  ws.send(JSON.stringify({ toolCall: { functionCalls: [{ id: 'unknown-0', name: 'submit', args: {} }, { id: 'fresh', name: 'submit', args: {} }] } }));
+  await tick();
+  assert.deepEqual(executed, ['unknown-0', 'fresh']);
+  assert.equal(live.snapshot().ready, true);
+  assert.equal(messages.filter(message => message.toolResponse).length, 2);
+});
+test('oversized tool IDs and names cannot enter dedup history or execution', async t => {
+  const executed = [];
+  const { live, ws } = await peer(t, { executeTool: async call => { executed.push(`${call.name}:${call.id}`); return { ok: true }; } });
+  ws.send(JSON.stringify({ toolCall: { functionCalls: [
+    { id: 'x'.repeat(257), name: 'submit', args: {} },
+    { id: 'reusable', name: 'x'.repeat(129), args: {} },
+    { id: 'reusable', name: 'submit', args: {} }
+  ] } }));
+  await tick();
+  assert.deepEqual(executed, ['submit:reusable']);
+  assert.equal(live.snapshot().ready, true);
+});
