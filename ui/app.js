@@ -30,6 +30,23 @@ function renderQueueWarning(queue){
 }
 $('queue-review').onclick=async()=>{const review=queueReview;if(!review)return;const button=$('queue-review');button.disabled=true;try{renderQueueWarning(await invoke(review.method,review.id?{id:review.id}:{}));}catch(error){notice(error.message);}finally{button.disabled=false;}};
 let audioContext=null,audioTime=0,pcmRemainder=null,audioNodes=[],audioGeneration=-1,speakingUntil=0;
+let geminiLiveActive=false,geminiLiveStarting=false,geminiSessionId=null,geminiFeedPending=false,geminiLiveInfo={},geminiInputNode=null,geminiOutputNode=null,geminiEpoch=0;
+function renderGeminiLive(info){
+ if(info&&typeof info==='object')geminiLiveInfo=info;
+ const node=$('gemini-live-status');if(node)node.textContent=privacyLocked?'Datenschutz aktiv':geminiLiveInfo.error|| (geminiLiveInfo.active?(geminiLiveInfo.ready?'Gemini Live verbunden':'Gemini Live verbindet …'):geminiLiveInfo.configured?'API-Schlüssel lokal gespeichert · Live ist aus':'Eigenen API-Schlüssel lokal einrichten');
+}
+function stopGeminiLive(){
+ const selected=geminiSessionId,wasCloud=geminiLiveActive||geminiLiveStarting;
+ geminiEpoch++;geminiLiveActive=false;geminiLiveStarting=false;geminiSessionId=null;geminiFeedPending=false;geminiInputNode=null;geminiOutputNode=null;
+ if(wasCloud){stopAudio();void api.invoke('gemini-live-stop',{sessionId:selected}).catch(()=>{});}
+}
+function feedGeminiLive(input,rate){
+ if(!geminiLiveActive)return false;
+ if(!live||privacyLocked||handoffPaused||settings.standbyActive||settings.speechProvider!=='gemini'||settings.geminiCloudAllowed!==true||!gatewayConnected||sessionInfo?.id!==geminiSessionId){void toggleMic(false);return true;}
+ if(geminiFeedPending)return true;
+ const selected=geminiSessionId,ticket=geminiEpoch,bytes=wavBytes([downsample(input,rate)]).subarray(44);geminiFeedPending=true;
+ void api.invoke('gemini-live-feed',{audio:base64(bytes),sessionId:selected}).catch(()=>{if(geminiEpoch===ticket){notice('Gemini Live unterbrochen. Bitte Live erneut starten.');void toggleMic(false);}}).finally(()=>{if(geminiEpoch===ticket)geminiFeedPending=false;});return true;
+}
 let playbackGain=null,playbackDucked=false,naturalBarge=false,semanticEndTicket=0,semanticEndTimer=null,semanticEndStarted=0;
 const drainedTurns=new Map(),turnAudioPending=new Map();
 function notifyPlaybackDrained(){if(privacyLocked)return;for(const [id,value]of drainedTurns){if(audioNodes.some(node=>node.turnId===id)||(turnAudioPending.has(id)?turnAudioPending.get(id)>0:ttsPending>0))continue;void api.invoke('playback-drained',value).then(accepted=>{if(accepted&&drainedTurns.get(id)===value){drainedTurns.delete(id);turnAudioPending.delete(id);}}).catch(()=>{});}}
@@ -73,6 +90,9 @@ const phases={offline:'OFFLINE',connecting:'VERBINDE',ready:'BEREIT',thinking:'D
 function notice(message){$('notice').hidden=false;$('notice').textContent=message;}
 function acceptSettings(values){if($('idleStandbyMinutes')&&document.activeElement!==$('idleStandbyMinutes'))$('idleStandbyMinutes').value=values.idleStandbyMinutes??15;const oldMicrophone=settings.microphoneDeviceId||'';settings=privacyLocked?{...values,privacyLocked:true,wakeWord:false,cameraEnabled:false,screenEnabled:false,gesturesEnabled:false,desktopGesturesEnabled:false}:values;const held=pushToTalk.held||pushToTalk.finishing;if(held&&(!settings.pushToTalkEnabled||held.key!==settings.pushToTalkKey))cancelPushToTalk();syncSpeechSettings();syncOrbTheme(settings.orbTheme);if(oldMicrophone!==(settings.microphoneDeviceId||''))microphoneSwitch=reconnectMicrophone().catch(error=>{notice('Mikrofon: '+error.message);return false;});return settings;}
 function syncSpeechSettings(){
+ if($('speechProvider'))$('speechProvider').value=settings.speechProvider||'local';
+ if($('geminiCloudAllowed'))$('geminiCloudAllowed').checked=settings.geminiCloudAllowed===true;
+ if($('geminiVoice'))$('geminiVoice').value=settings.geminiVoice||'Kore';renderGeminiLive();
   if($('pushToTalkEnabled')){$('pushToTalkEnabled').checked=settings.pushToTalkEnabled===true;$('pushToTalkEnabled').disabled=privacyLocked;}
   if($('pushToTalkKey'))$('pushToTalkKey').value=settings.pushToTalkKey||'F8';
   if($('directCommandsEnabled'))$('directCommandsEnabled').checked=settings.directCommandsEnabled!==false;for(const id of ['localDialogueEnabled','naturalConversation'])if($(id))$(id).checked=settings[id]!==false;
@@ -136,6 +156,7 @@ function downsample(input,rate){const ratio=rate/16000,out=new Float32Array(Math
 function wavBytes(chunks){const length=chunks.reduce((sum,x)=>sum+x.length,0),bytes=new Uint8Array(44+length*2),view=new DataView(bytes.buffer);const word=(at,text)=>{for(let i=0;i<text.length;i++)bytes[at+i]=text.charCodeAt(i);};word(0,'RIFF');view.setUint32(4,36+length*2,true);word(8,'WAVE');word(12,'fmt ');view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,1,true);view.setUint32(24,16000,true);view.setUint32(28,32000,true);view.setUint16(32,2,true);view.setUint16(34,16,true);word(36,'data');view.setUint32(40,length*2,true);let n=44;for(const chunk of chunks)for(const x of chunk){view.setInt16(n,Math.max(-1,Math.min(1,x))*(x<0?32768:32767),true);n+=2;}return bytes;}
 function base64(bytes){let text='';for(let start=0;start<bytes.length;start+=8192)text+=String.fromCharCode(...bytes.subarray(start,start+8192));return btoa(text);}
 function startCapture({barge=false,preRoll=[],pushToTalk:held=null}={}){
+  if(geminiLiveActive||geminiLiveStarting)return;
   if(handoffPaused||privacyLocked||(!live&&!held)||!micStream||capturing||transcribing||(!held&&(pushToTalk.held||pushToTalk.finishing)))return;
   if(!barge&&(busy||ttsPending||bargeAwaitingTurn||(audioContext&&speakingUntil>0&&audioContext.currentTime<speakingUntil+.4))){awaitingResume=true;return;}
   if(!held&&!vadReady){notice('Lokale Satzenderkennung ist noch nicht bereit.');return;}
@@ -176,7 +197,7 @@ async function handlePushToTalk(event){
 }
 function discardBarge(){markVoice(captureTurnId,'capture-discarded');capturing=false;speechStarted=false;bargeListening=false;frames=[];bargePreRoll=[];bargeFrames=0;captureGeneration++;captureTurnId=null;captureInterrupt=null;}
 function handleVad(event){
-  if(event.type==='vad-ready'){vadReady=event.ready===true;if(!vadReady&&live){notice('Lokale Satzenderkennung ist nicht verfügbar.');void toggleMic(false);}return;}
+  if(event.type==='vad-ready'){vadReady=event.ready===true;if(!vadReady&&live&&!geminiLiveActive&&!geminiLiveStarting){notice('Lokale Satzenderkennung ist nicht verfügbar.');void toggleMic(false);}return;}
   if(!capturing||!live||privacyLocked||capturePushToTalk||event.generation!==captureGeneration)return;
   if(event.type==='vad-speech'){
     cancelNaturalEndpoint();
@@ -227,9 +248,10 @@ async function reconnectMicrophone(){
   cancelPushToTalk();liveRequest++;if(captureTurnId)markVoice(captureTurnId,'capture-discarded');
   capturing=false;speechStarted=false;frames=[];transcribing=false;captureGeneration++;captureTurnId=null;voiceDispatch=null;captureInterrupt=null;bargeListening=false;bargeAwaitingTurn=false;wakeFrames=[];wakeSamples=0;releaseMic();
   if(privacyLocked||!live&&!(settings.wakeWord&&wakeReady))return true;
-  await ensureMic();if(live)startCapture();return !!micStream;
+  await ensureMic();if(live&&!geminiLiveActive)startCapture();return !!micStream;
 }
 function quiesceLocal(){
+  stopGeminiLive();
   cancelPushToTalk();clearSpeechCorrection();
   sensorControlGeneration++;
   privacyLocked=true;renderBackgroundSummary({jobs:[]});settings={...settings,privacyLocked:true,wakeWord:false,cameraEnabled:false,screenEnabled:false,gesturesEnabled:false,desktopGesturesEnabled:false};
@@ -272,6 +294,7 @@ async function ensureMic(){
     if(!privacyLocked){micFrameCount++;micFrameAt=Date.now();}lastMicLevel=rms;
     if(!speechStarted&&rms<noiseFloor*2)noiseFloor=.97*noiseFloor+.03*rms;
     if(privacyLocked)return;
+    if(feedGeminiLive(input,ctx.sampleRate)||geminiLiveStarting)return;
     if(capturing){
       const chunk=downsample(input,ctx.sampleRate);markVoice(captureTurnId,'capture-first-frame');frames.push(chunk);if(!capturePushToTalk)feedVad(chunk);
       if(capturePushToTalk&&now-captureStart>30000){notice('Sprechtaste: Aufnahme nach 30 Sekunden abgebrochen.');cancelPushToTalk();}
@@ -303,12 +326,29 @@ async function armWake(){if(handoffPaused){releaseMic();return;}if(pushToTalk.he
 async function toggleMic(force){
   handoffListen=null;
   cancelPushToTalk();
-  const enable=typeof force==='boolean'?force:!live;
+  const enable=typeof force==='boolean'?force:!(live||geminiLiveStarting);
+  if(enable&&(geminiLiveActive||geminiLiveStarting))return;
   const request=++liveRequest;
   const selectedSession=sessionInfo?.id,selectedSafety=sensorControlGeneration;
-  if(!enable){live=false;capturing=false;speechStarted=false;frames=[];transcribing=false;awaitingResume=false;bargeListening=false;bargeAwaitingTurn=false;bargePreRoll=[];captureInterrupt=null;captureTurnId=null;voiceDispatch=null;captureGeneration++;clearTimeout(autoResumeTimer);if(privacyLocked||!settings.wakeWord){releaseMic();micMuted=true;}$('mic').classList.remove('active');$('mic').querySelector('span').textContent='Live starten';if(!busy&&gatewayConnected&&!privacyLocked){$('phase').textContent=phases.ready;$('detail').textContent=settings.wakeWord?'Bereit · Hey Hermes / Hey Lilith':'Mikrofon aus';}return;}
+  if(!enable){stopGeminiLive();live=false;capturing=false;speechStarted=false;frames=[];transcribing=false;awaitingResume=false;bargeListening=false;bargeAwaitingTurn=false;bargePreRoll=[];captureInterrupt=null;captureTurnId=null;voiceDispatch=null;captureGeneration++;clearTimeout(autoResumeTimer);if(privacyLocked||!settings.wakeWord){releaseMic();micMuted=true;}$('mic').classList.remove('active');$('mic').querySelector('span').textContent='Live starten';if(!busy&&gatewayConnected&&!privacyLocked){$('phase').textContent=phases.ready;$('detail').textContent=settings.wakeWord?'Bereit · Hey Hermes / Hey Lilith':'Mikrofon aus';}return;}
   if(handoffPaused){notice('Das Gespräch wird auf dem anderen Gerät fortgesetzt.');return;}if(privacyLocked){notice('Datenschutzmodus aktiv. Bitte zuerst lokal entsperren.');return;}
   if(!sessionInfo||!gatewayConnected){notice('Bitte zuerst verbinden und deine Hermes-Session auswählen.');if(!expanded){expanded=true;document.body.classList.add('expanded');await invoke('expand',true);}return;}
+  if(settings.speechProvider==='gemini'){
+   if(settings.geminiCloudAllowed!==true){notice('Bitte in Sprache die Übertragung an Gemini ausdrücklich erlauben.');return;}
+   if(geminiLiveActive||geminiLiveStarting)return;
+   geminiLiveStarting=true;geminiSessionId=selectedSession;geminiEpoch++;
+   try{
+    await ensureMic();
+    if(request!==liveRequest||privacyLocked||handoffPaused||!gatewayConnected||sessionInfo?.id!==selectedSession||sensorControlGeneration!==selectedSafety||settings.standbyActive&&!wakeResuming)return;
+    const result=await invoke('gemini-live-start',{sessionId:selectedSession});
+    if(request!==liveRequest||privacyLocked||handoffPaused||!gatewayConnected||sessionInfo?.id!==selectedSession||sensorControlGeneration!==selectedSafety)return;
+    if(!result?.active)throw Error('Gemini Live konnte nicht gestartet werden.');
+    geminiLiveStarting=false;geminiLiveActive=true;live=true;capturing=false;awaitingResume=false;micMuted=false;geminiInputNode=null;geminiOutputNode=null;
+    $('mic').classList.add('active');$('mic').querySelector('span').textContent='Gemini Live aktiv';$('phase').textContent=phases.listening;renderGeminiLive(result);return;
+   }catch(error){notice(error.message);}
+   finally{if(request===liveRequest&&!geminiLiveActive){stopGeminiLive();if(!settings.wakeWord)releaseMic();}}
+   return;
+  }
   if(!vadReady){notice('Lokale Satzenderkennung ist noch nicht bereit.');return;}
   try{
     await ensureMic();if(request!==liveRequest||!micStream||!vadReady||handoffPaused||privacyLocked||!gatewayConnected||settings.standbyActive&&!wakeResuming||sessionInfo?.id!==selectedSession||sensorControlGeneration!==selectedSafety)return;live=true;micMuted=false;
@@ -316,6 +356,14 @@ async function toggleMic(force){
   }catch(error){notice('Mikrofon: '+error.message);await toggleMic(false);}
 }
 api.on(event=>{
+  if(event.type==='gemini-live-state'){
+   renderGeminiLive(event.geminiLive);
+   if((geminiLiveActive||geminiLiveStarting)&&event.geminiLive?.active===false&&(!event.sessionId||event.sessionId===geminiSessionId))void toggleMic(false);
+  }
+  if(event.type==='gemini-live-transcript'&&geminiLiveActive&&!privacyLocked&&event.sessionId===geminiSessionId&&sessionInfo?.id===geminiSessionId){
+   if(event.role==='user'){geminiInputNode ||= addMessage('user','');geminiInputNode.textContent=event.text;geminiOutputNode=null;}
+   if(event.role==='assistant'){geminiOutputNode ||= addMessage('assistant','');geminiOutputNode.textContent=event.text;geminiInputNode=null;}
+  }
   if(event.type==='desktop-gesture-state'&&$('desktop-gesture-status'))$('desktop-gesture-status').textContent=event.error||(!event.enabled?'Desktopsteuerung aus · Strg+Alt+G':event.ready?'Desktopsteuerung bereit · Strg+Alt+G schaltet aus':'Windows-Handsteuerung startet …');
   if(event.type==='handoff-listen'&&!privacyLocked&&!handoffPaused&&gatewayConnected&&!settings.standbyActive&&event.sessionId===sessionInfo?.id){handoffListen={sessionId:event.sessionId,turnId:event.turnId,request:liveRequest,safety:sensorControlGeneration,ready:false};}
   if(event.type==='handoff-listen-ready'&&handoffListen?.sessionId===event.sessionId&&handoffListen?.turnId===event.turnId){handoffListen.ready=true;resumeHandoffListen();}
@@ -485,6 +533,17 @@ $('orb').addEventListener('pointerup',()=>{drag=null;if(!dragged){expanded=!expa
 $('orb').addEventListener('pointerleave',()=>orbRenderer.setPointer(0,0));
 $('orb').addEventListener('pointercancel',()=>{drag=null;orbRenderer.setPointer(0,0);});
 $('collapse').onclick=()=>{settingsView?.close();expanded=false;document.body.classList.remove('expanded');void invoke('expand',false);};
+async function configureGeminiLive(forgetKey=false){
+ const field=$('geminiApiKey'),key=field?.value?.trim()||'';if(field)field.value='';
+ try{
+  if(live||geminiLiveStarting)await toggleMic(false);
+  const values=forgetKey?{forgetKey:true,speechProvider:'local',geminiCloudAllowed:false}:{speechProvider:$('speechProvider').value,geminiCloudAllowed:$('geminiCloudAllowed').checked,geminiVoice:$('geminiVoice').value,...(key?{apiKey:key}:{})};
+  const result=await invoke('gemini-live-configure',values);if(result?.settings)acceptSettings({...settings,...result.settings});renderGeminiLive(result?.geminiLive);notice(forgetKey?'API-Schlüssel entfernt.':'Sprachmodus gespeichert. Live ist aus.');
+ }catch(error){notice(error.message);}
+}
+if($('gemini-live-configure'))$('gemini-live-configure').onclick=()=>configureGeminiLive();
+if($('gemini-live-forget'))$('gemini-live-forget').onclick=()=>configureGeminiLive(true);
+void api.invoke('gemini-live-status').then(value=>renderGeminiLive(value)).catch(()=>{});
 async function toggleLiveButton(){if(!live&&settings.standbyActive)return invoke('wake-resume',{sessionId:sessionInfo?.id});return toggleMic();}
 $('mic').onclick=()=>void toggleLiveButton().catch(()=>{});$('refresh').onclick=()=>void invoke('connect').catch(()=>{});$('login').onclick=()=>void invoke('login');
 $('sessions').onchange=()=>{if($('sessions').value)void invoke('select',$('sessions').value).then(data=>{sessionInfo=data.session;acceptSettings(data.settings);renderState(data);void armWake();}).catch(()=>{});};

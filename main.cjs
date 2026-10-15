@@ -70,6 +70,10 @@ let config={url:'https://hermes.invalid',voice:'dark',delivery:'normal',monitori
 try { const saved=JSON.parse(fs.readFileSync(path.join(LOCAL,'settings.json'),'utf8'));config={...config,...saved}; }
 catch {try {const saved=JSON.parse(fs.readFileSync(path.join(process.env.APPDATA,'Hermes','connection.json'),'utf8'));if(saved.remote?.url)config.url=saved.remote.url;}catch{}}
 if(process.argv.includes('--smoke'))config.cameraEnabled=false;
+config.speechProvider=config.speechProvider==='gemini'?'gemini':'local';
+config.geminiCloudAllowed=config.geminiCloudAllowed===true;
+config.geminiVoice=['Kore','Aoede','Puck','Charon'].includes(config.geminiVoice)?config.geminiVoice:'Aoede';
+delete config.apiKey;delete config.geminiApiKey;
 config.standbyActive=config.standbyActive===true&&!config.privacyLocked;
 try{config.idleStandbyMinutes=normalizeIdleStandbyMinutes(config.idleStandbyMinutes);}catch{config.idleStandbyMinutes=15;}
 let idleStandby=createIdleStandby(),idleStandbyTimer=null,idleStandbyPending=false;
@@ -238,7 +242,9 @@ async function executeEveryday(intent,options){
  emit('local-reply',{text});if(options?.speak!==false)speak(text);return result;
 }
 const missionReleaseTimers=new Map();
-function getJobs(){return jobQueue||=new JobQueue({file:app.isReady()?path.join(LOCAL,process.argv.includes('--smoke')?'smoke-jobs.json':'jobs.json'):null,onChange:value=>{emit('job-update',{jobQueue:value});scheduleMissionRelease(value);}});}
+let geminiDesktop=null,geminiAudioGeneration=null;
+function getGeminiLive(){return geminiDesktop||=require('./gemini-live-desktop.cjs').createGeminiLiveDesktop({config,store:require('./gemini-live-desktop.cjs').createKeyStore({safeStorage,file:path.join(LOCAL,'gemini-live-key.bin')}),save:saveConfig,emit,access:id=>connected&&!shuttingDown&&!config.privacyLocked&&!config.standbyActive&&!conversation?.selecting&&conversation?.session?.id===id&&ownsConversationInput()&&!handoffState().pending,jobs:()=>getJobs().list().filter(ownedJob),submit:(text,id)=>submit(text,{sessionId:id,speak:false}),handoff:(value,id)=>apiSessionHandoff(value,{expectedSession:conversation?.session?.storedId||id}),stopTask:id=>stopCurrentTask({sessionId:id,speak:false}),audio:(event,value)=>{if(event==='stop'){if(geminiAudioGeneration!==null){const stoppedGeneration=geminiAudioGeneration;geminiAudioGeneration=null;speechGeneration++;emit('audio-stop',{stoppedGeneration});}return;}if(event==='audio-start'){stopSpeech();geminiAudioGeneration=speechGeneration;emit('audio-start',{generation:geminiAudioGeneration,sampleRate:24000,purpose:'gemini'});}else if(geminiAudioGeneration!==null&&geminiAudioGeneration===speechGeneration){emit(event,{generation:geminiAudioGeneration,...(event==='audio-chunk'?{data:value.data}:{})});}}});}
+function getJobs(){return jobQueue||=new JobQueue({file:app.isReady()?path.join(LOCAL,process.argv.includes('--smoke')?'smoke-jobs.json':'jobs.json'):null,onChange:value=>{geminiDesktop?.jobsChanged();emit('job-update',{jobQueue:value});scheduleMissionRelease(value);}});}
 function scheduleMissionRelease(value){
  const lease=workbench?.presentation;if(lease?.owner!=='agent'||missionReleaseTimers.has(lease.requestId)||!value.jobs.some(job=>job.id===lease.requestId&&['completed','agent-finished','cancelled'].includes(job.status)))return;
  const id=lease.requestId,timer=setTimeout(()=>{missionReleaseTimers.delete(id);if(!config.privacyLocked&&workbench?.presentation?.owner==='agent'&&workbench.presentation.requestId===id)workbench.release(id);},10000);timer.unref?.();missionReleaseTimers.set(id,timer);
@@ -768,7 +774,7 @@ let activityCardsWindow=null;
 const safety=new LocalSafety({initialLocked:config.privacyLocked,onChange:value=>{
   if(value.locked)activityCardsWindow?.hide();
   if(config.privacyLocked!==value.locked){taskWaitFeedback.finish();safetyGeneration++;controlApi?.invalidateControls?.();}
-  config.privacyLocked=value.locked;emit('privacy-state',{locked:value.locked,reason:value.reason});saveConfig();
+  if(value.locked)geminiDesktop?.stop();config.privacyLocked=value.locked;emit('privacy-state',{locked:value.locked,reason:value.reason});saveConfig();
 },quiesce:async()=>{
   cancelLocalConversation({clear:true});turnDetector.stop();
   if(powerControl?.read().cancellable)await powerControl.execute({action:'cancel'});
@@ -807,7 +813,7 @@ async function emergencyStop(){const result=await safety.emergencyStop();activit
 let clientInfo={live:false,microphoneActive:false,audioContextState:'none',wakeArmed:false,cameraActive:false,micLevel:0};
 const voiceHealth=createVoiceHealth(),voiceHealthStartedAt=Date.now();
 let voiceHealthInterval=null,voiceHealthRunning=false,voiceHealthRepairing=false,voiceEngineCheckedAt=0,voiceEngineStates={stt:null,voice:null,live:null},voiceLastPcmAt=0,voiceHealthFingerprint='',voiceRecoveryAnnounced=false;
-function voiceHealthSample(){return {privacyLocked:config.privacyLocked,expectedMicrophone:ownsConversationInput()&&!handoffState().pending&&!config.privacyLocked&&(clientInfo.live||config.wakeWord),microphoneActive:clientInfo.microphoneActive,frameCount:clientInfo.frameCount??null,frameAt:clientInfo.frameAt??null,rendererAt:clientInfo.rendererAt??null,audioContextState:clientInfo.audioContextState,connected,engines:{...voiceEngineStates,live:config.localDialogueEnabled?voiceEngineStates.live:null,vad:clientInfo.live||config.wakeWord?vadReady:null,wake:config.wakeWord?wakeReady:null},busy:!!(speechLaneBusy()||cameraLooking||screenLooking||contentLooking||getJobs().active()||hasBackgroundWork()||pendingControls.size),speaking:clientSpeaking,ttsPending:ttsPending>0,lastPcmAt:voiceLastPcmAt||null,startedAt:voiceHealthStartedAt,repairing:voiceHealthRepairing,capturing:clientInfo.capturing===true,transcribing:clientInfo.transcribing===true};}
+function voiceHealthSample(){const cloudLive=geminiDesktop?.snapshot().active===true;return {privacyLocked:config.privacyLocked,expectedMicrophone:ownsConversationInput()&&!handoffState().pending&&!config.privacyLocked&&(clientInfo.live||config.wakeWord),microphoneActive:clientInfo.microphoneActive,frameCount:clientInfo.frameCount??null,frameAt:clientInfo.frameAt??null,rendererAt:clientInfo.rendererAt??null,audioContextState:clientInfo.audioContextState,connected,engines:cloudLive?{}:{...voiceEngineStates,live:config.localDialogueEnabled?voiceEngineStates.live:null,vad:clientInfo.live||config.wakeWord?vadReady:null,wake:config.wakeWord?wakeReady:null},busy:!!(speechLaneBusy()||cameraLooking||screenLooking||contentLooking||getJobs().active()||hasBackgroundWork()||pendingControls.size),speaking:clientSpeaking,ttsPending:ttsPending>0,lastPcmAt:voiceLastPcmAt||null,startedAt:voiceHealthStartedAt,repairing:voiceHealthRepairing,capturing:clientInfo.capturing===true,transcribing:clientInfo.transcribing===true};}
 async function inspectVoiceEngines(){
  const generation=safetyGeneration,required=engineSpecs(ROOT).filter(spec=>spec.name!=='live'||config.localDialogueEnabled);
  const observations=await Promise.allSettled(required.map(async spec=>({name:spec.name,ready:await engineResponseReady(spec,await fetch(`http://127.0.0.1:${spec.port}${spec.health}`,{signal:AbortSignal.timeout(700)}))})));
@@ -817,10 +823,10 @@ async function inspectVoiceEngines(){
 async function voiceHealthTick(){
  if(voiceHealthRunning||shuttingDown)return;voiceHealthRunning=true;
  try{
-  if(!config.privacyLocked&&Date.now()-voiceEngineCheckedAt>10000)await inspectVoiceEngines();
+  if(!geminiDesktop?.snapshot().active&&!config.privacyLocked&&Date.now()-voiceEngineCheckedAt>10000)await inspectVoiceEngines();
   const measured=voiceHealth.observe(voiceHealthSample()),fingerprint=JSON.stringify(measured);if(fingerprint!==voiceHealthFingerprint){voiceHealthFingerprint=fingerprint;emit('voice-health',{voiceHealth:measured});}
-  if(measured.checks.some(check=>check.key==='repair'&&check.state==='ready')&&!voiceRecoveryAnnounced){voiceRecoveryAnnounced=true;emit('notice',{message:'Sprachverbindung wieder bereit.'});if(clientInfo.live&&!config.privacyLocked&&!speechLaneBusy()&&!ttsPending)speak('Ich bin wieder bereit.');}
-  const repair=measured.repair;if(!repair||config.privacyLocked||pendingReconnect||voiceHealthRepairing||!voiceHealth.recordRepair(repair.kind))return;
+  if(measured.checks.some(check=>check.key==='repair'&&check.state==='ready')&&!voiceRecoveryAnnounced){voiceRecoveryAnnounced=true;emit('notice',{message:'Sprachverbindung wieder bereit.'});if(!geminiDesktop?.snapshot().active&&clientInfo.live&&!config.privacyLocked&&!speechLaneBusy()&&!ttsPending)speak('Ich bin wieder bereit.');}
+  const repair=measured.repair;if(!repair||repair.kind==='engines'&&geminiDesktop?.snapshot().active||config.privacyLocked||pendingReconnect||voiceHealthRepairing||!voiceHealth.recordRepair(repair.kind))return;
   voiceHealthRepairing=true;voiceRecoveryAnnounced=false;const generation=safetyGeneration;
   emit('notice',{message:repair.kind==='microphone'?'Ich verbinde das gewählte Mikrofon erneut.':repair.kind==='audio-output'?'Ich aktiviere die vorhandene Audioausgabe erneut.':repair.kind==='engines'?'Die lokale Sprache wird wieder vorbereitet.':'Ich prüfe die Hermes-Verbindung erneut.'});
   try{
@@ -978,7 +984,7 @@ function getActivityCards(){return activityCardsWindow||(activityCardsWindow=req
 function ownsConversationInput(){return !sessionHandoff||sessionHandoff.canSubmit(handoffRegistration().session);}
 function handoffRegistration(){const selected=conversation?.session;return {profile:selected?.profile||'default',session:selected?{id:selected.storedId,profile:selected.profile||'default',title:selected.title}:null,connected:connected&&!pendingReconnect,privacyLocked:config.privacyLocked,generation:safetyGeneration,gatewayUrl:config.url,busy:!!(speechLaneBusy()||cameraLooking||screenLooking||contentLooking||ttsPending||clientSpeaking||clientListening||clientInfo.capturing||clientInfo.transcribing||hasBackgroundWork()||getJobs().list().some(job=>ownedJob(job)&&['queued','running','outcome-unknown'].includes(job.status)))};}
 function getSessionHandoff(){
- if(!sessionHandoff)sessionHandoff=createSessionHandoff({kind:'windows',name:require('node:os').hostname(),stateFile:path.join(LOCAL,process.argv.includes('--smoke')?'smoke-handoff.json':'session-handoff.json'),getState:handoffRegistration,request:payload=>{if(!connected||!gateway)throw Error('Hermes ist nicht verbunden.');return handoffRequest(gateway,payload);},selectSession:async selected=>{requireLocalAccess();if(handoffRegistration().busy)throw Error('Ein lokaler Auftrag läuft noch.');if(!connected||!conversation)throw Error('Hermes ist nicht verbunden.');const row={id:selected.id,profile:selected.profile,title:selected.title};if(!sessionRows.some(item=>item.id===row.id&&item.profile===row.profile))sessionRows.push(row);await selectSession(row.id,row.profile);if(conversation.busy)throw Error('Das Gespräch ist noch beschäftigt.');return conversation.session;},showHistory:async selected=>{requireLocalAccess();const owner=conversation?.session,generation=safetyGeneration;if(owner?.storedId!==selected.id||owner.profile!==selected.profile)throw Error('Das Gespräch wurde geändert.');const result=await gateway.request('session.history',{session_id:owner.id,profile:owner.profile},15000);if(config.privacyLocked||owner!==conversation?.session||generation!==safetyGeneration)throw Error('Verlauf wurde gestoppt.');emit('handoff-history',{messages:visibleHandoffHistory(result.messages)});win?.showInactive();},onReceived:receiveHandoff,onState:value=>{void activityCardsWindow?.sync();emit('handoff-state',{handoff:value});emit('handoff-input',{passive:!sessionHandoff?.canSubmit(handoffRegistration().session)||!!value.pending});},onTransferred:selected=>{if(selected?.id!==conversation?.session?.storedId||selected.profile!==conversation.session.profile)return;stopSpeech();cancelLocalConversation();suppressedRemoteSession=conversation.session.id;approval=null;clarification=null;emit('handoff-input',{passive:true});state('ready','Gespräch auf dem anderen Gerät übernommen');}});
+ if(!sessionHandoff)sessionHandoff=createSessionHandoff({kind:'windows',name:require('node:os').hostname(),stateFile:path.join(LOCAL,process.argv.includes('--smoke')?'smoke-handoff.json':'session-handoff.json'),getState:handoffRegistration,request:payload=>{if(!connected||!gateway)throw Error('Hermes ist nicht verbunden.');return handoffRequest(gateway,payload);},selectSession:async selected=>{requireLocalAccess();if(handoffRegistration().busy)throw Error('Ein lokaler Auftrag läuft noch.');if(!connected||!conversation)throw Error('Hermes ist nicht verbunden.');const row={id:selected.id,profile:selected.profile,title:selected.title};if(!sessionRows.some(item=>item.id===row.id&&item.profile===row.profile))sessionRows.push(row);await selectSession(row.id,row.profile);if(conversation.busy)throw Error('Das Gespräch ist noch beschäftigt.');return conversation.session;},showHistory:async selected=>{requireLocalAccess();const owner=conversation?.session,generation=safetyGeneration;if(owner?.storedId!==selected.id||owner.profile!==selected.profile)throw Error('Das Gespräch wurde geändert.');const result=await gateway.request('session.history',{session_id:owner.id,profile:owner.profile},15000);if(config.privacyLocked||owner!==conversation?.session||generation!==safetyGeneration)throw Error('Verlauf wurde gestoppt.');emit('handoff-history',{messages:visibleHandoffHistory(result.messages)});win?.showInactive();},onReceived:receiveHandoff,onState:value=>{if(value.pending||!sessionHandoff?.canSubmit(handoffRegistration().session))geminiDesktop?.stop();void activityCardsWindow?.sync();emit('handoff-state',{handoff:value});emit('handoff-input',{passive:!sessionHandoff?.canSubmit(handoffRegistration().session)||!!value.pending});},onTransferred:selected=>{if(selected?.id!==conversation?.session?.storedId||selected.profile!==conversation.session.profile)return;stopSpeech();cancelLocalConversation();suppressedRemoteSession=conversation.session.id;approval=null;clarification=null;emit('handoff-input',{passive:true});state('ready','Gespräch auf dem anderen Gerät übernommen');}});
  return sessionHandoff;
 }
 const children=new Set(),policy=createMonitorPolicy(),sampleSystem=createSystemSampler();
@@ -1025,6 +1031,7 @@ function announceTaskStart(text,{kind}={}){
   speak(acknowledgement.text,config.voice,config.delivery,startAnnouncementCache(acknowledgement.text),{cache:true,acknowledgement:true});return true;
 }
 function speak(text,voice=config.voice,delivery=config.delivery,cachedPcm=null,{cache=false,acknowledgement=false,turnId:speechTurnId=currentTurnId}={}){
+  if(geminiDesktop?.snapshot().active)return;
   if(localTurn&&speechTurnId!==localTurn.id){deferredSpeech.push({text,voice,delivery,cachedPcm,options:{cache,acknowledgement,turnId:speechTurnId}});return;}
   if(config.privacyLocked)return;
   if(!acknowledgement&&hasCurrentStartAnnouncement())taskStartAnnouncement.active=false;
@@ -1169,7 +1176,7 @@ async function connect(){
     gateway?.close();
     gateway=new Gateway({url:config.url,fetcher:(url,opts)=>authSession.fetch(url,{...opts,credentials:'include'}),onEvent:event=>{if(gateway===thisGateway)gatewayEvent(event);}});
     const thisGateway=gateway;
-    gateway.on('disconnected',()=>{if(gateway!==thisGateway)return;connected=false;try{backgroundJobs?.markUnknown();}catch{}pttHotkey?.close();localCommandAbort?.abort();pauseJobs('Hermes-Verbindung verloren; Ergebnis vor Fortsetzen prüfen.');if(conversation)conversation.busy=false;tasks.finish({status:'disconnected',text:'Verbindung verloren; externes Ergebnis unbekannt.'});hudActivity.complete({status:'error',text:'Hermes-Verbindung unterbrochen.',sessionId:conversation?.session?.id||null});publishHud();stopSpeech();state('offline','Hermes-Verbindung unterbrochen');});
+    gateway.on('disconnected',()=>{if(gateway!==thisGateway)return;connected=false;geminiDesktop?.stop();try{backgroundJobs?.markUnknown();}catch{}pttHotkey?.close();localCommandAbort?.abort();pauseJobs('Hermes-Verbindung verloren; Ergebnis vor Fortsetzen prüfen.');if(conversation)conversation.busy=false;tasks.finish({status:'disconnected',text:'Verbindung verloren; externes Ergebnis unbekannt.'});hudActivity.complete({status:'error',text:'Hermes-Verbindung unterbrochen.',sessionId:conversation?.session?.id||null});publishHud();stopSpeech();state('offline','Hermes-Verbindung unterbrochen');});
     gateway.on('server-request',frame=>{
       if(gateway!==thisGateway||!ownsConversationInput())return;
       if(config.privacyLocked||sessionHandoff&&!sessionHandoff.canSubmit(handoffRegistration().session)||(suppressedRemoteSession&&frame.params?.session_id===suppressedRemoteSession)){gateway.respond(frame.id,frame.method==='approval'?{choice:'deny'}:frame.method==='clarify'?{answers:null}:{value:''});return;}
@@ -1192,6 +1199,7 @@ async function connect(){
   return snapshot();
 }
 async function selectSession(id,expectedProfile){
+  geminiDesktop?.stop();
   cancelLocalConversation({clear:true});
   circleController?.clear();
   workbench?.stopStream();artcraftController?.stop();
@@ -1271,6 +1279,7 @@ async function checkIdleStandby(){
 }
 function forgetStandby(){standbyGeneration++;config.standbyActive=false;config.standbyCameraEnabled=false;}
 async function enterStandby({sessionId,announce=true,turnId,automatic=false}={}){
+  geminiDesktop?.stop();
   requireLocalAccess();
   if(sessionId&&sessionId!==conversation?.session?.id)throw new Error('Die Session hat sich geändert.');
   standbyGeneration++;
@@ -1511,6 +1520,11 @@ function registerHandlers(){
       if(!conversation?.busy&&!cameraLooking&&!screenLooking&&!modeRunning){startHud('Systemstatus','monitor');hudActivity.complete({text:report.text,sessionId:conversation?.session?.id||null});publishHud();if(value?.speak){beginLocalTurn(value.turnId);emit('local-reply',{text:report.text});speak(report.text);}}
       return report;
     },
+    'gemini-live-configure':(_e,value)=>getGeminiLive().configure(value),
+    'gemini-live-status':()=>getGeminiLive().snapshot(),
+    'gemini-live-start':(_e,value)=>getGeminiLive().start(value),
+    'gemini-live-feed':(_e,value)=>getGeminiLive().feed(value),
+    'gemini-live-stop':()=>getGeminiLive().stop(),
     snapshot:()=>snapshot(),connect:()=>connect(),login:()=>login(),sessions:()=>sessionRows,
     'job-reconcile':(_e,value)=>jobAction('job-reconcile',value),
     'job-resume':(_e,value)=>jobAction('job-resume',value),
@@ -1718,7 +1732,7 @@ function registerHandlers(){
   });
   return actions;
 }
-app.on('before-quit',()=>{shuttingDown=true;clearInterval(orbTopInterval);activityCardsWindow?.hide();desktopGestures.close();clearInterval(idleStandbyTimer);sessionHandoff?.close();cancelLocalConversation({clear:true});turnDetector.stop();taskWaitFeedback.finish();pttHotkey?.close();localCommandAbort?.abort();clearTimeout(jobPumpTimer);for(const timer of missionReleaseTimers.values())clearTimeout(timer);missionReleaseTimers.clear();cancelCurrentContent({clear:true});circleController?.dispose();artcraftController?.dispose();guideController?.dispose();projectGraph.dispose();intelAbort?.abort();resetContextObserver();workbench?.destroy();clearInterval(interval);clearInterval(everydayInterval);clearInterval(voiceHealthInterval);clearInterval(contextInterval);clearInterval(hudInterval);clearTimeout(markerTimer);screenAbort?.abort();hudWindow?.destroy();markerWindow?.destroy();controlApi?.close();for(const pending of pendingControls.values()){clearTimeout(pending.timer);pending.reject(new Error('Voice-App wurde beendet.'));}pendingControls.clear();cameraService?.close();stopSpeech();gateway?.close();if(app.isReady())globalShortcut.unregisterAll();for(const child of children)child.kill();});
+app.on('before-quit',()=>{shuttingDown=true;geminiDesktop?.stop();clearInterval(orbTopInterval);activityCardsWindow?.hide();desktopGestures.close();clearInterval(idleStandbyTimer);sessionHandoff?.close();cancelLocalConversation({clear:true});turnDetector.stop();taskWaitFeedback.finish();pttHotkey?.close();localCommandAbort?.abort();clearTimeout(jobPumpTimer);for(const timer of missionReleaseTimers.values())clearTimeout(timer);missionReleaseTimers.clear();cancelCurrentContent({clear:true});circleController?.dispose();artcraftController?.dispose();guideController?.dispose();projectGraph.dispose();intelAbort?.abort();resetContextObserver();workbench?.destroy();clearInterval(interval);clearInterval(everydayInterval);clearInterval(voiceHealthInterval);clearInterval(contextInterval);clearInterval(hudInterval);clearTimeout(markerTimer);screenAbort?.abort();hudWindow?.destroy();markerWindow?.destroy();controlApi?.close();for(const pending of pendingControls.values()){clearTimeout(pending.timer);pending.reject(new Error('Voice-App wurde beendet.'));}pendingControls.clear();cameraService?.close();stopSpeech();gateway?.close();if(app.isReady())globalShortcut.unregisterAll();for(const child of children)child.kill();});
 if(!app.requestSingleInstanceLock()){app.quit();}else{
   app.on('second-instance',(_event,argv)=>{win?.show();expand(true);if(argv?.includes('--login'))void login().catch(error=>emit('notice',{message:error.message}));});
   app.whenReady().then(async()=>{

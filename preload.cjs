@@ -11,6 +11,7 @@ methods.push('current-content-intent','current-content-read','stop-intent','stop
 methods.push('handoff','recall');
 methods.push('activity');
 methods.push('settings-view');
+methods.push('gemini-live-configure','gemini-live-status','gemini-live-start','gemini-live-feed','gemini-live-stop');
 contextBridge.exposeInMainWorld('hermes',{
   invoke:(method,payload)=>{
     if(!methods.includes(method)) return Promise.reject(new Error('Unbekannte Aktion.'));

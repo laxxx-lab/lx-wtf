@@ -10,6 +10,75 @@ function renderer(){
   return {context,calls,event:event=>handlers.forEach(fn=>fn(event)),run:code=>vm.runInContext(code,context),tick:()=>intervals.forEach(fn=>fn())};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
+
+test('Gemini Live uses the selected microphone without requiring the local VAD engine',async()=>{
+ const r=renderer();r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});return method==='gemini-live-start'?Promise.resolve({active:true,ready:true}):Promise.resolve();};
+ r.run("settings={speechProvider:'gemini',geminiCloudAllowed:true,microphoneDeviceId:'desk'};sessionInfo={id:'selected'};gatewayConnected=true;vadReady=false;");
+ await r.run('toggleMic(true)');
+ assert.equal(r.run('live'),true);assert.equal(r.run('capturing'),false);assert.equal(r.calls.find(c=>c.method==='gemini-live-start')?.value.sessionId,'selected');
+ r.context.samples=new Float32Array(2048).fill(.1);r.run('micProcessor.onaudioprocess({inputBuffer:{getChannelData:()=>samples}})');await settle();
+ const sent=r.calls.find(c=>c.method==='gemini-live-feed');assert.ok(sent);assert.equal(sent.value.sessionId,'selected');assert.equal(Buffer.from(sent.value.audio,'base64').length,1364);
+ assert.equal(r.calls.some(c=>c.method==='vad-feed'||c.method==='transcribe'),false);
+});
+
+test('cloud audio cannot start without explicit consent and does not silently fall back',async()=>{
+ const r=renderer();r.run("settings={speechProvider:'gemini',geminiCloudAllowed:false};sessionInfo={id:'selected'};gatewayConnected=true;vadReady=true;");await r.run('toggleMic(true)');
+ assert.equal(r.run('live'),false);assert.equal(r.run('micStream'),null);assert.equal(r.calls.some(c=>c.method==='gemini-live-start'),false);
+});
+
+test('stopping cloud Live stops its audio route immediately and ignores a late provider start',async()=>{
+ const r=renderer();let ready;r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});return method==='gemini-live-start'?new Promise(resolve=>ready=resolve):Promise.resolve();};
+ r.run("settings={speechProvider:'gemini',geminiCloudAllowed:true,wakeWord:false};sessionInfo={id:'selected'};gatewayConnected=true;");
+ const starting=r.run('toggleMic(true)');await settle();await r.run('toggleMic(false)');ready({active:true,ready:true});await starting;
+ assert.equal(r.run('live'),false);assert.equal(r.run('geminiLiveActive'),false);assert.equal(r.run('micStream'),null);assert.ok(r.calls.some(c=>c.method==='gemini-live-stop'));
+});
+
+test('a cloud stream never forwards microphone frames after the selected session changes',async()=>{
+ const r=renderer();r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});return Promise.resolve({active:true,ready:true});};
+ r.run("settings={speechProvider:'gemini',geminiCloudAllowed:true};sessionInfo={id:'selected'};gatewayConnected=true;");await r.run('toggleMic(true)');r.calls.length=0;
+ r.run("sessionInfo={id:'another'};");r.context.samples=new Float32Array(2048);r.run('micProcessor.onaudioprocess({inputBuffer:{getChannelData:()=>samples}})');await settle();
+ assert.equal(r.calls.some(c=>c.method==='gemini-live-feed'),false);assert.equal(r.run('live'),false);
+});
+
+test('cloud provider failure leaves the local mode inactive instead of replaying a request',async()=>{
+ const r=renderer();r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});return Promise.resolve({active:true,ready:true});};r.run("settings={speechProvider:'gemini',geminiCloudAllowed:true};sessionInfo={id:'selected'};gatewayConnected=true;");await r.run('toggleMic(true)');
+ r.event({type:'gemini-live-state',sessionId:'selected',geminiLive:{active:false,ready:false,error:'Verbindung unterbrochen'}});await settle();
+ assert.equal(r.run('live'),false);assert.equal(r.run('capturing'),false);assert.equal(r.calls.some(c=>c.method==='transcribe'||c.method==='submit'),false);
+});
+
+test('cloud credentials are cleared from the input before awaiting storage and never read back',async()=>{
+ const r=renderer();let finish;r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});return method==='gemini-live-configure'?new Promise(resolve=>finish=resolve):Promise.resolve();};
+ r.run("$('geminiApiKey').value='test-value-not-a-real-key';$('speechProvider').value='gemini';$('geminiCloudAllowed').checked=true;$('geminiVoice').value='Kore';");
+ const saving=r.run('configureGeminiLive()');assert.equal(r.run("$('geminiApiKey').value"),'');assert.equal(r.calls.find(c=>c.method==='gemini-live-configure').value.apiKey,'test-value-not-a-real-key');
+ finish({settings:{speechProvider:'gemini',geminiCloudAllowed:true},geminiLive:{configured:true,active:false}});await saving;
+ assert.equal(r.run("$('geminiApiKey').value"),'');assert.equal(r.calls.some(c=>c.method==='gemini-live-start'),false);
+});
+
+test('revoking cloud consent stops forwarding audio on the next frame',async()=>{
+ const r=renderer();r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});return Promise.resolve({active:true,ready:true});};
+ r.run("settings={speechProvider:'gemini',geminiCloudAllowed:true};sessionInfo={id:'selected'};gatewayConnected=true;");await r.run('toggleMic(true)');r.calls.length=0;
+ r.run('settings.geminiCloudAllowed=false;');r.context.samples=new Float32Array(2048);r.run('micProcessor.onaudioprocess({inputBuffer:{getChannelData:()=>samples}})');await settle();
+ assert.equal(r.calls.some(c=>c.method==='gemini-live-feed'),false);assert.equal(r.run('live'),false);
+});
+
+test('a second Live click cancels a pending Gemini start without stranding startup',async()=>{
+ const r=renderer();let ready;r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});return method==='gemini-live-start'?new Promise(resolve=>ready=resolve):Promise.resolve();};
+ r.run("settings={speechProvider:'gemini',geminiCloudAllowed:true,wakeWord:false};sessionInfo={id:'selected'};gatewayConnected=true;");
+ const pending=r.run('toggleLiveButton()');await settle();await r.run('toggleLiveButton()');ready({active:true,ready:true});await pending;
+ assert.equal(r.run('live'),false);assert.equal(r.run('geminiLiveStarting'),false);assert.equal(r.run('micStream'),null);
+});
+
+test('a stale cloud feed failure cannot stop a restarted stream in the same session',async()=>{
+ const r=renderer();let fail;r.context.hermes.invoke=(method,value)=>{r.calls.push({method,value});return method==='gemini-live-feed'?new Promise((_resolve,reject)=>fail=reject):Promise.resolve({active:true,ready:true});};
+ r.run("settings={speechProvider:'gemini',geminiCloudAllowed:true,wakeWord:false};sessionInfo={id:'selected'};gatewayConnected=true;");await r.run('toggleMic(true)');
+ r.context.samples=new Float32Array(2048);r.run('micProcessor.onaudioprocess({inputBuffer:{getChannelData:()=>samples}})');await r.run('toggleMic(false)');await r.run('toggleMic(true)');
+ fail(Error('old connection'));await settle();assert.equal(r.run('live'),true);assert.equal(r.run('geminiLiveActive'),true);
+});
+
+test('local VAD loss does not shut down an active cloud conversation',async()=>{
+ const r=renderer();r.context.hermes.invoke=()=>Promise.resolve({active:true,ready:true});r.run("settings={speechProvider:'gemini',geminiCloudAllowed:true};sessionInfo={id:'selected'};gatewayConnected=true;");await r.run('toggleMic(true)');
+ r.run("handleVad({type:'vad-ready',ready:false})");await settle();assert.equal(r.run('live'),true);
+});
 test('input diagnostics distinguish an armed silent capture from a stalled transcription',()=>{
  const r=renderer();r.run('live=true;capturing=true;speechStarted=false;vadReady=true;awaitingResume=false;');
  const armed=r.run('clientState()');assert.equal(armed.captureArmed,true);assert.equal(armed.capturing,false);assert.equal(armed.vadReady,true);

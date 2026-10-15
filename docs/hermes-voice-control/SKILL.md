@@ -3,6 +3,22 @@ name: hermes-voice-control
 description: "Bei Steuerung von Liliths Windows-App verwenden."
 ---
 
+# Optionaler Gemini-Live-Sprachmodus
+
+Unter Einstellungen → Sprache kann der Nutzer zwischen lokalem Live und
+Gemini Live wählen. Der Gemini-Schlüssel wird ausschließlich im lokalen
+Passwortfeld eingegeben und verschlüsselt lokal gespeichert. Nie per Chat,
+Steuerungs-API, Statusausgabe oder Repository nach einem Schlüssel fragen.
+Cloud-Zustimmung und API-Zugang sind erforderlich; Speichern startet keine
+Aufnahme. Der Live-Schalter startet/stoppt die Cloud-Audioverbindung.
+Aktivierungswort und Sprechtaste bleiben im lokalen Sprachweg. Eine
+Unterbrechung der Ausgabe stoppt keinen bereits angenommenen Hermes-Auftrag;
+dafür den bestätigten Auftrags-Stopp verwenden. Gemini kann Ergebnisse
+umformulieren. Maßgeblich bleiben echte Hermes-Aufträge und Werkzeugbelege.
+Datenschutz, Standby, Geräteübergabe und Sitzungswechsel schließen Live.
+Keine automatische Wiederholung eines Auftrags nach Verbindungsverlust.
+Details und Prüfgrenzen: `docs/gemini-live.md`.
+
 # Hermes Voice auf dem eigenen Windows-PC steuern
 
 ## Öffentliche Installation · 15.10.2026

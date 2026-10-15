@@ -69,6 +69,14 @@
       </section>
       <section class="speech-settings" aria-label="Sprachbedienung">
         <div class="workstation-heading"><span>SPRACHE / DIREKT</span><small>LOKAL</small></div>
+        <label>Live-Sprachmodus<select id="speechProvider"><option value="local">Lokal · bisherige Stimme</option><option value="gemini">Gemini Live · Cloud</option></select></label>
+        <small>Gemini gilt für den Live-Schalter. Aktivierungswort und Sprechtaste verwenden weiterhin den lokalen Sprachweg. Hermes behält deine Aufträge und Gespräche.</small>
+        <label class="check"><input id="geminiCloudAllowed" type="checkbox"> Sprache im Gemini-Live-Modus an Google übertragen</label>
+        <label>Eigener Gemini-API-Schlüssel<input id="geminiApiKey" type="password" maxlength="256" autocomplete="off" spellcheck="false" placeholder="Leer lassen, um den gespeicherten Schlüssel zu behalten"></label>
+        <label>Gemini-Stimme<select id="geminiVoice"><option value="Kore">Kore</option><option value="Aoede">Aoede</option><option value="Puck">Puck</option><option value="Charon">Charon</option></select></label>
+        <div class="workstation-actions"><button id="gemini-live-configure" type="button">Sprachmodus übernehmen</button><button id="gemini-live-forget" type="button">API-Schlüssel entfernen</button></div>
+        <small id="gemini-live-status">Eigenen API-Schlüssel lokal einrichten</small>
+        <small>Google-Kontingente und gegebenenfalls Kosten gelten. Es wird kein Billing eingerichtet. Erst „Live starten“ öffnet die Sprachverbindung. Lokale Sprache bleibt auswählbar.</small>
         <label class="check"><input id="directCommandsEnabled" type="checkbox" checked> Standardbefehle direkt ausführen</label>
         <small>Programme öffnen, Windows-Lautstärke, Audioausgabe und einfache Spotify-Aktionen. Titelsuche und komplexe Aufträge übernimmt Hermes.</small>
         <label class="check"><input id="localDialogueEnabled" type="checkbox" checked> Schnelle Gespräche lokal führen</label>
