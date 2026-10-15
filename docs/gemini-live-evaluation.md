@@ -31,6 +31,8 @@ für berufliche/geschäftliche Zwecke. Deshalb keine Zusage „kostenlos für al
 Hermes-Voice-Setup. Direkte Experimente in AI Studio und ein veröffentlichtes
 Sprachprodukt sind unterschiedliche Einsatzfälle. Keine kostenpflichtige
 Anbindung wurde durch diese Recherche aktiviert.
+Die Integration sollte die offizielle Live API verwenden. Eine fernbediente
+AI-Studio-Webseite ist kein verlässlicher Dienstanschluss für unsere Clients.
 
 Paid-Audio laut Preisliste: 0,005 USD pro Eingabeminute und 0,018 USD pro
 Ausgabeminute. Eine Stunde Eingang plus zehn Minuten Antwort entspricht rechnerisch
@@ -72,6 +74,10 @@ nach Annahme und „erledigt“ erst nach bestätigtem Ergebnis. Ein Gespräch d
 laufender Recherche weitergehen; es startet nicht versehentlich dieselbe Aktion
 erneut. Hermes-Antworten werden als Ergebnisdaten eingespielt, nicht als neue
 Benutzerbefehle. UI-Karten und Orb-Zustände kommen aus echten App-Ereignissen.
+Das ist ein Entwurf, keine bereits vorhandene Fähigkeit dieser Vorschau.
+Native Audio erzeugt eigene Antworten und kann Hermes-Ergebnisse umformulieren;
+für wortgetreues Vorlesen bleibt ein eigener TTS-Ausgabepfad sinnvoll. Angezeigte
+Ergebnisdaten und bestätigte Aktionen dürfen dabei nicht umgedeutet werden.
 
 [Function Calling](https://ai.google.dev/gemini-api/docs/live-api/tools) muss der
 Client selbst ausführen und beantworten. Das Modell erhält dadurch keine automatische

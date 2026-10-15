@@ -1,6 +1,6 @@
 # Hermes Voice installieren und wiederherstellen
 
-Die Version 0.2.0-preview.2 ist eine installierbare Desktop-Vorschau. Sie verbindet
+Die Version 0.2.0-preview.3 ist eine installierbare Desktop-Vorschau. Sie verbindet
 sich mit deinem vorhandenen Hermes, bringt aber keinen Ersatzagenten mit.
 Erforderlich ist ein Hermes-Gateway mit der Dashboard-/WebSocket-API dieses
 Clients (`/api/auth/ws-ticket`, `/api/ws`, Sessions und Prompt-RPC). Eine reine
@@ -31,7 +31,7 @@ die Anmeldung am Gateway vergibt keine pauschalen System- oder Adminrechte.
 
 ## Windows
 
-`Hermes-Voice-0.2.0-preview.2-win-x64.exe` aus der Veröffentlichung herunterladen
+`Hermes-Voice-0.2.0-preview.3-win-x64.exe` aus der Veröffentlichung herunterladen
 und starten. Das Setup installiert für deinen Benutzer und erstellt eine
 Desktopverknüpfung. Electron ist enthalten; Node.js oder Hermes Desktop werden
 für dieses Installationspaket nicht separat benötigt. Python 3.12 wird über
@@ -43,7 +43,7 @@ Windows-Sicherheitsoptionen oder Treiber verändert. Vor Start kann die Datei mi
 der veröffentlichten SHA256SUMS abgeglichen werden:
 
 ```powershell
-Get-FileHash .\Hermes-Voice-0.2.0-preview.2-win-x64.exe -Algorithm SHA256
+Get-FileHash .\Hermes-Voice-0.2.0-preview.3-win-x64.exe -Algorithm SHA256
 ```
 
 Für Quellinstallation im geklonten Repository:
@@ -64,7 +64,7 @@ speichern. Das Skript vor Ausführung ansehen. Kein Download wird in eine Shell
 gepiped. Auf dem angemeldeten Desktop:
 
 ```bash
-bash install-linux.sh --appimage "$HOME/Downloads/Hermes-Voice-0.2.0-preview.2-linux-x64.AppImage" --install-system
+bash install-linux.sh --appimage "$HOME/Downloads/Hermes-Voice-0.2.0-preview.3-linux-x64.AppImage" --install-system
 ```
 
 `--install-system` richtet ausdrücklich ausgewählte Debian-Systemvoraussetzungen
@@ -76,7 +76,7 @@ kann er an die Taskleiste angeheftet werden. `--autostart` ist optional.
 Alternativ löst das deb-Paket Abhängigkeiten über apt auf:
 
 ```bash
-bash install-linux.sh --deb "$HOME/Downloads/Hermes-Voice-0.2.0-preview.2-linux-x64.deb" --install-python
+bash install-linux.sh --deb "$HOME/Downloads/Hermes-Voice-0.2.0-preview.3-linux-x64.deb" --install-python
 ```
 
 Für einen verifizierten Download kann `--release-url` die konkrete HTTPS-Adresse

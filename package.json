@@ -1,6 +1,6 @@
 {
   "name": "hermes-voice-desktop",
-  "version": "0.2.0-preview.2",
+  "version": "0.2.0-preview.3",
   "private": true,
   "description": "Hermes Voice desktop client for your own Hermes gateway",
   "homepage": "https://github.com/laxxx-lab/lx-wtf",

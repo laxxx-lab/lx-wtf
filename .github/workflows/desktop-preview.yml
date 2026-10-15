@@ -73,3 +73,51 @@ jobs:
             dist/installers/*.zip
             dist/installers/SHA256SUMS
           if-no-files-found: error
+  release:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: hermes-voice-preview-*
+          path: dist/native-artifacts
+      - name: Verify native artifacts and prepare downloads
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, pathlib, shutil
+          source = pathlib.Path('dist/native-artifacts')
+          target = pathlib.Path('dist/release')
+          target.mkdir(parents=True)
+          def digest(path):
+              result = hashlib.sha256()
+              with path.open('rb') as stream:
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                      result.update(chunk)
+              return result.hexdigest()
+          count = 0
+          for manifest in source.glob('*/SHA256SUMS'):
+              for row in manifest.read_text().splitlines():
+                  expected, name = row.split('  ', 1)
+                  assert pathlib.PurePath(name).name == name
+                  artifact = manifest.parent / name
+                  assert artifact.is_file() and digest(artifact) == expected
+                  assert not (target / name).exists(), 'Duplicate artifact name'
+                  shutil.copyfile(artifact, target / name)
+                  count += 1
+          assert count == 5, f'Expected five native installers, received {count}'
+          for name in ['install-linux.sh', 'install-windows.ps1']:
+              shutil.copyfile(pathlib.Path('scripts') / name, target / name)
+          shutil.copyfile('docs/install.md', target / 'INSTALL.md')
+          files = sorted(target.iterdir())
+          (target / 'SHA256SUMS').write_text(''.join(f'{digest(path)}  {path.name}\n' for path in files))
+          print(f'Verified {count} native installer hashes; scripts and installation guide included.')
+          PY
+      - name: Publish verified preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/release/* --prerelease --title "Hermes Voice $GITHUB_REF_NAME" --notes-file docs/preview-release-notes.md
